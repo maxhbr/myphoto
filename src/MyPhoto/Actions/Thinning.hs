@@ -24,16 +24,6 @@ data Result
 instance A.FromJSON Result where
   parseJSON =  A.withObject "Reslt" $ \v ->
     Result <$> v A..: "SourceFile" <*> v A..: "CreateDate"
-{-
-[{
-  "SourceFile": "MAX09304.ARW",
-  "CreateDate": 1614512491
-},
-{
-  "SourceFile": "MAX09305.ARW",
-  "CreateDate": 1614512494
-}]
--}
 
 mkArgs :: [Img] -> [String]
 mkArgs imgs = ["-quiet", "-dateformat", "%s", "-json", "-CreateDate"] ++ imgs
@@ -57,8 +47,6 @@ thinningImpl duration imgs = do
   exitCode <- waitForProcess pHandle
   unless (exitCode == ExitSuccess) $
     fail ("Crop failed with " ++ show exitCode)
-
-  B.putStrLn bs
 
   case (A.eitherDecode bs :: Either String [Result]) of
     Right results -> return (Right (thinningOnResults duration results))
