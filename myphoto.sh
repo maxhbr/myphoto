@@ -23,7 +23,7 @@ stack --stack-yaml "$stackyaml"\
       build
 
 echo "run:..."
-stack --stack-yaml "$stackyaml" \
+time stack --stack-yaml "$stackyaml" \
       exec -- myphoto-exe \
       "pwd" "$curPwd" \
       "$@"

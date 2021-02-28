@@ -49,16 +49,6 @@ getMyOpts argv = case getOpt Permute options argv of
                    (o,n,[]  ) -> return (foldl (flip id) defaultOptions o, n)
                    (_,_,errs) -> ioError (userError (concat errs ++ help))
 
-getAlignArgs :: Options -> [String]
-getAlignArgs opts = let
-    -- if assuming linear color space '-l'
-    -- TODO: look at: https://photo.stackexchange.com/a/83179
-    colorSpaceArgs = ["-l"]
-    verbosityArgs = if optVerbose opts
-                    then ["-v"]
-                    else []
-  in colorSpaceArgs ++ verbosityArgs ++ ["--use-given-order", "-m"]
-
 callAlignImageStack :: [String] -> String -> [Img] -> IO [Img]
 callAlignImageStack alignArgs prefix imgs = let
     args = alignArgs ++ ["-a", prefix]
@@ -93,8 +83,16 @@ copyAndRenameImages renamer imgs = mapM (\(img, i) -> do
 
 alignImpl :: [String] -> [Img] -> PActionBody
 alignImpl args imgs = do
-  (opts, nonOpts) <- getMyOpts args
-  let alignArgs = getAlignArgs opts
+  (opts, _) <- getMyOpts args
+  -- TODO: look at: https://photo.stackexchange.com/a/83179
+  let alignArgs = [ "-v" | optVerbose opts ]
+               ++ [ "--use-given-order"
+                 , "-l" -- Assume linear input files
+                 , "-c", "20" -- number of control points (per grid) to create between adjacent images
+                 , "-s", "2"  -- Scale down image by 2^scale (default: 1 [2x downsampling])
+                 -- , "-i" -- Optimize image center shift for all images, except for first.
+                 -- , "-m" -- Optimize field of view for all images, except for first. Useful for aligning focus stacks with slightly different magnification.
+                 ]
 
   let prefix = dropExtension (head imgs)
       mkOutImgName :: Int -> String
