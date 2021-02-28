@@ -171,6 +171,7 @@ runEnfuse _ [img] = return (Right [img])
 runEnfuse (outFile, outArgsFun, enfuseArgs) imgs' = do
   putStrLn (">>>>>>>>>>>>>>>>>>>>>>>> start >> " ++ outFile)
   outArgs <- outArgsFun outFile
+  putStrLn (unwords ["$ enfuse", unwords (enfuseArgs ++ outArgs), "[img [img [...]]]"])
   (_, _, _, pHandle) <- createProcess (proc "enfuse" (enfuseArgs
                                                       ++ outArgs
                                                       ++ imgs'))
@@ -208,8 +209,8 @@ calculateNextChunkSize opts imgs = let
 stackImpl :: [String] -> [Img] -> PActionBody
 stackImpl args = let
 
-    stackImpl'' :: (MS.MSem Int) -> Options -> (Img, Img -> IO [String], [String]) -> [Img] -> PActionBody
-    stackImpl'' sem opts (outFile, outArgsFun, enfuseArgs) imgs = case (calculateNextChunkSize opts imgs) of
+    stackImpl'' :: MS.MSem Int -> Options -> (Img, Img -> IO [String], [String]) -> [Img] -> PActionBody
+    stackImpl'' sem opts (outFile, outArgsFun, enfuseArgs) imgs = case calculateNextChunkSize opts imgs of
       Nothing -> (MS.with sem . runEnfuse (outFile, outArgsFun, enfuseArgs)) imgs
       Just maxChunkSize -> let
           chunks = chunksOf maxChunkSize imgs
@@ -225,7 +226,7 @@ stackImpl args = let
             Right imgs -> stackImpl'' sem opts (outFile, outArgsFun, enfuseArgs) imgs
             err        -> return err
 
-    stackImpl' :: (MS.MSem Int) -> Options -> [Img] -> PActionBody
+    stackImpl' :: MS.MSem Int -> Options -> [Img] -> PActionBody
     stackImpl' sem opts imgs = let
         enfuseArgs = getEnfuseArgs opts
       in do
