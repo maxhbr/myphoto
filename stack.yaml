@@ -1,6 +1,6 @@
-resolver: lts-15.3
+resolver: lts-17.2
 packages:
 - .
 nix:
-  packages: [dcraw, enblend-enfuse, hugin, imagemagick, fgallery, sxiv, libffi] 
+  packages: [dcraw, enblend-enfuse, hugin, imagemagick, fgallery, sxiv, libffi, exiftool] 
 

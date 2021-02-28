@@ -32,6 +32,8 @@ dependencies:
 - async
 - SafeSemaphore
 - split
+- aeson
+- bytestring
 
 library:
   source-dirs: src

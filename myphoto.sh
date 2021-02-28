@@ -2,6 +2,8 @@
 
 set -e
 
+export NIXPKGS_ALLOW_INSECURE=1
+
 curPwd="$(pwd)"
 root="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 stackyaml="$root/stack.yaml"

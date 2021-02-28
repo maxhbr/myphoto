@@ -28,6 +28,7 @@ import MyPhoto.Actions.Show as X
 import MyPhoto.Actions.Wait as X
 import MyPhoto.Actions.Pwd as X
 import MyPhoto.Actions.Skip as X
+import MyPhoto.Actions.Thinning as X
 
 actions :: Map String PrePAction
 actions = Map.fromList [ ("unraw", unRAW)
@@ -35,6 +36,7 @@ actions = Map.fromList [ ("unraw", unRAW)
                        , ("tojpg", toJPG)
                        , ("crop", crop)
                        , ("copy", copyPAct)
+                       , ("thinning", thinningPAct)
                        , ("align", align)
                        , ("stack", stack)
                        , ("wait", waitPAct)
