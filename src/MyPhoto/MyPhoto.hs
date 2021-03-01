@@ -80,18 +80,14 @@ help = do
               _        -> mempty
             ) (Map.assocs actions)
 
-runMyPhoto :: IO ()
-runMyPhoto = do
-  args <- getArgs
-
-  when (args == ["-h"]) $ do
-    help
-    exitSuccess
-
-  let args' = case args of
+applyHigherOrderArgs :: [String] -> [String]
+applyHigherOrderArgs []            = []
+applyHigherOrderArgs args@("--":_) = args
+applyHigherOrderArgs args          = case args of
         ("autostack":oArgs) ->
           [ "skip", "1"
           , "breaking", "20"
+          , "thinning", "1"
           , "align"
           , "untiff", "--rm"
           , "stack"
@@ -105,7 +101,18 @@ runMyPhoto = do
           , "untiff", "--rm"
           , "stack"
           ] ++ oArgs
-        oArgs -> oArgs
+        arg:oArgs -> arg : (applyHigherOrderArgs oArgs)
+
+
+runMyPhoto :: IO ()
+runMyPhoto = do
+  args <- getArgs
+
+  when (args == ["-h"]) $ do
+    help
+    exitSuccess
+
+  let args' = applyHigherOrderArgs args
 
   let (act, imgs) = composeActions args'
   result <- runPAction act imgs

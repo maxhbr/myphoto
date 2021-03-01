@@ -48,9 +48,9 @@ thinningOnResults _        []     = []
 thinningOnResults duration ((r@(Result img _)):rs) = let
     thinningOnResults' imgs' _ []                                            = imgs'
     thinningOnResults' imgs' (r1'@(Result _ time1)) ((r2'@(Result img' time2)):rs') = 
-      if (abs (time1 - time2)) > duration
+      if abs (time1 - time2) > duration
         then thinningOnResults' (imgs' ++ [img']) (r2') rs'
-        else thinningOnResults' imgs' (r1') rs'
+        else thinningOnResults' imgs' r1' rs'
   in thinningOnResults' [img] r rs
 
 thinningImpl :: Int -> [Img] -> PActionBody
@@ -68,9 +68,9 @@ breakingOnResults _        []     = []
 breakingOnResults gap ((r@(Result img _)):rs) = let
     breakingOnResults' imgs' _ []                                            = imgs'
     breakingOnResults' imgs' (r1'@(Result _ time1)) ((r2'@(Result img' time2)):rs') =
-      if (abs (time1 - time2)) > gap
+      if abs (time1 - time2) > gap
         then imgs'
-        else breakingOnResults' imgs' (r1') rs'
+        else breakingOnResults' (imgs' ++ [img']) r2' rs'
   in breakingOnResults' [img] r rs
 
 breakingImpl :: Int -> [Img] -> PActionBody
