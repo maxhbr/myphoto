@@ -22,13 +22,14 @@ import MyPhoto.Actions.UnTiff as X
 import MyPhoto.Actions.ToJPG as X
 import MyPhoto.Actions.Crop as X
 import MyPhoto.Actions.Copy as X
+import MyPhoto.Actions.Thinning as X
+import MyPhoto.Actions.Outliers as X
 import MyPhoto.Actions.Align as X
 import MyPhoto.Actions.Stack as X
 import MyPhoto.Actions.Show as X
 import MyPhoto.Actions.Wait as X
 import MyPhoto.Actions.Pwd as X
 import MyPhoto.Actions.Skip as X
-import MyPhoto.Actions.Thinning as X
 
 actions :: Map String PrePAction
 actions = Map.fromList [ ("unraw", unRAW)
@@ -38,6 +39,7 @@ actions = Map.fromList [ ("unraw", unRAW)
                        , ("copy", copyPAct)
                        , ("thinning", thinningPAct)
                        , ("breaking", breakingPAct)
+                       , ("rmoutliers", rmOutliers)
                        , ("align", align)
                        , ("stack", stack)
                        , ("wait", waitPAct)
@@ -87,6 +89,7 @@ applyHigherOrderArgs args          = case args of
         ("autostack":oArgs) ->
           [ "skip", "1"
           , "breaking", "20"
+          , "rmoutliers"
           , "thinning", "1"
           , "align"
           , "untiff", "--rm"
@@ -95,6 +98,8 @@ applyHigherOrderArgs args          = case args of
         ("autostackraw":oArgs) ->
           [ "skip", "1"
           , "breaking", "20"
+          , "rmoutliers"
+          , "thinning", "1"
           , "unraw", "--wb1"
           , "untiff", "--rm"
           , "align"
@@ -103,6 +108,9 @@ applyHigherOrderArgs args          = case args of
           ] ++ oArgs
         arg:oArgs -> arg : (applyHigherOrderArgs oArgs)
 
+
+printArgs :: [String] -> IO ()
+printArgs args = putStrLn ((unwords (takeWhile (/= "--") args)) ++ " -- [img [img ...]]")
 
 runMyPhoto :: IO ()
 runMyPhoto = do
@@ -113,6 +121,8 @@ runMyPhoto = do
     exitSuccess
 
   let args' = applyHigherOrderArgs args
+
+  printArgs args'
 
   let (act, imgs) = composeActions args'
   result <- runPAction act imgs

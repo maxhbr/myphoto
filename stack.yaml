@@ -2,5 +2,4 @@ resolver: lts-17.2
 packages:
 - .
 nix:
-  packages: [dcraw, enblend-enfuse, hugin, imagemagick, fgallery, sxiv, libffi, exiftool] 
-
+  packages: [dcraw, enblend-enfuse, hugin, imagemagick, fgallery, sxiv, libffi, exiftool]
