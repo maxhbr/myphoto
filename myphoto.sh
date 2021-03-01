@@ -8,6 +8,12 @@ curPwd="$(pwd)"
 root="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 stackyaml="$root/stack.yaml"
 
+( cd $root;
+  if [[ -z "$(git status --porcelain)" ]]; then
+    git pull
+  fi
+)
+
 trap times EXIT
 
 if [[ "$1" == "init" ]]; then
