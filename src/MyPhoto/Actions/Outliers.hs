@@ -34,31 +34,38 @@ computImgVecs tmpdir img = do
     fail ("Resize failed with " ++ show exitCode)
 
 
-  ppmResult <- fmap parsePPM $ B.readFile ppmFile
+  ppmResult <- parsePPM <$> B.readFile ppmFile
   case ppmResult of
     Right ([ppmImg],_) -> let
-        imgVec = ((pixelDataToIntList . ppmData) ppmImg)
+        imgVec = (pixelDataToIntList . ppmData) ppmImg
       in return (img, imgVec)
     Left err           -> fail ("PPM parsing failed with " ++ err)
 
 
 rmOutliersImpl :: Double -> [Img] -> PActionBody
 rmOutliersImpl maxDist imgs@(img1:_) = let
-    dropByDistances :: [(Img, [Int])] -> [Int] -> [Img]
-    dropByDistances [] lastVec = []
+    dropByDistances :: [(Img, [Int])] -> [Int] -> IO [Img]
+    dropByDistances [] lastVec = return []
     dropByDistances ((img, curVec):imgsWithVecs) lastVec = let
         dist = calculateDistance lastVec curVec
       in if dist < maxDist
-         then img : (dropByDistances imgsWithVecs curVec)
-         else dropByDistances imgsWithVecs lastVec
+         then do
+           fmap (img :) (dropByDistances imgsWithVecs curVec)
+         else do
+           putStrLn ("drop " ++ img ++ " with dist " ++ (show dist))
+           dropByDistances imgsWithVecs lastVec
   in do
     withTempDirectory (takeDirectory img1) "_outliers.tmp"
       (\tmpdir -> do
           imgsWithVecs <- mapM (computImgVecs tmpdir) imgs
-          return (Right (dropByDistances imgsWithVecs []))
+          imgsWithoutOutliers <- dropByDistances imgsWithVecs []
+          return (Right imgsWithoutOutliers)
         )
 
+help :: PAction
+help = PAction $ \_ -> pure (Left "Usage: rmoutliers [dist] files...")
 rmOutliers :: PrePAction
-rmOutliers ("-h":_) = PAction $ \_ -> pure (Left "Usage: rmoutliers [dist] files...")
-rmOutliers []       = logSeparator "rmoutliers" <> PAction (rmOutliersImpl 100)
+rmOutliers ("-h":_) = help
+rmOutliers []       = logSeparator "rmoutliers" <> PAction (rmOutliersImpl 10)
 rmOutliers [dist]   = logSeparator "rmoutliers" <> PAction (rmOutliersImpl (read dist))
+rmOutliers _        = help
