@@ -83,7 +83,8 @@ copyAndRenameImages renamer imgs = mapM (\(img, i) -> do
                                             return altOut) (zip imgs [1..])
 
 alignImpl :: [String] -> [Img] -> PActionBody
-alignImpl args imgs = do
+alignImpl _    []   = return (Right [])
+alignImpl args imgs@(img1:_) = do
   (opts, _) <- getMyOpts args
   -- TODO: look at: https://photo.stackexchange.com/a/83179
   let alignArgs = [ "-v" | optVerbose opts ]
@@ -100,17 +101,19 @@ alignImpl args imgs = do
       mkOutImgName :: Int -> String
       mkOutImgName i = printf (prefix ++ "_ALIGN-%04d-%04d.tif") i (length imgs)
 
-  withSystemTempDirectory "myphoto.tmp"
-    (\tmpdir -> do
-        imgsInTmp <- callAlignImageStackByHalves alignArgs tmpdir imgs
-        mapM_ (\fn -> do
-                  fnExists <- doesFileExist fn
-                  unless fnExists $
-                    fail ("the file " ++ fn ++ " should exist after align")
-              ) imgsInTmp
-        outs <- copyAndRenameImages mkOutImgName imgsInTmp
-        return (Right outs)
-      )
+  let tmpdir = takeDirectory img1 </> "align_tmpdir_" ++ show (length imgs)
+
+  -- withSystemTempDirectory "myphoto.tmp"
+  --   (\tmpdir -> do
+  imgsInTmp <- callAlignImageStackByHalves alignArgs tmpdir imgs
+  mapM_ (\fn -> do
+            fnExists <- doesFileExist fn
+            unless fnExists $
+              fail ("the file " ++ fn ++ " should exist after align")
+          ) imgsInTmp
+  outs <- copyAndRenameImages mkOutImgName imgsInTmp
+  return (Right outs)
+      -- )
 
 align :: PrePAction
 align ["-h"] = PAction (\_ -> pure (Left help))
