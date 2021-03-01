@@ -37,6 +37,7 @@ actions = Map.fromList [ ("unraw", unRAW)
                        , ("crop", crop)
                        , ("copy", copyPAct)
                        , ("thinning", thinningPAct)
+                       , ("breaking", breakingPAct)
                        , ("align", align)
                        , ("stack", stack)
                        , ("wait", waitPAct)
@@ -67,6 +68,8 @@ composeActions = let
 help :: IO ()
 help = do
   putStrLn "myphoto action [actArg [actArg ..]] [action [actArg [actArg ..]] ..] -- [img [img ...]]"
+  putStrLn "myphoto autostack -- [img [img ...]]"
+  putStrLn "myphoto autostackraw -- [img [img ...]]"
   putStrLn ""
   mapM_ (\(k,preAct) -> do
             putStrLn ""
@@ -85,7 +88,26 @@ runMyPhoto = do
     help
     exitSuccess
 
-  let (act, imgs) = composeActions args
+  let args' = case args of
+        ("autostack":oArgs) ->
+          [ "skip", "1"
+          , "breaking", "20"
+          , "align"
+          , "untiff", "--rm"
+          , "stack"
+          ] ++ oArgs
+        ("autostackraw":oArgs) ->
+          [ "skip", "1"
+          , "breaking", "20"
+          , "unraw", "--wb1"
+          , "untiff", "--rm"
+          , "align"
+          , "untiff", "--rm"
+          , "stack"
+          ] ++ oArgs
+        oArgs -> oArgs
+
+  let (act, imgs) = composeActions args'
   result <- runPAction act imgs
   case result of
     Left err   -> putStrLn err
