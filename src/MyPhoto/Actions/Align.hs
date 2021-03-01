@@ -101,20 +101,17 @@ alignImpl args imgs@(img1:_) = do
       mkOutImgName :: Int -> String
       mkOutImgName i = printf (prefix ++ "_ALIGN-%04d-%04d.tif") i (length imgs)
 
-  let tmpdir = takeDirectory img1 </> "align_tmpdir_" ++ show (length imgs)
-  createDirectoryIfMissing True tmpdir
-
-  -- withSystemTempDirectory "myphoto.tmp"
-  --   (\tmpdir -> do
-  imgsInTmp <- callAlignImageStackByHalves alignArgs tmpdir imgs
-  mapM_ (\fn -> do
-            fnExists <- doesFileExist fn
-            unless fnExists $
-              fail ("the file " ++ fn ++ " should exist after align")
-          ) imgsInTmp
-  outs <- copyAndRenameImages mkOutImgName imgsInTmp
-  return (Right outs)
-      -- )
+  withTempDirectory (takeDirectory img1) ("_align_" ++ show (length imgs) ++ ".tmp")
+    (\tmpdir -> do
+        imgsInTmp <- callAlignImageStackByHalves alignArgs tmpdir imgs
+        mapM_ (\fn -> do
+                fnExists <- doesFileExist fn
+                unless fnExists $
+                  fail ("the file " ++ fn ++ " should exist after align")
+                ) imgsInTmp
+        outs <- copyAndRenameImages mkOutImgName imgsInTmp
+        return (Right outs)
+      )
 
 align :: PrePAction
 align ["-h"] = PAction (\_ -> pure (Left help))
