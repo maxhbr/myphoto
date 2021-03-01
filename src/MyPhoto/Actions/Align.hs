@@ -102,6 +102,7 @@ alignImpl args imgs@(img1:_) = do
       mkOutImgName i = printf (prefix ++ "_ALIGN-%04d-%04d.tif") i (length imgs)
 
   let tmpdir = takeDirectory img1 </> "align_tmpdir_" ++ show (length imgs)
+  createDirectoryIfMissing True tmpdir
 
   -- withSystemTempDirectory "myphoto.tmp"
   --   (\tmpdir -> do
