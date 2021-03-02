@@ -117,6 +117,7 @@ alignImpl args imgs@(img1:_) = do
     withTempDirectory (takeDirectory img1) ("_align_" ++ show (length imgs) ++ ".tmp")
       (\tmpdir -> do
           imgsInTmp <- callAlignImageStackByHalves alignArgs tmpdir imgs
+
           imgsInTmp' <- concat <$> mapM (
             \fn -> let
               msg = "the file " ++ fn ++ " should exist after align"
@@ -130,6 +131,7 @@ alignImpl args imgs@(img1:_) = do
                   else fail msg
                 return []
               ) imgsInTmp
+
           outs <- copyAndRenameImages mkOutImgName imgsInTmp'
           return (Right outs)
         )
