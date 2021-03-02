@@ -17,15 +17,17 @@ import MyPhoto.Utils
 
 data Options
   = Options
-  { optVerbose      :: Bool
-  , optHelp         :: Bool
+  { optVerbose :: Bool
+  , optHelp    :: Bool
+  , optForce   :: Bool
   } deriving Show
 
 defaultOptions :: Options
 defaultOptions
   = Options
-  { optVerbose      = False
-  , optHelp         = False
+  { optVerbose = False
+  , optHelp    = False
+  , optForce   = False
   }
 
 options :: [OptDescr (Options -> Options)]
@@ -33,6 +35,9 @@ options =
   [ Option ['v'] ["verbose"]
       (NoArg (\ opts -> opts { optVerbose = True }))
       "chatty output on stderr"
+  , Option ['f'] ["force"]
+      (NoArg (\ opts -> opts { optForce = True }))
+      "do not fail if imgs are missing"
   , Option ['h'] ["help"]
       (NoArg (\ opts -> opts { optHelp = True }))
       "print help"
@@ -104,12 +109,20 @@ alignImpl args imgs@(img1:_) = do
   withTempDirectory (takeDirectory img1) ("_align_" ++ show (length imgs) ++ ".tmp")
     (\tmpdir -> do
         imgsInTmp <- callAlignImageStackByHalves alignArgs tmpdir imgs
-        mapM_ (\fn -> do
-                fnExists <- doesFileExist fn
-                unless fnExists $
-                  fail ("the file " ++ fn ++ " should exist after align")
-                ) imgsInTmp
-        outs <- copyAndRenameImages mkOutImgName imgsInTmp
+        imgsInTmp' <- concat <$> mapM (
+          \fn -> let
+            msg = "the file " ++ fn ++ " should exist after align"
+          in do
+            fnExists <- doesFileExist fn
+            if fnExists
+              then return [fn]
+              else do
+              if optForce opts
+                then putStrLn ("WARN: " ++ msg)
+                else fail msg
+              return []
+            ) imgsInTmp
+        outs <- copyAndRenameImages mkOutImgName imgsInTmp'
         return (Right outs)
       )
 

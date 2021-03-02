@@ -92,7 +92,7 @@ applyHigherOrderArgs args          = case args of
           , "breaking", "20"
           , "rmoutliers"
           , "thinning", "1"
-          , "align"
+          , "align", "-f"
           , "untiff", "--rm"
           , "stack"
           ] ++ oArgs
@@ -103,7 +103,7 @@ applyHigherOrderArgs args          = case args of
           , "thinning", "1"
           , "unraw", "--wb1"
           , "untiff", "--rm"
-          , "align"
+          , "align", "-f"
           , "untiff", "--rm"
           , "stack"
           ] ++ oArgs
