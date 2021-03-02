@@ -106,5 +106,4 @@ rmOutliersImpl args imgs@(img1:_) = let
           return (Right imgsWithoutOutliers)
         )
 rmOutliers :: PrePAction
-rmOutliers ("-h":_) = help
 rmOutliers args     = logSeparator "rmoutliers" <> PAction (rmOutliersImpl args)
