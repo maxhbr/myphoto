@@ -164,7 +164,7 @@ getOutArguments opts img = let
                in do
                  when (optSaveMasks opts) $
                    createDirectoryIfMissing True outMasksFolder
-                 return (( "--output=" ++ outFile ++ "" ) : ["--save-masks=\"" ++ outMasksFolder ++ "/softmask-%04n.tif:" ++ outMasksFolder ++ "/hardmask-%04n.tif\"" | optSaveMasks opts]))
+                 return (["--save-masks=\"" ++ outMasksFolder ++ "/softmask-%04n.tif:" ++ outMasksFolder ++ "/hardmask-%04n.tif\"" | optSaveMasks opts] ++ ["--output=" ++ outFile] ))
 
 runEnfuse :: (Img, Img -> IO [String], [String]) -> [Img] -> PActionBody
 runEnfuse _ [img] = return (Right [img])

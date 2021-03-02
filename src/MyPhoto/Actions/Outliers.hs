@@ -83,9 +83,11 @@ computImgVecs size tmpdir img = do
         imgVec = (pixelDataToIntList . ppmData) ppmImg
       in return (img, imgVec)
     Left err           -> fail ("PPM parsing failed with " ++ err)
+    _                  -> fail "PPM parsing failed"
 
 
 rmOutliersImpl :: [String] -> [Img] -> PActionBody
+rmOutliersImpl _    []            = return (Right [])
 rmOutliersImpl args imgs@(img1:_) = let
     dropByDistances :: Double -> [(Img, [Int])] -> [Int] -> IO [Img]
     dropByDistances _ []                                 _       = return []
@@ -95,7 +97,7 @@ rmOutliersImpl args imgs@(img1:_) = let
          then do
            fmap (img :) (dropByDistances maxDist imgsWithVecs curVec)
          else do
-           putStrLn ("drop " ++ img ++ " with dist " ++ (show dist))
+           putStrLn ("drop " ++ img ++ " with dist " ++ show dist)
            dropByDistances maxDist imgsWithVecs lastVec
   in do
     (opts, _) <- getMyOpts args
