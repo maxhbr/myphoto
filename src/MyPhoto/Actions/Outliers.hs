@@ -101,6 +101,7 @@ rmOutliersImpl args imgs@(img1:_) = let
            dropByDistances maxDist imgsWithVecs lastVec
   in do
     (opts, _) <- getMyOpts args
+    print opts
     withTempDirectory (takeDirectory img1) "_outliers.tmp"
       (\tmpdir -> do
           imgsWithVecs <- mapM (computImgVecs (optSize opts) tmpdir) imgs
