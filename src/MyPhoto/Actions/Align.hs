@@ -18,16 +18,16 @@ import MyPhoto.Utils
 data Options
   = Options
   { optVerbose :: Bool
-  , optHelp    :: Bool
   , optForce   :: Bool
+  , optHelp    :: Bool
   } deriving Show
 
 defaultOptions :: Options
 defaultOptions
   = Options
   { optVerbose = False
-  , optHelp    = False
   , optForce   = False
+  , optHelp    = False
   }
 
 options :: [OptDescr (Options -> Options)]

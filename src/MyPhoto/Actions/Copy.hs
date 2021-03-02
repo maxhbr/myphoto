@@ -47,5 +47,5 @@ linkImpl target imgs = do
 
 linkPAct :: PrePAction
 linkPAct ["-h"]   = help
-linkPAct [target] = logSeparator ("Run copy (to " ++ target ++")") <> PAction (copyImpl target)
+linkPAct [target] = logSeparator ("Run link (to " ++ target ++")") <> PAction (linkImpl target)
 linkPAct _        = help
