@@ -91,40 +91,43 @@ alignImpl :: [String] -> [Img] -> PActionBody
 alignImpl _    []   = return (Right [])
 alignImpl args imgs@(img1:_) = do
   (opts, _) <- getMyOpts args
-  -- TODO: look at: https://photo.stackexchange.com/a/83179
-  let alignArgs = [ "-v" | optVerbose opts ]
-               ++ [ "--use-given-order"
-                 , "-l" -- Assume linear input files
-                 , "-c", "20" -- number of control points (per grid) to create between adjacent images
-                 , "-s", "2"  -- Scale down image by 2^scale (default: 1 [2x downsampling])
-                 -- , "-i" -- Optimize image center shift for all images, except for first.
-                 -- , "-m" -- Optimize field of view for all images, except for first. Useful for aligning focus stacks with slightly different magnification.
-                 , "--gpu" -- Use GPU for remapping
-                 ]
+  if optHelp opts
+  then return (Left help)
+  else do
+    -- TODO: look at: https://photo.stackexchange.com/a/83179
+    let alignArgs = [ "-v" | optVerbose opts ]
+                 ++ [ "--use-given-order"
+                   , "-l" -- Assume linear input files
+                   , "-c", "20" -- number of control points (per grid) to create between adjacent images
+                   , "-s", "2"  -- Scale down image by 2^scale (default: 1 [2x downsampling])
+                   -- , "-i" -- Optimize image center shift for all images, except for first.
+                   -- , "-m" -- Optimize field of view for all images, except for first. Useful for aligning focus stacks with slightly different magnification.
+                   , "--gpu" -- Use GPU for remapping
+                   ]
 
-  let prefix = dropExtension (head imgs)
-      mkOutImgName :: Int -> String
-      mkOutImgName i = printf (prefix ++ "_ALIGN-%04d-%04d.tif") i (length imgs)
+    let prefix = dropExtension (head imgs)
+        mkOutImgName :: Int -> String
+        mkOutImgName i = printf (prefix ++ "_ALIGN-%04d-%04d.tif") i (length imgs)
 
-  withTempDirectory (takeDirectory img1) ("_align_" ++ show (length imgs) ++ ".tmp")
-    (\tmpdir -> do
-        imgsInTmp <- callAlignImageStackByHalves alignArgs tmpdir imgs
-        imgsInTmp' <- concat <$> mapM (
-          \fn -> let
-            msg = "the file " ++ fn ++ " should exist after align"
-          in do
-            fnExists <- doesFileExist fn
-            if fnExists
-              then return [fn]
-              else do
-              if optForce opts
-                then putStrLn ("WARN: " ++ msg)
-                else fail msg
-              return []
-            ) imgsInTmp
-        outs <- copyAndRenameImages mkOutImgName imgsInTmp'
-        return (Right outs)
-      )
+    withTempDirectory (takeDirectory img1) ("_align_" ++ show (length imgs) ++ ".tmp")
+      (\tmpdir -> do
+          imgsInTmp <- callAlignImageStackByHalves alignArgs tmpdir imgs
+          imgsInTmp' <- concat <$> mapM (
+            \fn -> let
+              msg = "the file " ++ fn ++ " should exist after align"
+            in do
+              fnExists <- doesFileExist fn
+              if fnExists
+                then return [fn]
+                else do
+                if optForce opts
+                  then putStrLn ("WARN: " ++ msg)
+                  else fail msg
+                return []
+              ) imgsInTmp
+          outs <- copyAndRenameImages mkOutImgName imgsInTmp'
+          return (Right outs)
+        )
 
 align :: PrePAction
 align ["-h"] = PAction (\_ -> pure (Left help))

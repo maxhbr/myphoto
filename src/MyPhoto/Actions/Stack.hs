@@ -235,22 +235,25 @@ stackImpl args = let
 
   in \imgs -> do
     (opts, _) <- getMyOpts args
-    sem <- MS.new (fromMaybe 1 (optConcurrent opts)) -- semathore to limit number of parallel threads
-    if optAll opts
-      then do
-        results <- mapConcurrently (\opts' -> stackImpl' sem opts' imgs)
-          [ opts {optAll = False, optProjection = Proj1, optOpts = Opts1}
-          , opts {optAll = False, optProjection = Proj1, optOpts = Opts2}
-          , opts {optAll = False, optProjection = Proj1, optOpts = Opts3}
-          , opts {optAll = False, optProjection = Proj2, optOpts = Opts1}
-          , opts {optAll = False, optProjection = Proj2, optOpts = Opts2}
-          , opts {optAll = False, optProjection = Proj2, optOpts = Opts3}
-          , opts {optAll = False, optProjection = Proj3, optOpts = Opts1}
-          , opts {optAll = False, optProjection = Proj3, optOpts = Opts2}
-          , opts {optAll = False, optProjection = Proj3, optOpts = Opts3}
-          ]
-        return (foldl foldResults (Right []) results)
-      else stackImpl' sem opts imgs
+    if optHelp opts
+    then return (Left help)
+    else do
+      sem <- MS.new (fromMaybe 1 (optConcurrent opts)) -- semathore to limit number of parallel threads
+      if optAll opts
+        then do
+          results <- mapConcurrently (\opts' -> stackImpl' sem opts' imgs)
+            [ opts {optAll = False, optProjection = Proj1, optOpts = Opts1}
+            , opts {optAll = False, optProjection = Proj1, optOpts = Opts2}
+            , opts {optAll = False, optProjection = Proj1, optOpts = Opts3}
+            , opts {optAll = False, optProjection = Proj2, optOpts = Opts1}
+            , opts {optAll = False, optProjection = Proj2, optOpts = Opts2}
+            , opts {optAll = False, optProjection = Proj2, optOpts = Opts3}
+            , opts {optAll = False, optProjection = Proj3, optOpts = Opts1}
+            , opts {optAll = False, optProjection = Proj3, optOpts = Opts2}
+            , opts {optAll = False, optProjection = Proj3, optOpts = Opts3}
+            ]
+          return (foldl foldResults (Right []) results)
+        else stackImpl' sem opts imgs
 
 stack :: PrePAction
 stack ["-h"] = PAction (\_ -> pure (Left help))

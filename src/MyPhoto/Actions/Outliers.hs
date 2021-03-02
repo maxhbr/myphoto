@@ -14,7 +14,7 @@ import           System.FilePath
 import           System.Process
 import           Graphics.Netpbm
 import qualified Data.ByteString as B
-import           Data.Maybe (fromMaybe)
+import           Data.Maybe (maybe)
 
 import MyPhoto.Model
 import MyPhoto.Utils
@@ -37,17 +37,17 @@ defaultOptions
   = Options
   { optMaxDistance = 15
   , optSize        = 6
-  , optHelp        = True
+  , optHelp        = False
   }
 
 options :: [OptDescr (Options -> Options)]
 options =
   [ Option ['d'] ["maxDistance"]
-      (OptArg ((\ d opts -> opts { optMaxDistance = d }) . fromMaybe (optMaxDistance defaultOptions) . fmap read)
+      (OptArg ((\ d opts -> opts { optMaxDistance = d }) . maybe (optMaxDistance defaultOptions) read)
         "DISTANCE")
       "maximum distance to allow"
   , Option ['s'] ["size"]
-      (OptArg ((\ s opts -> opts { optSize = s }) . fromMaybe (optSize defaultOptions) . fmap read)
+      (OptArg ((\ s opts -> opts { optSize = s }) . maybe (optSize defaultOptions) read)
         "SIZE")
       "size of reduced image"
   , Option ['h'] ["help"]
@@ -101,12 +101,13 @@ rmOutliersImpl args imgs@(img1:_) = let
            dropByDistances maxDist imgsWithVecs lastVec
   in do
     (opts, _) <- getMyOpts args
-    print opts
-    withTempDirectory (takeDirectory img1) "_outliers.tmp"
-      (\tmpdir -> do
-          imgsWithVecs <- mapM (computImgVecs (optSize opts) tmpdir) imgs
-          imgsWithoutOutliers <- dropByDistances (optMaxDistance opts) imgsWithVecs []
-          return (Right imgsWithoutOutliers)
-        )
+    if optHelp opts
+    then return (Left help)
+    else withTempDirectory (takeDirectory img1) "_outliers.tmp"
+           (\tmpdir -> do
+               imgsWithVecs <- mapM (computImgVecs (optSize opts) tmpdir) imgs
+               imgsWithoutOutliers <- dropByDistances (optMaxDistance opts) imgsWithVecs []
+               return (Right imgsWithoutOutliers)
+             )
 rmOutliers :: PrePAction
 rmOutliers args     = logSeparator "rmoutliers" <> PAction (rmOutliersImpl args)
