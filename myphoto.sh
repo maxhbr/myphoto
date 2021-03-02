@@ -28,8 +28,14 @@ fi
 stack --stack-yaml "$stackyaml"\
       build
 
-echo "run:..."
-time stack --stack-yaml "$stackyaml" \
-      exec -- myphoto-exe \
-      "pwd" "$curPwd" \
-      "$@"
+if [[ "$1" == "-h" ]]; then
+  time stack --stack-yaml "$stackyaml" \
+        exec -- myphoto-exe \
+        -h
+else
+  echo "run:..."
+  time stack --stack-yaml "$stackyaml" \
+        exec -- myphoto-exe \
+        "pwd" "$curPwd" \
+        "$@"
+fi

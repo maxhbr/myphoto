@@ -37,6 +37,7 @@ actions = Map.fromList [ ("unraw", unRAW)
                        , ("tojpg", toJPG)
                        , ("crop", crop)
                        , ("copy", copyPAct)
+                       , ("link", linkPAct)
                        , ("thinning", thinningPAct)
                        , ("breaking", breakingPAct)
                        , ("rmoutliers", rmOutliers)
@@ -106,11 +107,11 @@ applyHigherOrderArgs args          = case args of
           , "untiff", "--rm"
           , "stack"
           ] ++ oArgs
-        arg:oArgs -> arg : (applyHigherOrderArgs oArgs)
+        arg:oArgs -> arg : applyHigherOrderArgs oArgs
 
 
 printArgs :: [String] -> IO ()
-printArgs args = putStrLn ((unwords (takeWhile (/= "--") args)) ++ " -- [img [img ...]]")
+printArgs args = putStrLn (unwords (takeWhile (/= "--") args) ++ " -- [img [img ...]]")
 
 runMyPhoto :: IO ()
 runMyPhoto = do
