@@ -35,7 +35,7 @@ data Options
 defaultOptions :: Options
 defaultOptions
   = Options
-  { optMaxDistance = 15
+  { optMaxDistance = 200
   , optSize        = 6
   , optHelp        = False
   }
@@ -101,6 +101,7 @@ rmOutliersImpl args imgs@(img1:_) = let
            dropByDistances maxDist imgsWithVecs lastVec
   in do
     (opts, _) <- getMyOpts args
+    print opts
     if optHelp opts
     then return (Left help)
     else withTempDirectory (takeDirectory img1) "_outliers.tmp"

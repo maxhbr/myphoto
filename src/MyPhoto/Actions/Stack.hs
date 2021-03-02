@@ -235,6 +235,7 @@ stackImpl args = let
 
   in \imgs -> do
     (opts, _) <- getMyOpts args
+    print opts
     if optHelp opts
     then return (Left help)
     else do

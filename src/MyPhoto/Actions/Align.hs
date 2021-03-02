@@ -11,6 +11,7 @@ import           System.Exit
 import           System.Directory
 import           System.IO.Temp
 import           Text.Printf
+import           Control.Concurrent.Async (concurrently)
 
 import MyPhoto.Model
 import MyPhoto.Utils
@@ -73,12 +74,15 @@ callAlignImageStackByHalves args tmpdir imgs = let
     lastImgs  = drop (imgsLen `div` 2) imgs
   in if imgsLen < 4
      then callAlignImageStack args (tmpdir </> "fwd_") imgs
-     else do
-       putStrLn ("align images from " ++ head firstImgs ++ " to " ++ last firstImgs ++ " (#=" ++ show (length firstImgs) ++ ")")
-       bwd <- callAlignImageStack args (tmpdir </> "bwd_") (reverse firstImgs)
-       putStrLn ("align images from " ++ head lastImgs ++ " to " ++ last lastImgs ++ " (#=" ++ show (length lastImgs) ++ ")")
-       fwd <- callAlignImageStack args  (tmpdir </> "fwd_") lastImgs
-       return (reverse (tail bwd) ++ fwd)
+     else fmap (\(bwd, fwd) -> reverse (tail bwd) ++ fwd) $ concurrently
+        ( do
+            putStrLn ("align images from " ++ head firstImgs ++ " to " ++ last firstImgs ++ " (#=" ++ show (length firstImgs) ++ ")")
+            callAlignImageStack args (tmpdir </> "bwd_") (reverse firstImgs)
+        )
+        ( do
+            putStrLn ("align images from " ++ head lastImgs ++ " to " ++ last lastImgs ++ " (#=" ++ show (length lastImgs) ++ ")")
+            callAlignImageStack args  (tmpdir </> "fwd_") lastImgs
+        )
 
 copyAndRenameImages :: (Int -> String) -> [Img] -> IO [Img]
 copyAndRenameImages renamer imgs = mapM (\(img, i) -> do
@@ -91,6 +95,7 @@ alignImpl :: [String] -> [Img] -> PActionBody
 alignImpl _    []   = return (Right [])
 alignImpl args imgs@(img1:_) = do
   (opts, _) <- getMyOpts args
+  print opts
   if optHelp opts
   then return (Left help)
   else do
