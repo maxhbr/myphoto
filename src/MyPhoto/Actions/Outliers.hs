@@ -106,7 +106,7 @@ rmOutliersImpl args imgs@(img1:_) = let
     then return (Left help)
     else withTempDirectory (takeDirectory img1) "_outliers.tmp"
            (\tmpdir -> do
-               imgsWithVecs <- mapM (computImgVecs (optSize opts) tmpdir) imgs
+               imgsWithVecs <- mapConcurrently (computImgVecs (optSize opts) tmpdir) imgs
                imgsWithoutOutliers <- dropByDistances (optMaxDistance opts) imgsWithVecs []
                return (Right imgsWithoutOutliers)
              )
