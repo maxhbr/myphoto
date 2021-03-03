@@ -37,5 +37,5 @@ else
   time stack --stack-yaml "$stackyaml" \
         exec -- myphoto-exe \
         "pwd" "$curPwd" \
-        "$@"
+        "$@" | tee "$curPwd/myphoto.sh.log"
 fi
