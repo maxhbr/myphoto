@@ -2,6 +2,7 @@ module MyPhoto.Actions.Outliers
     ( rmOutliers
     ) where
 
+import           Control.Concurrent ( getNumCapabilities )
 import           Control.Concurrent.Async ( mapConcurrently )
 import           Control.Concurrent.MSem as MS
 import           Control.Monad
@@ -15,7 +16,7 @@ import           System.Process
 import           Graphics.Netpbm
 import qualified Data.ByteString as B
 import           Data.Maybe (maybe)
-import           Statistics.Sample (variance, stdDev)
+import qualified Statistics.Sample as S
 import qualified Data.Vector as V (fromList)
 
 import MyPhoto.Model
@@ -95,10 +96,11 @@ calculateDistances imgsWithVecs = let
         dist = calculateDistance prevVec vec
       in prev ++ [(img, vec, dist)]
     imgsWithDists = foldl foldFun [] imgsWithVecs
-    dists = map (\(_,_,d) -> d) imgsWithDists
+    dists = V.fromList (map (\(_,_,d) -> d) imgsWithDists)
   in do
-  putStrLn $ "Variance = " ++ show (variance (V.fromList dists))
-  putStrLn $ "Standard deviation =" ++ show (stdDev (V.fromList dists))
+  putStrLn $ "Variance = " ++ show (S.variance dists)
+  putStrLn $ "Standard deviation =" ++ show (S.stdDev dists)
+  putStrLn $ "Mean =" ++ show (S.mean dists)
   return imgsWithDists
 
 
@@ -121,7 +123,9 @@ rmOutliersImpl args imgs@(img1:_) = let
     then return (Left help)
     else withTempDirectory (takeDirectory img1) "_outliers.tmp"
            (\tmpdir -> do
-               imgsWithVecs <- mapConcurrently (computImgVecs (optSize opts) tmpdir) imgs
+               capabilities <- getNumCapabilities
+               sem <- MS.new (capabilities - 2)
+               imgsWithVecs <- mapConcurrently (MS.with sem . computImgVecs (optSize opts) tmpdir) imgs
                imgsWithDists <- calculateDistances imgsWithVecs
                imgsWithoutOutliers <- dropByDistances (optMaxDistance opts) imgsWithDists []
                return (Right imgsWithoutOutliers)

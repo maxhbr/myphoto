@@ -3,6 +3,7 @@ module MyPhoto.Actions.Stack
     ( stack
     ) where
 
+import           Control.Concurrent ( getNumCapabilities )
 import           Control.Concurrent.Async ( mapConcurrently )
 import           Control.Concurrent.MSem as MS
 import           Control.Monad
@@ -239,7 +240,8 @@ stackImpl args = let
     if optHelp opts
     then return (Left help)
     else do
-      sem <- MS.new (fromMaybe 1 (optConcurrent opts)) -- semathore to limit number of parallel threads
+      capabilities <- getNumCapabilities
+      sem <- MS.new (fromMaybe (capabilities - 2) (optConcurrent opts)) -- semathore to limit number of parallel threads
       if optAll opts
         then do
           results <- mapConcurrently (\opts' -> stackImpl' sem opts' imgs)
