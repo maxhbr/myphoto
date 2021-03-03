@@ -63,15 +63,14 @@ getMyOpts argv = case getOpt Permute options argv of
                    (o,n,[]  ) -> return (foldl (flip id) defaultOptions o, n)
                    (_,_,errs) -> ioError (userError (concat errs ++ help))
 
-computImgVecs :: Int -> FilePath -> Img -> IO (Img, [Int])
-computImgVecs size tmpdir img = do
+computImgVec :: Int -> FilePath -> Img -> IO (Img, [Int])
+computImgVec size tmpdir img = do
   let ppmFile = tmpdir </> (takeFileName img ++ ".ppm")
 
   (_, _, _, pHandle) <- createProcess (proc "convert" [img, "-resize", show size ++ "x" ++ show size ++ "!", ppmFile])
   exitCode <- waitForProcess pHandle
   unless (exitCode == ExitSuccess) $
     fail ("Resize failed with " ++ show exitCode)
-
 
   ppmResult <- parsePPM <$> B.readFile ppmFile
   case ppmResult of
@@ -81,41 +80,39 @@ computImgVecs size tmpdir img = do
     Left err           -> fail ("PPM parsing failed with " ++ err)
     _                  -> fail "PPM parsing failed"
 
-calculateDistances :: [(Img, [Int])] -> IO [(Img, [Int], Double)]
-calculateDistances imgsWithVecs = let
-    calculateDistance :: [Int] -> [Int] -> Double
-    calculateDistance vec1 vec2 =
-      sqrt .
-      fromIntegral .
-      sum .
-      map ((\v -> v*v) . uncurry (-)) $ zip vec1 vec2
-    foldFun :: [(Img, [Int], Double)] -> (Img, [Int]) -> [(Img, [Int], Double)]
-    foldFun [] (img, vec)   = [(img, vec, 0)]
-    foldFun prev (img, vec) = let
-        (_, prevVec, _) = last prev
-        dist = calculateDistance prevVec vec
-      in prev ++ [(img, vec, dist)]
-    imgsWithDists = foldl foldFun [] imgsWithVecs
-    dists = V.fromList (map (\(_,_,d) -> d) imgsWithDists)
-  in do
-  putStrLn $ "Variance = " ++ show (S.variance dists)
-  putStrLn $ "Standard deviation =" ++ show (S.stdDev dists)
-  putStrLn $ "Mean =" ++ show (S.mean dists)
-  return imgsWithDists
-
+computImgsVecs :: Int -> FilePath -> [Img] -> IO [(Img, [Int])]
+computImgsVecs size tmpdir imgs = do
+  capabilities <- getNumCapabilities
+  sem <- MS.new (capabilities - 2)
+  mapConcurrently (MS.with sem . computImgVec size tmpdir) imgs
 
 rmOutliersImpl :: [String] -> [Img] -> PActionBody
 rmOutliersImpl _    []            = return (Right [])
 rmOutliersImpl args imgs@(img1:_) = let
-    dropByDistances :: Double -> [(Img, [Int], Double)] -> [Int] -> IO [Img]
+    dropByDistances :: Double -> [(Img, [Int])] -> [Int] -> IO [(Img, Double)]
     dropByDistances _ []                                 _       = return []
-    dropByDistances maxDist ((img, curVec, dist):imgsWithVecs) lastVec =
-      if dist < maxDist
-      then do
-        fmap (img :) (dropByDistances maxDist imgsWithVecs curVec)
-      else do
-        putStrLn ("drop " ++ img ++ " with dist " ++ show dist)
-        dropByDistances maxDist imgsWithVecs lastVec
+    dropByDistances maxDist ((img, curVec):imgsWithVecs) lastVec = let
+        calculateDistance :: [Int] -> [Int] -> Double
+        calculateDistance vec1 vec2 =
+          sqrt .
+          fromIntegral .
+          sum .
+          map ((\v -> v*v) . uncurry (-)) $ zip vec1 vec2
+        dist = calculateDistance lastVec curVec
+      in
+        if dist < maxDist
+        then do
+          fmap ((img, dist) :) (dropByDistances maxDist imgsWithVecs curVec)
+        else do
+          putStrLn ("drop " ++ img ++ " with dist " ++ show dist)
+          dropByDistances maxDist imgsWithVecs lastVec
+    printStatsOnDists :: [(Img, Double)] -> IO ()
+    printStatsOnDists imgsWithoutOutliers = let
+        dists = V.fromList (map snd imgsWithoutOutliers)
+      in do
+        putStrLn $ "Variance = " ++ show (S.variance dists)
+        putStrLn $ "Standard deviation = " ++ show (S.stdDev dists)
+        putStrLn $ "Mean = " ++ show (S.mean dists)
   in do
     (opts, _) <- getMyOpts args
     print opts
@@ -123,12 +120,11 @@ rmOutliersImpl args imgs@(img1:_) = let
     then return (Left help)
     else withTempDirectory (takeDirectory img1) "_outliers.tmp"
            (\tmpdir -> do
-               capabilities <- getNumCapabilities
-               sem <- MS.new (capabilities - 2)
-               imgsWithVecs <- mapConcurrently (MS.with sem . computImgVecs (optSize opts) tmpdir) imgs
-               imgsWithDists <- calculateDistances imgsWithVecs
-               imgsWithoutOutliers <- dropByDistances (optMaxDistance opts) imgsWithDists []
-               return (Right imgsWithoutOutliers)
+               imgsWithVecs <- computImgsVecs (optSize opts) tmpdir imgs
+               imgsWithoutOutliers <- dropByDistances (optMaxDistance opts) imgsWithVecs []
+               printStatsOnDists imgsWithoutOutliers
+               return (Right (map fst imgsWithoutOutliers))
              )
+
 rmOutliers :: PrePAction
 rmOutliers args     = logSeparator "rmoutliers" <> PAction (rmOutliersImpl args)
