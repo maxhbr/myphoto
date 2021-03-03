@@ -35,6 +35,8 @@ dependencies:
 - aeson
 - bytestring
 - netpbm
+- statistics
+- vector
 
 library:
   source-dirs: src
