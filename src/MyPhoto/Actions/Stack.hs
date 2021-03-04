@@ -100,7 +100,7 @@ options =
         "CAPABILITIES")
       "run in parallel"
   , Option ['a'] ["all"]
-      (NoArg (\ opts -> opts { optSaveMasks = True }))
+      (NoArg (\ opts -> opts { optAll = True }))
       "do all opts / projection variants"
   , Option ['s'] ["save-masks"]
       (NoArg (\ opts -> opts { optSaveMasks = True }))
