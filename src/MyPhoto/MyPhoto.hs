@@ -98,7 +98,7 @@ applyHigherOrderArgs args          = case args of
           , "align", "-f"
           , "untiff", "--rm"
           , "montage"
-          , "stack"
+          , "stack", "-c10"
           ] ++ oArgs
         ("autostackraw":oArgs) ->
           [ "skip", "1"
@@ -111,7 +111,7 @@ applyHigherOrderArgs args          = case args of
           , "align", "-f"
           , "untiff", "--rm"
           , "montage"
-          , "stack"
+          , "stack", "-c10"
           ] ++ oArgs
         arg:oArgs -> arg : applyHigherOrderArgs oArgs
 

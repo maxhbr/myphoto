@@ -44,7 +44,7 @@ defaultOptions
 options :: [OptDescr (Options -> Options)]
 options =
   [ Option ['o'] ["--output-file"]
-      (OptArg ((\ fp opts -> opts { optOutputFile = fp }))
+      (OptArg (\ fp opts -> opts { optOutputFile = fp })
         "OUTPUT_FILE")
       "file to wriite the montage to (expected to be e.g. a PNG)"
   , Option ['h'] ["help"]
@@ -54,8 +54,8 @@ options =
 
 getMyOpts :: [String] -> IO (Options, [String])
 getMyOpts argv = case getOpt Permute options argv of
-                   (o,n,[]  ) -> return (foldl (flip id) defaultOptions o, n)
-                   (_,_,errs) -> ioError (userError (concat errs ++ help))
+                   (o, n, []  ) -> return (foldl (flip id) defaultOptions o, n)
+                   (_, _, errs) -> ioError (userError (concat errs ++ help))
 
 montageImpl:: [String] -> [Img] -> PActionBody
 montageImpl _    []            = return (Right [])

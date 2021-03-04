@@ -206,6 +206,7 @@ calculateNextChunkSize opts imgs = let
                         -> Just (maximum [numOfImages `div` (ceiling ((fromIntegral numOfImages) / (fromIntegral maxChunkSize))), 2])
                       | numOfImages > maxChunkSize * maxChunkSize
                         -> Just (numOfImages `div` maxChunkSize)
+    Just _              -> Nothing
 
 stackImpl :: [String] -> [Img] -> PActionBody
 stackImpl args = let
