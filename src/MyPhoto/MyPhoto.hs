@@ -94,10 +94,8 @@ applyHigherOrderArgs args          = case args of
           , "breaking", "20"
           , "rmoutliers"
           , "thinning", "1"
-          , "montage"
           , "align", "-f"
           , "untiff", "--rm"
-          , "montage"
           , "stack", "-c50"
           ] ++ oArgs
         ("autostackraw":oArgs) ->
@@ -107,10 +105,8 @@ applyHigherOrderArgs args          = case args of
           , "thinning", "1"
           , "unraw", "--wb1"
           , "untiff", "--rm"
-          , "montage"
           , "align", "-f"
           , "untiff", "--rm"
-          , "montage"
           , "stack", "-c50"
           ] ++ oArgs
         arg:oArgs -> arg : applyHigherOrderArgs oArgs
