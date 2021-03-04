@@ -30,6 +30,7 @@ import MyPhoto.Actions.Show as X
 import MyPhoto.Actions.Wait as X
 import MyPhoto.Actions.Pwd as X
 import MyPhoto.Actions.Skip as X
+import MyPhoto.Actions.Montage as X
 
 actions :: Map String PrePAction
 actions = Map.fromList [ ("unraw", unRAW)
@@ -47,6 +48,7 @@ actions = Map.fromList [ ("unraw", unRAW)
                        , ("show", showImgs)
                        , ("pwd", pwdPAct)
                        , ("skip", skipPAct)
+                       , ("montage", montage)
                        ]
 
 type ComposeActionsState = (PAction, [String], Maybe PrePAction)
@@ -92,8 +94,10 @@ applyHigherOrderArgs args          = case args of
           , "breaking", "20"
           , "rmoutliers"
           , "thinning", "1"
+          , "montage"
           , "align", "-f"
           , "untiff", "--rm"
+          , "montage"
           , "stack"
           ] ++ oArgs
         ("autostackraw":oArgs) ->
@@ -103,8 +107,10 @@ applyHigherOrderArgs args          = case args of
           , "thinning", "1"
           , "unraw", "--wb1"
           , "untiff", "--rm"
+          , "montage"
           , "align", "-f"
           , "untiff", "--rm"
+          , "montage"
           , "stack"
           ] ++ oArgs
         arg:oArgs -> arg : applyHigherOrderArgs oArgs
