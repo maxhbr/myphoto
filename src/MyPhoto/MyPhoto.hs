@@ -101,9 +101,9 @@ applyHigherOrderArgs args          = case args of
         ("autostackraw":oArgs) ->
           [ "skip", "1"
           , "breaking", "20"
-          , "rmoutliers"
           , "thinning", "1"
           , "unraw", "--wb1"
+          , "rmoutliers"
           , "untiff", "--rm"
           , "align", "-f"
           , "untiff", "--rm"
