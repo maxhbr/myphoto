@@ -154,27 +154,19 @@ getEnfuseArgs opts = let
      ++ projectionToArgs (optProjection opts)
      ++ optsToArgs (optOpts opts)
 
-getOutArguments :: Options -> Img -> IO (Img, Img -> IO [String])
-getOutArguments opts img = let
-    (bn,ext) = splitExtensions img
-  in do
-    outFile <- findOutFile (bn ++ "_STACKED" ++ optionsToFilenameAppendix opts) ext
-    appendFile outFile ""
-    return (outFile, \outFile -> let
-                 outMasksFolder = outFile ++ "-masks"
-               in do
-                 when (optSaveMasks opts) $
-                   createDirectoryIfMissing True outMasksFolder
-                 return (["--save-masks=\"" ++ outMasksFolder ++ "/softmask-%04n.tif:" ++ outMasksFolder ++ "/hardmask-%04n.tif\"" | optSaveMasks opts] ++ ["--output=" ++ outFile] ))
-
-runEnfuse :: (Img, Img -> IO [String], [String]) -> [Img] -> PActionBody
+runEnfuse :: (Img, Bool, [String]) -> [Img] -> PActionBody
 runEnfuse _ [img] = return (Right [img])
-runEnfuse (outFile, outArgsFun, enfuseArgs) imgs' = do
+runEnfuse (outFile, saveMasks, enfuseArgs) imgs' = do
   putStrLn (">>>>>>>>>>>>>>>>>>>>>>>> start >> " ++ outFile)
-  outArgs <- outArgsFun outFile
-  putStrLn (unwords ["$ enfuse", unwords (enfuseArgs ++ outArgs), "[img [img [...]]]"])
+  let outMasksFolder = outFile ++ "-masks"
+  when saveMasks $
+    createDirectoryIfMissing True outMasksFolder
+  let maskArgs = ["--save-masks=\"" ++ outMasksFolder ++ "/softmask-%04n.tif:" ++ outMasksFolder ++ "/hardmask-%04n.tif\"" | saveMasks]
+      outputArgs = ["--output=" ++ outFile]
+  putStrLn (unwords ["$ enfuse", unwords (enfuseArgs ++ maskArgs ++ outputArgs), "[img [img [...]]]"])
   (_, _, _, pHandle) <- createProcess (proc "enfuse" (enfuseArgs
-                                                      ++ outArgs
+                                                      ++ maskArgs
+                                                      ++ outputArgs
                                                       ++ imgs'))
   exitCode <- waitForProcess pHandle
 
@@ -193,6 +185,10 @@ foldResults r1@(Left _)   _             = r1
 foldResults (Right imgs1) (Right imgs2) = Right (imgs1 ++ imgs2)
 foldResults _             r2@(Left _)   = r2
 
+{--
+ - if nothing is return, that means that no further splitting is necessary
+ - otherwise the size of the next chunks is returned
+ -}
 calculateNextChunkSize :: Options -> [Img] -> Maybe Int
 calculateNextChunkSize opts imgs = let
     numOfImages = length imgs
@@ -208,32 +204,45 @@ calculateNextChunkSize opts imgs = let
                         -> Just (numOfImages `div` maxChunkSize)
     Just _              -> Nothing
 
+getStackedFilename :: Options -> Img -> IO Img
+getStackedFilename opts img = let
+    (bn,ext) = splitExtensions img
+  in findOutFile (bn ++ "_STACKED" ++ optionsToFilenameAppendix opts) ext
+
+getChunkFilename :: Img -> Int -> Int -> IO Img
+getChunkFilename img indexOfChunk numberOfChunks = let
+    (bn,ext) = splitExtensions img
+  in findOutFile (bn ++ "_CHUNK" ++ show indexOfChunk ++ "of" ++ show numberOfChunks) ext
+
 stackImpl :: [String] -> [Img] -> PActionBody
 stackImpl args = let
 
-    stackImpl'' :: MS.MSem Int -> Options -> (Img, Img -> IO [String], [String]) -> [Img] -> PActionBody
-    stackImpl'' sem opts (outFile, outArgsFun, enfuseArgs) imgs = case calculateNextChunkSize opts imgs of
-      Nothing -> (MS.with sem . runEnfuse (outFile, outArgsFun, enfuseArgs)) imgs
+    stackImpl'' :: MS.MSem Int -> Options -> (Img, Bool, [String]) -> [Img] -> PActionBody
+    stackImpl'' sem opts (outFile, saveMasks, enfuseArgs) imgs = case calculateNextChunkSize opts imgs of
+      Nothing -> do
+        (MS.with sem . runEnfuse (outFile, saveMasks, enfuseArgs)) imgs
       Just maxChunkSize -> let
           chunks = chunksOf maxChunkSize imgs
           numberOfChunks = length chunks
-          (bn,ext) = splitExtensions outFile
-          partOutFileFun i = bn ++ "_CHUNK" ++ show i ++ "of" ++ show numberOfChunks ++ ext
-          fun (i,chunk) = stackImpl'' sem opts (partOutFileFun i, outArgsFun, enfuseArgs) chunk
         in do
           putStrLn ("#### use " ++ show numberOfChunks ++ " chunks of maxChunkSize " ++ show maxChunkSize ++ " to calculate " ++ outFile)
-          results <- mapConcurrently fun (zip [1..] chunks)
 
-          case foldl foldResults (Right []) results of
-            Right imgs -> stackImpl'' sem opts (outFile, outArgsFun, enfuseArgs) imgs
-            err        -> return err
+          chunkImgs <- mapConcurrently
+                     (\(i,chunk) -> do
+                         chunkOutputFilename <- getChunkFilename outFile i numberOfChunks
+                         stackImpl'' sem opts (chunkOutputFilename, saveMasks, enfuseArgs) chunk)
+                     (zip [1..] chunks)
+
+          case foldl foldResults (Right []) chunkImgs of
+            Right chunkImgs' -> stackImpl'' sem opts (outFile, saveMasks, enfuseArgs) chunkImgs'
+            err              -> return err
 
     stackImpl' :: MS.MSem Int -> Options -> [Img] -> PActionBody
     stackImpl' sem opts imgs = let
         enfuseArgs = getEnfuseArgs opts
       in do
-        (outFile, outArgsFun) <- getOutArguments opts (head imgs)
-        stackImpl'' sem opts (outFile, outArgsFun, enfuseArgs) imgs
+        outFile <- getStackedFilename opts (head imgs)
+        stackImpl'' sem opts (outFile, optSaveMasks opts, enfuseArgs) imgs
 
   in \imgs -> do
     (opts, _) <- getMyOpts args
@@ -241,8 +250,7 @@ stackImpl args = let
     if optHelp opts
     then return (Left help)
     else do
-      capabilities <- getNumCapabilities
-      sem <- MS.new (fromMaybe (capabilities - 2) (optConcurrent opts)) -- semathore to limit number of parallel threads
+      sem <- MS.new (fromMaybe 1 (optConcurrent opts)) -- semathore to limit number of parallel threads
       if optAll opts
         then do
           results <- mapConcurrently (\opts' -> stackImpl' sem opts' imgs)
