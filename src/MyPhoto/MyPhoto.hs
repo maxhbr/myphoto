@@ -90,7 +90,7 @@ applyHigherOrderArgs :: [String] -> [String]
 applyHigherOrderArgs []            = []
 applyHigherOrderArgs args@("--":_) = args
 applyHigherOrderArgs args          = case args of
-        ("autostacklink":oArgs) -> "autostack":"link":"..":oArgs
+        ("autostacklink":oArgs) -> applyHigherOrderArgs $ "autostack":"link":"..":oArgs
         ("autostack":oArgs) ->
           [ "skip", "1"
           , "breaking", "20"
