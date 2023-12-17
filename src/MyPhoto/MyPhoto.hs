@@ -73,6 +73,7 @@ composeActions = let
 help :: IO ()
 help = do
   putStrLn "myphoto action [actArg [actArg ..]] [action [actArg [actArg ..]] ..] -- [img [img ...]]"
+  putStrLn "myphoto autostacklink -- [img [img ...]]"
   putStrLn "myphoto autostack -- [img [img ...]]"
   putStrLn "myphoto autostackraw -- [img [img ...]]"
   putStrLn ""
@@ -89,6 +90,7 @@ applyHigherOrderArgs :: [String] -> [String]
 applyHigherOrderArgs []            = []
 applyHigherOrderArgs args@("--":_) = args
 applyHigherOrderArgs args          = case args of
+        ("autostacklink":oArgs) -> "autostack":"link":"..":oArgs
         ("autostack":oArgs) ->
           [ "skip", "1"
           , "breaking", "20"
