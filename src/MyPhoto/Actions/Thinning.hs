@@ -23,7 +23,7 @@ help = PAction $ \_ -> pure (Left (unlines ["sparse Nth", "thinning DELAY_IN_SEC
 everyNth :: Int -> [a] -> [a]
 everyNth n xs = case drop (n-1) xs of
   (y:ys) -> y : everyNth n ys
-  [] -> []
+  [] -> [last xs | not (null xs)]
 
 sparseImpl :: Int -> [Img] -> PActionBody
 sparseImpl nth imgs = do

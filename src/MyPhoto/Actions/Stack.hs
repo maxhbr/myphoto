@@ -77,6 +77,9 @@ options =
       (ReqArg (\f opts -> opts { optChunks = Just (read f) })
        "CHUNKS")
       "split stacking in smaller chunks"
+  , Option [] ["autochunk"]
+      (NoArg (\ opts -> opts { optChunks = Just (-1) }))
+      "split stacking in smaller chunks, by sqrt of number of images"
   , Option ['p'] ["projection"]
       (ReqArg (\f opts -> opts { optProjection = case f of
                                    "1" -> Proj1
@@ -134,9 +137,16 @@ help = let
                           , "      2: " ++ show (optsToArgs Opts2)
                           , "      3: " ++ show (optsToArgs Opts3)
                           ]
+    chunkDesc = unlines [ "    Chunks:"
+                        , "      n: if n > 1: split into chunks of size n"
+                        , "         else: calculate chunk size by sqrt of number of images"
+                        , "      if not present: do not split into chunks"
+                        ]
   in unlines [ usageInfo header options
              , projectionsDesc
-             , optionsDesc]
+             , optionsDesc
+             , chunkDesc
+             ]
 
 getMyOpts :: [String] -> IO (Options, [String])
 getMyOpts argv = case getOpt Permute options argv of
@@ -245,7 +255,15 @@ stackImpl args = let
         stackImpl'' sem opts (outFile, optSaveMasks opts, enfuseArgs) imgs
 
   in \imgs -> do
-    (opts, _) <- getMyOpts args
+    (opts', _) <- getMyOpts args
+
+    -- apply autochunk
+    let opts = case optChunks opts' of
+                  Nothing        -> opts'
+                  Just chunkSize -> if chunkSize < 1
+                                      then opts'{optChunks = Just (ceiling (sqrt (fromIntegral (length imgs))))}
+                                      else opts'
+
     print opts
     if optHelp opts
     then return (Left help)

@@ -69,7 +69,7 @@ findoutfile i outFile = do
 myphotooutImpl' :: Img -> IO Img
 myphotooutImpl' img = do
   let (dir,fn) = splitFileName img
-      outDir = dir </> ".." </> "0_myphotoout"
+      outDir = dir </> ".." </> "1_myphoto.out"
   createDirectoryIfMissing True outDir
   outFile <- findoutfile 0 (outDir </> fn)
   putStrLn (img ++ " -> " ++ outFile)

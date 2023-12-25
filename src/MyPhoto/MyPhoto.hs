@@ -100,7 +100,7 @@ applyHigherOrderArgs args          = case args of
           , "thinning", "1"
           , "align", "-f"
           , "untiff", "--rm"
-          , "stack", "-c18"
+          , "stack", "--autochunk"
           , "myphotoout"
           ] ++ oArgs
         ("autostackraw":oArgs) ->
@@ -112,7 +112,7 @@ applyHigherOrderArgs args          = case args of
           , "untiff", "--rm"
           , "align", "-f"
           , "untiff", "--rm"
-          , "stack", "-c18"
+          , "stack", "--autochunk"
           , "myphotoout"
           ] ++ oArgs
         arg:oArgs -> arg : applyHigherOrderArgs oArgs
