@@ -39,6 +39,8 @@ actions = Map.fromList [ ("unraw", unRAW)
                        , ("crop", crop)
                        , ("copy", copyPAct)
                        , ("link", linkPAct)
+                       , ("myphotoout", myphotooutPAct)
+                       , ("sparse", sparsePAct)
                        , ("thinning", thinningPAct)
                        , ("breaking", breakingPAct)
                        , ("rmoutliers", rmOutliers)
@@ -73,7 +75,7 @@ composeActions = let
 help :: IO ()
 help = do
   putStrLn "myphoto action [actArg [actArg ..]] [action [actArg [actArg ..]] ..] -- [img [img ...]]"
-  putStrLn "myphoto autostacklink -- [img [img ...]]"
+  putStrLn "myphoto autostackmv -- [img [img ...]]"
   putStrLn "myphoto autostack -- [img [img ...]]"
   putStrLn "myphoto autostackraw -- [img [img ...]]"
   putStrLn ""
@@ -90,19 +92,20 @@ applyHigherOrderArgs :: [String] -> [String]
 applyHigherOrderArgs []            = []
 applyHigherOrderArgs args@("--":_) = args
 applyHigherOrderArgs args          = case args of
-        ("autostacklink":oArgs) -> applyHigherOrderArgs $ "autostack":"link":"..":oArgs
+        -- ("autostackmv":oArgs) -> applyHigherOrderArgs $ "autostack":"myphotoout":oArgs
         ("autostack":oArgs) ->
           [ "skip", "1"
-          , "breaking", "20"
+          --, "breaking", "20"
           , "rmoutliers"
           , "thinning", "1"
           , "align", "-f"
           , "untiff", "--rm"
           , "stack", "-c18"
+          , "myphotoout"
           ] ++ oArgs
         ("autostackraw":oArgs) ->
           [ "skip", "1"
-          , "breaking", "20"
+          --, "breaking", "20"
           , "thinning", "1"
           , "unraw", "--wb1"
           , "rmoutliers"
@@ -110,6 +113,7 @@ applyHigherOrderArgs args          = case args of
           , "align", "-f"
           , "untiff", "--rm"
           , "stack", "-c18"
+          , "myphotoout"
           ] ++ oArgs
         arg:oArgs -> arg : applyHigherOrderArgs oArgs
 

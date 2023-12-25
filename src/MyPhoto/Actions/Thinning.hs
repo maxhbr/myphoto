@@ -2,6 +2,7 @@
 module MyPhoto.Actions.Thinning
     ( thinningPAct
     , breakingPAct
+    , sparsePAct
     ) where
 
 import           Control.Monad
@@ -17,7 +18,21 @@ import MyPhoto.Utils
 
 
 help :: PAction
-help = PAction $ \_ -> pure (Left (unlines ["thinning DELAY_IN_SECONDS", "breaking GAP_IN_SECONDS"]))
+help = PAction $ \_ -> pure (Left (unlines ["sparse Nth", "thinning DELAY_IN_SECONDS", "breaking GAP_IN_SECONDS"]))
+
+everyNth :: Int -> [a] -> [a]
+everyNth n xs = case drop (n-1) xs of
+  (y:ys) -> y : everyNth n ys
+  [] -> []
+
+sparseImpl :: Int -> [Img] -> PActionBody
+sparseImpl nth imgs = do
+  return (Right (everyNth nth imgs))
+
+sparsePAct :: PrePAction
+sparsePAct ["-h"] = help
+sparsePAct [nth]  = logSeparator ("Run sparse (with " ++ nth ++"s)") <> PAction (sparseImpl (read nth))
+sparsePAct _      = help
 
 data Result
   = Result Img Int
