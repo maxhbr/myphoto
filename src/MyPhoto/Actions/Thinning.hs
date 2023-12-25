@@ -21,9 +21,13 @@ help :: PAction
 help = PAction $ \_ -> pure (Left (unlines ["sparse Nth", "thinning DELAY_IN_SECONDS", "breaking GAP_IN_SECONDS"]))
 
 everyNth :: Int -> [a] -> [a]
-everyNth n xs = case drop (n-1) xs of
-  (y:ys) -> y : everyNth n ys
-  [] -> [last xs | not (null xs)]
+everyNth _ [] = []
+everyNth n (x:xs) = let
+    everyNth' :: Int -> [a] -> [a]
+    everyNth' n xs = case drop (n-1) xs of
+      (y:ys) -> y : everyNth n ys
+      [] -> [last xs | not (null xs)]
+  in x : everyNth' n xs
 
 sparseImpl :: Int -> [Img] -> PActionBody
 sparseImpl nth imgs = do
