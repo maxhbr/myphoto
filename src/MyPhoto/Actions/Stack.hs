@@ -259,10 +259,9 @@ stackImpl args = let
 
     -- apply autochunk
     let opts = case optChunks opts' of
-                  Nothing        -> opts'
-                  Just chunkSize -> if chunkSize < 1
-                                      then opts'{optChunks = Just (ceiling (sqrt (fromIntegral (length imgs))))}
-                                      else opts'
+                  Just chunkSize | chunkSize < 1 && length imgs > 50 -> opts'{optChunks = Just (ceiling (sqrt (fromIntegral (length imgs))))}
+                  Just chunkSize | chunkSize < 1                     -> opts'{optChunks = Nothing}
+                  _                                                  -> opts'
 
     print opts
     if optHelp opts
