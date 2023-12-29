@@ -65,7 +65,7 @@ runExiftool imgs = let
 thinningOnResults :: Int -> [Result] -> [Img]
 thinningOnResults _        []     = []
 thinningOnResults duration ((r@(Result img _)):rs) = let
-    thinningOnResults' imgs' _ []                                            = imgs'
+    thinningOnResults' imgs' _ []                                                   = imgs'
     thinningOnResults' imgs' (r1'@(Result _ time1)) ((r2'@(Result img' time2)):rs') = 
       if abs (time1 - time2) > duration
         then thinningOnResults' (imgs' ++ [img']) (r2') rs'

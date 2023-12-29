@@ -1,7 +1,7 @@
 resolver:
-  url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/18/9.yaml
+  url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/22/3.yaml
 
 packages:
 - .
 nix:
-  packages: [dcraw, enblend-enfuse, hugin, imagemagick, fgallery, sxiv, libffi, exiftool]
+  packages: [glew, dcraw, enblend-enfuse, hugin, imagemagick, fgallery, sxiv, libffi, exiftool]

@@ -94,25 +94,25 @@ applyHigherOrderArgs args@("--":_) = args
 applyHigherOrderArgs args          = case args of
         -- ("autostackmv":oArgs) -> applyHigherOrderArgs $ "autostack":"myphotoout":oArgs
         ("autostack":oArgs) ->
-          [ "skip", "1"
+          -- [ "skip", "1"
           --, "breaking", "20"
-          , "rmoutliers"
+          [ "rmoutliers"
           , "thinning", "1"
           , "align", "-f"
           , "untiff", "--rm"
-          , "stack", "--autochunk"
+          , "stack", "--autochunk", "--threads"
           , "myphotoout"
           ] ++ oArgs
         ("autostackraw":oArgs) ->
-          [ "skip", "1"
+          -- [ "skip", "1"
           --, "breaking", "20"
-          , "thinning", "1"
+          [ "thinning", "1"
           , "unraw", "--wb1"
           , "rmoutliers"
           , "untiff", "--rm"
           , "align", "-f"
           , "untiff", "--rm"
-          , "stack", "--autochunk"
+          , "stack", "--autochunk", "--threads"
           , "myphotoout"
           ] ++ oArgs
         arg:oArgs -> arg : applyHigherOrderArgs oArgs

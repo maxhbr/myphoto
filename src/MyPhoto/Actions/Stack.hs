@@ -98,8 +98,9 @@ options =
       "choose kind of opts"
   , Option ['t'] ["threads"]
       (OptArg (\case
-                  Just capabilities -> (\opts -> opts { optConcurrent = Just (read capabilities) })
-                  Nothing           -> (\opts -> opts { optConcurrent = Just numCapabilities} ))
+                  Just capabilities              -> (\opts -> opts { optConcurrent = Just (read capabilities) })
+                  Nothing | numCapabilities == 1 -> (\opts -> opts { optConcurrent = Nothing} )
+                  Nothing                        -> (\opts -> opts { optConcurrent = Just (min (numCapabilities - 1) 9)} ))
         "CAPABILITIES")
       "run in parallel"
   , Option ['a'] ["all"]
