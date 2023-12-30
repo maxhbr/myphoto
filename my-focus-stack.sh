@@ -24,6 +24,7 @@ run() {
   local outDir
   if [[ "$(basename "$(readlink -f "$fstImgDir")")" == "0_"* ]]; then
     outDir="$fstImgDir/../0_stacked"
+    mkdir -p "$outDir"
   else
     outDir="$fstImgDir"
   fi
@@ -50,17 +51,6 @@ run() {
   if [[ "$lnfile" != "$output" && ! -e "$lnfile" ]]; then
     ln -s "$(realpath --relative-to="${fstImgDir}" "${output}")" "${lnfile}"
   fi
-
-  # if [[ -f "$output" ]]; then
-  #   if [[ "$(basename "$(readlink -f "$fstImgDir")")" == "0_"* ]]; then
-  #     local outDir="${fstImgDir}/../0_stacked"
-  #     mkdir -p "$outDir"
-  #     if [[ ! -e "${outDir}/${output}" ]]; then
-  #       mv "${output}" "${outDir}/${output}"
-  #       ln -s "$(realpath --relative-to="${fstImgDir}" "${outDir}/${output}")" "${output}"
-  #     fi
-  #   fi
-  # fi
 }
 
 run_multiple() {
