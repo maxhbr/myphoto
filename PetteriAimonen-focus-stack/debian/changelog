@@ -1,0 +1,19 @@
+focus-stack (1.1) bionic; urgency=medium
+
+  * Add --jpgquality parameter
+  * Fix build warnings / errors on some platforms
+
+ -- Petteri Aimonen <jpa@deb.mail.kapsi.fi>  Mon, 21 Sep 2020 12:07:17 +0300
+
+focus-stack (1.0) bionic; urgency=medium
+
+  * Fix color artefacts near fully white / fully black regions.
+  * Reduce memory use.
+
+ -- Petteri Aimonen <jpa@deb.mail.kapsi.fi>  Wed, 03 Jun 2020 20:35:17 +0300
+
+focus-stack (0.9.1-1) bionic; urgency=medium
+
+  * Initial release
+
+ -- Petteri Aimonen <jpa@deb.mail.kapsi.fi>  Tue, 24 Sep 2019 21:13:17 +0300
