@@ -1,11 +1,54 @@
 {
-  description = "A very basic flake";
+  description = "A flake for my photography stuff";
 
-  outputs = { self, nixpkgs }: {
+  outputs = inputs@{ self, nixpkgs }: {
 
-    packages.x86_64-linux.hello = nixpkgs.legacyPackages.x86_64-linux.hello;
+    packages.x86_64-linux.focus-stack =
+      with import nixpkgs { system = "x86_64-linux"; };
+      stdenv.mkDerivation rec {
+        pname = "focus-stack";
+        version = "master";
 
-    packages.x86_64-linux.default = self.packages.x86_64-linux.hello;
+        src = ./PetteriAimonen-focus-stack;
 
+        nativeBuildInputs = [ pkg-config which ronn ];
+        buildInputs = [ opencv ];
+
+        makeFlags = [ "prefix=$(out)" ];
+
+        # copied from https://github.com/NixOS/nixpkgs/blob/master/pkgs/applications/graphics/focus-stack/default.nix
+        meta = with lib; {
+          description = "Fast and easy focus stacking";
+          homepage = "https://github.com/PetteriAimonen/focus-stack";
+          license = licenses.mit;
+          maintainers = with maintainers; [ paperdigits ];
+        };
+      };
+
+    packages.x86_64-linux.my-focus-stack = pkgs.writeShellScriptBin "my-focus-stack" ''
+      exec "${self.packages.x86_64-linux.focus-stack}/bin/focus-stack"
+    '';
+
+    homeManagerModules.default = (
+      self: {
+        config,
+        lib,
+        pkgs,
+        ...
+      }: let
+        inherit (pkgs.stdenv.hostPlatform) system;
+        package = self.packages.${system}.focus-stack;
+      in {
+        config = {
+          home.packages = with pkgs; [
+            gphoto2
+            gphoto2fs
+            gimp # -with-plugins
+            darktable
+            geeqie
+          ] ++ (with self.packages.${system}; [ focus-stack my-focus-stack ]);
+        };
+      }
+    );
   };
 }
