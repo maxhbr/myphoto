@@ -3,11 +3,12 @@
 
   outputs = inputs@{ self, nixpkgs }: let
     system = "x86_64-linux";
+    pkgs = import nixpkgs { inherit system; };
   in {
 
     packages."${system}" = {
       focus-stack =
-        with import nixpkgs { system = "x86_64-linux"; };
+        with pkgs;
         stdenv.mkDerivation rec {
           pname = "focus-stack";
           version = "master";
@@ -29,13 +30,13 @@
         };
 
       my-focus-stack = 
-        with import nixpkgs { system = "x86_64-linux"; };
+        with pkgs;
         writeShellApplication {
         name = "my-focus-stack";
 
         runtimeInputs = [ self.packages."${system}".focus-stack ];
 
-        text = builtins.readFile ./my-foucs-stack.sh; # or "path =" ??
+        text = builtins.readFile ./my-focus-stack.sh; # or "path =" ??
       };
     };
 
