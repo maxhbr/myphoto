@@ -25,9 +25,9 @@
         };
       };
 
-    packages.x86_64-linux.my-focus-stack = pkgs.writeShellScriptBin "my-focus-stack" ''
-      exec "${self.packages.x86_64-linux.focus-stack}/bin/focus-stack"
-    '';
+    # packages.x86_64-linux.my-focus-stack = pkgs.writeShellScriptBin "my-focus-stack" ''
+    #   exec "${self.packages.x86_64-linux.focus-stack}/bin/focus-stack"
+    # '';
 
     homeManagerModules.default = (
       self: {
@@ -46,7 +46,10 @@
             gimp # -with-plugins
             darktable
             geeqie
-          ] ++ (with self.packages.${system}; [ focus-stack my-focus-stack ]);
+          ] ++ (with self.packages.${system}; [ 
+            focus-stack
+            # my-focus-stack
+          ]);
         };
       }
     );
