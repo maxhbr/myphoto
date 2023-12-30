@@ -29,15 +29,14 @@
     #   exec "${self.packages.x86_64-linux.focus-stack}/bin/focus-stack"
     # '';
 
-    homeManagerModules.default = (
-      self: {
+    homeManagerModules.myphoto = (
+      {
         config,
         lib,
         pkgs,
         ...
       }: let
         inherit (pkgs.stdenv.hostPlatform) system;
-        package = self.packages.${system}.focus-stack;
       in {
         config = {
           home.packages = with pkgs; [
