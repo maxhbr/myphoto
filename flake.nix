@@ -1,33 +1,43 @@
 {
   description = "A flake for my photography stuff";
 
-  outputs = inputs@{ self, nixpkgs }: {
+  outputs = inputs@{ self, nixpkgs }: let
+    system = "x86_64-linux";
+  in {
 
-    packages.x86_64-linux.focus-stack =
-      with import nixpkgs { system = "x86_64-linux"; };
-      stdenv.mkDerivation rec {
-        pname = "focus-stack";
-        version = "master";
+    packages."${system}" = {
+      focus-stack =
+        with import nixpkgs { system = "x86_64-linux"; };
+        stdenv.mkDerivation rec {
+          pname = "focus-stack";
+          version = "master";
 
-        src = ./PetteriAimonen-focus-stack;
+          src = ./PetteriAimonen-focus-stack;
 
-        nativeBuildInputs = [ pkg-config which ronn ];
-        buildInputs = [ opencv ];
+          nativeBuildInputs = [ pkg-config which ronn ];
+          buildInputs = [ opencv ];
 
-        makeFlags = [ "prefix=$(out)" ];
+          makeFlags = [ "prefix=$(out)" ];
 
-        # copied from https://github.com/NixOS/nixpkgs/blob/master/pkgs/applications/graphics/focus-stack/default.nix
-        meta = with lib; {
-          description = "Fast and easy focus stacking";
-          homepage = "https://github.com/PetteriAimonen/focus-stack";
-          license = licenses.mit;
-          maintainers = with maintainers; [ paperdigits ];
+          # copied from https://github.com/NixOS/nixpkgs/blob/master/pkgs/applications/graphics/focus-stack/default.nix
+          meta = with lib; {
+            description = "Fast and easy focus stacking";
+            homepage = "https://github.com/PetteriAimonen/focus-stack";
+            license = licenses.mit;
+            maintainers = with maintainers; [ paperdigits ];
+          };
         };
-      };
 
-    # packages.x86_64-linux.my-focus-stack = pkgs.writeShellScriptBin "my-focus-stack" ''
-    #   exec "${self.packages.x86_64-linux.focus-stack}/bin/focus-stack"
-    # '';
+      my-focus-stack = 
+        with import nixpkgs { system = "x86_64-linux"; };
+        writeShellApplication {
+        name = "my-focus-stack";
+
+        runtimeInputs = [ self.packages."${system}".focus-stack ];
+
+        text = ./my-foucs-stack.sh;
+      };
+    };
 
     homeManagerModules.myphoto = (
       {
@@ -47,7 +57,7 @@
             geeqie
           ] ++ (with self.packages.${system}; [ 
             focus-stack
-            # my-focus-stack
+            my-focus-stack
           ]);
         };
       }
