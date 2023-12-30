@@ -35,7 +35,7 @@
 
         runtimeInputs = [ self.packages."${system}".focus-stack ];
 
-        text = ./my-foucs-stack.sh;
+        text = builtins.readFile ./my-foucs-stack.sh; # or "path =" ??
       };
     };
 
