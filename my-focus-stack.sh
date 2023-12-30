@@ -12,10 +12,13 @@ run() {
   local imgs=( "$@" )
   local numImgs="${#imgs[@]}"
   local fstImg="${imgs[0]}"
-  local fstImgDir="$(dirname "$fstImg")"
-  local fstImgBN="$(basename "${fstImg%.*}")"
+  local fstImgDir
+  fstImgDir="$(dirname "$fstImg")"
+  local fstImgBN
+  fstImgBN="$(basename "${fstImg%.*}")"
   # local fstImgExtension="$(echo "${fstImg##*.}" | tr '[:upper:]' '[:lower:]')"
-  local fstImgDate="$(exiftool -dateFormat "%Y%m%d" -T -DateTimeOriginal "$fstImg")"
+  local fstImgDate
+  fstImgDate="$(exiftool -dateFormat "%Y%m%d" -T -DateTimeOriginal "$fstImg")"
   local outputBN="${fstImgDate}-${fstImgBN}-stack_of_${numImgs}"
 
   local outDir
