@@ -34,7 +34,7 @@
         writeShellApplication {
         name = "my-focus-stack";
 
-        runtimeInputs = [ self.packages."${system}".focus-stack ];
+        runtimeInputs = [ self.packages."${system}".focus-stack exiftool ];
 
         text = builtins.readFile ./my-focus-stack.sh; # or "path =" ??
       };
