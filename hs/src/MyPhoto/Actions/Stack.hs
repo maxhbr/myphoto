@@ -165,9 +165,9 @@ getEnfuseArgs opts = let
      ++ projectionToArgs (optProjection opts)
      ++ optsToArgs (optOpts opts)
 
-runEnfuse :: (Img, Bool, [String]) -> [Img] -> PActionBody
-runEnfuse _ [img] = return (Right [img])
-runEnfuse (outFile, saveMasks, enfuseArgs) imgs' = do
+runEnfuse :: Int -> (Img, Bool, [String]) -> [Img] -> PActionBody
+runEnfuse _ _ [img] = return (Right [img])
+runEnfuse retries (outFile, saveMasks, enfuseArgs) imgs' = do
   putStrLn (">>>>>>>>>>>>>>>>>>>>>>>> start >> " ++ outFile)
   let outMasksFolder = outFile ++ "-masks"
   when saveMasks $
@@ -187,8 +187,13 @@ runEnfuse (outFile, saveMasks, enfuseArgs) imgs' = do
       return (Right [outFile])
     _           -> do
       let msg = "Stack of " ++ outFile ++ " failed with " ++ show exitCode
-      putStrLn ("### " ++ msg)
-      return (Left msg)
+      if retries > 0
+      then do
+        putStrLn ("### " ++ msg ++ " (retrying)")
+        runEnfuse (retries - 1) (outFile, saveMasks, enfuseArgs) imgs'
+      else do
+        putStrLn ("### " ++ msg ++ " (giving up)")
+        return (Left msg)
 
 foldResults :: Either String [Img] -> Either String [Img] -> Either String [Img]
 foldResults (Left err1)   (Left err2)   = Left (unlines [err1, err2])
@@ -231,7 +236,7 @@ stackImpl args = let
     stackImpl'' :: MS.MSem Int -> Options -> (Img, Bool, [String]) -> [Img] -> PActionBody
     stackImpl'' sem opts (outFile, saveMasks, enfuseArgs) imgs = case calculateNextChunkSize opts imgs of
       Nothing -> do
-        (MS.with sem . runEnfuse (outFile, saveMasks, enfuseArgs)) imgs
+        (MS.with sem . runEnfuse 2 (outFile, saveMasks, enfuseArgs)) imgs
       Just maxChunkSize -> let
           chunks = chunksOf maxChunkSize imgs
           numberOfChunks = length chunks
