@@ -30,12 +30,18 @@ run() {
   fi
   local output="$outDir/${outputBN}.png"
 
+
   if [[ -e "$output" ]]; then
     echo "$output was already generated"
     return 0
   else
     echo "working on $output ..."
   fi
+
+  local log="${output}.log"
+  for (( i=0; i<${numImgs}; i++ )); do
+    echo "input $i: ${imgs[$i]}" >> "$log"
+  done
 
   time focus-stack \
     --output="${output}"\
@@ -45,7 +51,12 @@ run() {
     --jpgquality=100 \
     `#--nocrop --align-keep-size` \
     "${args[@]}" \
-    "${imgs[@]}"
+    "${imgs[@]}" \
+    2>&1 | tee -a "$log"
+  if [[ ! -f "$output" ]]; then
+    echo "failed to generate $output"
+    return 1
+  fi
 
   local lnfile="${fstImgDir}/${outputBN}"
   if [[ "$lnfile" != "$output" && ! -e "$lnfile" ]]; then
