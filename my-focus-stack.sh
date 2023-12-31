@@ -85,5 +85,9 @@ if [[ "$1" == "--dirs" ]]; then
   shift
   run_multiple "$@"
 else
-  run "$@"
+  if [[ "$#" -eq 1 && -d "$1" ]]; then
+    run "$1/"*
+  else 
+    run "$@"
+  fi
 fi

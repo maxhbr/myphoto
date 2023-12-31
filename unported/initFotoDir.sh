@@ -6,7 +6,7 @@ set -e
 
 # this matches the settings in
 #  - darktable:
-#      $(FILE_FOLDER)/../2_processed/../0_processed/$(EXIF_YEAR)$(EXIF_MONTH)$(EXIF_DAY)_$(FILE_NAME)_dt
+#      $(FILE_FOLDER)/../2_processed/../1_converted/$(EXIF_YEAR)$(EXIF_MONTH)$(EXIF_DAY)_$(FILE_NAME)_dt
 #  - rawtherapee:
 #      TODO
 
