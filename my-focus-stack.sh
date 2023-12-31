@@ -39,7 +39,7 @@ run() {
   fi
 
   local log="${output}.log"
-  for (( i=0; i<$numImgs; i++ )); do
+  for (( i=0; i<numImgs; i++ )); do
     echo "input $i: ${imgs[$i]}" >> "$log"
   done
 
