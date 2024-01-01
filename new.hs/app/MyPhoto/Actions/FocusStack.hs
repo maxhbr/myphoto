@@ -4,7 +4,6 @@ module MyPhoto.Actions.FocusStack
 
 import System.Process
 import qualified System.IO                  as IO
-import MyPhoto.Paths ( focusstackCMD )
 import MyPhoto.Model
 
 focusStackImgs :: Options -> [FilePath] -> IO (FilePath, [FilePath])
@@ -21,7 +20,7 @@ focusStackImgs opts imgs = do
     else do
       createDirectoryIfMissing True focusStackWorkdir
       (_,_,_,ph) <-
-        createProcess (proc focusstackCMD
+        createProcess (proc "focus-stack"
                             ([ ("--output=../" ++ outputName)
                              , ("--depthmap=" ++ outputName ++ ".depthmap.png")
                              , ("--3dview=" ++ outputName ++ ".3dviewpt.png")

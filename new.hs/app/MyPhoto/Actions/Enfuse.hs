@@ -260,6 +260,7 @@ enfuseStackImgs opts' = let
         enfuseArgs = getEnfuseArgs opts
       in do
         let outFile = getStackedFilename opts (head imgs)
+        let workdir = outFile -<.> "workdir"
         stackImpl'' sem opts (outFile, optSaveMasks opts, enfuseArgs) imgs
 
   in \imgs -> do
@@ -286,8 +287,3 @@ enfuseStackImgs opts' = let
           ]
         return (foldl foldResults (Right []) results)
       else stackImpl' sem opts imgs
-
--- stack :: PrePAction
--- stack ["-h"] = PAction (\_ -> pure (Left help))
--- stack args   = logSeparator "Run stack" <> PAction (stackImpl args)
-

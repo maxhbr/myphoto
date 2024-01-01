@@ -1,35 +1,45 @@
 {
   description = "A flake for my photography stuff";
+  inputs = {
+    nixpkgs.url = "github:nixos/nixpkgs";
+    flake-utils.url = "github:numtide/flake-utils";
+  };
 
-  outputs = inputs@{ self, nixpkgs }: let
-    system = "x86_64-linux";
-    pkgs = import nixpkgs { inherit system; };
+  outputs = inputs@{ self, nixpkgs, flake-utils }:
+  flake-utils.lib.eachDefaultSystem (system: let
+    pkgs = nixpkgs.legacyPackages.${system};
+    lib = pkgs.lib;
+
+    t = lib.trivial;
+    hl = pkgs.haskell.lib;
+
+    extraLibraries = with pkgs; [glew self.packages.${system}.focus-stack hugin enblend-enfuse imagemagick exiftool];
+    project = devTools:
+      let addBuildTools = (t.flip hl.addBuildTools) devTools;
+          addExtraLibraries = (t.flip hl.addExtraLibraries) extraLibraries;
+      in pkgs.haskellPackages.developPackage {
+        root = ./new.hs;
+        name = "myphoto-unwrapped";
+        returnShellEnv = !(devTools == [ ]);
+
+        modifier = (t.flip t.pipe) [
+          addBuildTools
+          addExtraLibraries
+          hl.dontHaddock
+          hl.enableStaticLibraries
+          hl.justStaticExecutables
+          hl.disableLibraryProfiling
+          hl.disableExecutableProfiling
+        ];
+      };
+
   in {
 
-    packages."${system}" = let
-      extraLibraries = (with pkgs; [glew self.packages.${system}.focus-stack hugin enblend-enfuse imagemagick exiftool]);
-    in {
-      focus-stack =
-        with pkgs;
-        stdenv.mkDerivation rec {
-          pname = "focus-stack";
-          version = "master";
-
-          src = ./PetteriAimonen-focus-stack;
-
-          nativeBuildInputs = [ pkg-config which ronn ];
-          buildInputs = [ opencv ];
-
-          makeFlags = [ "prefix=$(out)" ];
-
-          # copied from https://github.com/NixOS/nixpkgs/blob/master/pkgs/applications/graphics/focus-stack/default.nix
-          meta = with lib; {
-            description = "Fast and easy focus stacking";
-            homepage = "https://github.com/PetteriAimonen/focus-stack";
-            license = licenses.mit;
-            maintainers = with maintainers; [ paperdigits ];
-          };
-        };
+    packages = {
+      focus-stack = pkgs.focus-stack.overrideDerivation (oldAttrs: {
+        version = "master";
+        src = ./PetteriAimonen-focus-stack;
+      });
 
       my-focus-stack = 
         with pkgs;
@@ -41,27 +51,7 @@
         text = builtins.readFile ./my-focus-stack.sh; # or "path =" ??
       };
 
-      myphoto-unwrapped = 
-        let 
-          buildTools = (with pkgs.haskellPackages; [ cabal-install ghcid ]);
-          addPostInstall = pkgs.haskell.lib.overrideCabal (drv: { 
-            postInstall = ''
-              wrapProgram "$out/bin/myphoto" \
-                --set PATH ${pkgs.lib.makeBinPath extraLibraries}
-              ${drv.postInstall}
-            '';
-          });
-        in 
-          pkgs.haskellPackages.developPackage {
-            name = "myphoto-unwrapped";
-            root = ./new.hs;
-            modifier = drv: (pkgs.haskell.lib.addExtraLibraries (pkgs.haskell.lib.addBuildTools drv buildTools) extraLibraries);
-          } // {
-            postInstall = ''
-              wrapProgram "$out/bin/myphoto" \
-                --set PATH ${pkgs.lib.makeBinPath extraLibraries}
-            '';
-          };
+      myphoto-unwrapped = project [];
       myphoto = pkgs.buildEnv {
           name = "myphoto";
 
@@ -77,6 +67,14 @@
           '';
         };
     };
+
+    devShell = project (with pkgs.haskellPackages; [
+      cabal-fmt
+      cabal-install
+      haskell-language-server
+      hlint
+      ghcid
+    ]);
 
     homeManagerModules.myphoto = (
       {
@@ -97,9 +95,10 @@
           ] ++ (with self.packages.${system}; [ 
             focus-stack
             my-focus-stack
+            myphoto
           ]);
         };
       }
     );
-  };
+  });
 }
