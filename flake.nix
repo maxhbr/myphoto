@@ -6,7 +6,9 @@
     pkgs = import nixpkgs { inherit system; };
   in {
 
-    packages."${system}" = {
+    packages."${system}" = let
+      extraLibraries = (with pkgs; [glew self.packages.${system}.focus-stack hugin enblend-enfuse imagemagick exiftool]);
+    in {
       focus-stack =
         with pkgs;
         stdenv.mkDerivation rec {
@@ -42,7 +44,6 @@
       myphoto-unwrapped = 
         let 
           buildTools = (with pkgs.haskellPackages; [ cabal-install ghcid ]);
-          extraLibraries = (with pkgs; [glew focus-stack hugin enblend-enfuse imagemagick exiftool]);
           addPostInstall = pkgs.haskell.lib.overrideCabal (drv: { 
             postInstall = ''
               wrapProgram "$out/bin/myphoto" \
@@ -52,6 +53,7 @@
           });
         in 
           pkgs.haskellPackages.developPackage {
+            name = "myphoto-unwrapped";
             root = ./new.hs;
             modifier = drv: (pkgs.haskell.lib.addExtraLibraries (pkgs.haskell.lib.addBuildTools drv buildTools) extraLibraries);
           } // {
@@ -60,6 +62,20 @@
                 --set PATH ${pkgs.lib.makeBinPath extraLibraries}
             '';
           };
+      myphoto = pkgs.buildEnv {
+          name = "myphoto";
+
+          paths = [ self.packages.${system}.myphoto-unwrapped ];
+          pathsToLink = [ "/share" ];
+
+          nativeBuildInputs = [ pkgs.makeWrapper ];
+
+          postBuild = ''
+            mkdir $out/bin
+            makeWrapper ${self.packages.${system}.myphoto-unwrapped}/bin/myphoto $out/bin/myphoto \
+              --set PATH ${pkgs.lib.makeBinPath extraLibraries}
+          '';
+        };
     };
 
     homeManagerModules.myphoto = (
