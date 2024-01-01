@@ -12,7 +12,7 @@ wait_that_no_new_images_appear() {
       echo "... waited"
       return 0
     fi
-    echo "... waiting ..."
+    echo "... waiting, #=$(ls "$in" | wc -l) ..."
     old="$new"
   done
 }
