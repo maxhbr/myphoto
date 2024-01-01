@@ -3,6 +3,20 @@
 # SPDX-License-Identifier: MIT
 set -euo pipefail
 
+wait_that_no_new_images_appear() {
+  local in="$1"
+  old="$(du "$in")"
+  while sleep 30; do
+    new="$(du "$in")"
+    if [[ "$old" == "$new" ]]; then
+      echo "... waited"
+      return 0
+    fi
+    echo "... waiting ..."
+    old="$new"
+  done
+}
+
 main() {
   local in="$1"
   local outBase="$2"
@@ -32,8 +46,13 @@ main() {
   else
     mkdir -p "$out"
     echo "copy to $out ..."
-    cp "${imgs[@]}" "$out"
+    time cp "${imgs[@]}" "$out"
     echo "... done"
   fi
 }
+
+if [[ "$1" == "-w" ]]; then
+  shift
+  wait_that_no_new_images_appear "$1"
+fi
 main "$1" "$(pwd)"

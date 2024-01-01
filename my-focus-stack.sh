@@ -11,12 +11,17 @@ run() {
   done
   local imgs=( "$@" )
   local numImgs="${#imgs[@]}"
+
+  if [[ "$numImgs" -lt 10 ]]; then
+    echo "less then 10imgs, returning"
+    return 0
+  fi
+
   local fstImg="${imgs[0]}"
   local fstImgDir
   fstImgDir="$(dirname "$fstImg")"
   local fstImgBN
   fstImgBN="$(basename "${fstImg%.*}")"
-  # local fstImgExtension="$(echo "${fstImg##*.}" | tr '[:upper:]' '[:lower:]')"
   local fstImgDate
   fstImgDate="$(exiftool -dateFormat "%Y%m%d" -T -DateTimeOriginal "$fstImg")"
   local outputBN="${fstImgDate}-${fstImgBN}-stack_of_${numImgs}"
@@ -45,8 +50,8 @@ run() {
 
   time focus-stack \
     --output="${output}"\
-    `#--depthmap="${outputBN}.depthmap.png"` \
-    `#--3dview="${outputBN}.3dviewpt.png"` \
+    --depthmap="${fstImgDir}/${outputBN}.depthmap.png" \
+    --3dview="${fstImgDir}/${outputBN}.3dviewpt.png" \
     --save-steps \
     --jpgquality=100 \
     `#--nocrop --align-keep-size` \
@@ -58,7 +63,7 @@ run() {
     return 1
   fi
 
-  local lnfile="${fstImgDir}/${outputBN}"
+  local lnfile="${fstImgDir}/${outputBN}.png"
   if [[ "$lnfile" != "$output" && ! -e "$lnfile" ]]; then
     ln -s "$(realpath --relative-to="${fstImgDir}" "${output}")" "${lnfile}"
   fi
