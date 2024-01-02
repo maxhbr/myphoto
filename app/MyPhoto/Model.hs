@@ -16,7 +16,7 @@ module MyPhoto.Model
 where
 
 import Control.Monad (unless, when)
-import qualified Data.Maybe as Maybe (fromJust, mapMaybe, maybe)
+import qualified Data.Maybe as Maybe (isJust, fromJust, mapMaybe, maybe)
 import System.Directory as Directory (createDirectoryIfMissing, doesDirectoryExist, doesFileExist, listDirectory, makeAbsolute, setCurrentDirectory)
 import System.Exit as Exit (ExitCode (..), exitWith)
 import System.FilePath as FilePath (splitExtensions, takeBaseName, takeDirectory, takeFileName, (-<.>), (<.>), (</>))
@@ -29,6 +29,8 @@ type Imgs = [FilePath]
 
 data Options = Options
   { optVerbose :: Bool,
+    optCopy :: Bool,
+    optMove :: Bool,
     optWorkdir :: Maybe FilePath,
     optEveryNth :: Maybe Int,
     optRemoveOutliers :: Bool,

@@ -9,6 +9,7 @@ import Control.Concurrent (getNumCapabilities)
 import Control.Concurrent.Async (mapConcurrently)
 import Control.Concurrent.MSem as MS
 import Control.Monad
+import Data.Char (toLower)
 import Data.List.Split (chunksOf)
 import Data.Maybe (fromMaybe)
 import MyPhoto.Model hiding (Options (..))
@@ -42,9 +43,11 @@ optsToArgs Opts3 = ["--contrast-edge-scale=31", "--contrast-min-curvature=11"]
 
 data EnfuseOptions = EnfuseOptions
   { optEnfuseVerbose :: Bool,
+    optMaxCapabilities :: Int,
     optOutputBN :: Maybe String,
-    optChunks :: Maybe Int,
+    optChunkMaxSize :: Int,
     optChunkLevel :: Int,
+    optChunkSize :: Maybe Int,
     optProjection :: Projection,
     optOpts :: EnfuseOpts,
     optConcurrent :: Bool,
@@ -57,9 +60,11 @@ enfuseDefaultOptions :: EnfuseOptions
 enfuseDefaultOptions =
   EnfuseOptions
     { optEnfuseVerbose = False,
+      optMaxCapabilities = 9, -- with to many threads the memory seems to be insufficient
       optOutputBN = Nothing,
-      optChunks = Nothing,
+      optChunkMaxSize = 15,
       optChunkLevel = 2,
+      optChunkSize = Nothing,
       optProjection = Proj1,
       optOpts = Opts1,
       optConcurrent = True,
@@ -77,8 +82,8 @@ optionsToFilenameAppendix o =
       optsOptionsToFilenameAppendix EnfuseOptions {optOpts = Opts1} = "o1"
       optsOptionsToFilenameAppendix EnfuseOptions {optOpts = Opts2} = "o2"
       optsOptionsToFilenameAppendix EnfuseOptions {optOpts = Opts3} = "o3"
-      chunkOptionsToFilenameAppendix EnfuseOptions {optChunks = Nothing} = ""
-      chunkOptionsToFilenameAppendix EnfuseOptions {optChunks = Just n} = "c" ++ show n
+      chunkOptionsToFilenameAppendix EnfuseOptions {optChunkSize = Nothing} = ""
+      chunkOptionsToFilenameAppendix EnfuseOptions {optChunkSize = Just n} = "c" ++ show n
    in "_" ++ projectionOptionsToFilenameAppendix o ++ optsOptionsToFilenameAppendix o ++ chunkOptionsToFilenameAppendix o
 
 getEnfuseArgs :: EnfuseOptions -> [String]
@@ -141,7 +146,7 @@ foldResults _ r2@(Left _) = r2
 calculateNextChunkSize :: EnfuseOptions -> [FilePath] -> Maybe Int
 calculateNextChunkSize opts imgs =
   let numOfImages = length imgs
-   in case optChunks opts of
+   in case optChunkSize opts of
         Nothing -> Nothing
         Just maxChunkSize
           | numOfImages <= 2 ->
@@ -208,14 +213,27 @@ enfuseStackImgs opts' =
                   createDirectoryIfMissing True workdir
                   stackImpl'' sem opts (outFile, workdir, optSaveMasks opts, enfuseArgs) imgs
    in \imgs -> do
+
         -- apply autochunk
-        let opts = case optChunks opts' of
-              Nothing | optChunkLevel opts' == 2 && length imgs > 50 -> opts' {optChunks = Just (ceiling (sqrt (fromIntegral (length imgs))))}
-              _ -> opts'
+        let opts = case optChunkSize opts' of
+                          Nothing -> let
+                              chunkSizeFromChunkLevel = case optChunkLevel opts' of
+                                                          2 -> (ceiling (sqrt (fromIntegral (length imgs))))
+                                                          1 -> length imgs
+                                                          _ -> undefined
+                              chunkSizeFromChunkMaxSize = optChunkMaxSize opts'
+                              minChunkSize = max 6 (length imgs)
+                              chunkSize = max (min chunkSizeFromChunkLevel chunkSizeFromChunkMaxSize) minChunkSize
+                            in if chunkSize >= length imgs
+                               then opts'
+                               else opts' {optChunkSize = Just chunkSize}
+                          _ -> opts'
 
         print opts
         numCapabilities <- getNumCapabilities
-        let numThreads = if optConcurrent opts then numCapabilities else 1
+        let numThreads = if optConcurrent opts
+                         then min numCapabilities (optMaxCapabilities opts)
+                         else 1
         when (optConcurrent opts) $ putStrLn ("#### use " ++ show numThreads ++ " threads")
         sem <- MS.new numThreads -- semathore to limit number of parallel threads
         if optAll opts

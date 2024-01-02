@@ -1,5 +1,5 @@
 module MyPhoto.MyPhoto
-  ( runMyPhoto,
+  ( runMyPhoto
   )
 where
 
@@ -11,6 +11,7 @@ import MyPhoto.Actions.Enfuse
 import MyPhoto.Actions.Exiftool
 import MyPhoto.Actions.FocusStack
 import MyPhoto.Actions.Montage
+import MyPhoto.Actions.FileSystem
 import MyPhoto.Actions.Outliers
 import MyPhoto.Model
 import System.Console.GetOpt
@@ -21,6 +22,8 @@ startOptions :: Options
 startOptions =
   Options
     { optVerbose = False,
+      optCopy = False,
+      optMove = False,
       optWorkdir = Nothing,
       optEveryNth = Nothing,
       optRemoveOutliers = True,
@@ -39,6 +42,8 @@ options =
           "DIR"
       )
       "work directory",
+    Option "" ["copy"] (NoArg (\opt -> return opt {optCopy = True})) "copy files to subfolder",
+    Option "" ["move"] (NoArg (\opt -> return opt {optMove = True})) "move files to subfolder",
     Option
       ""
       ["no-enfuse"]
@@ -140,13 +145,12 @@ getOptionsAndInitialize =
       fillWorkDir imgs opts@Options {optWorkdir = Just wd} = do
         absWd <- makeAbsolute wd
         return opts {optWorkdir = Just absWd}
-      fillWorkDir imgs@(img : _) opts =
-        return
-          opts
-            { optWorkdir =
-                let imgBN = computeStackOutputBN imgs
-                 in Just $ (takeDirectory img) <.> imgBN <.> "myphoto"
-            }
+      fillWorkDir imgs@(img : _) opts = let
+            wd = if (optCopy opts || optMove opts)
+                 then (takeDirectory img) </> "myphoto"
+                 else let imgBN = computeStackOutputBN imgs
+                       in (takeDirectory img) <.> imgBN <.> "myphoto"
+        in return opts { optWorkdir = Just wd }
       fillWorkDir _ _ = undefined -- should not happen
 
 
@@ -172,6 +176,10 @@ getOptionsAndInitialize =
 
         opts' <- foldl (>>=) (return startOptions) actions
 
+        when (optCopy opts' && optMove opts') $ do
+          IO.hPutStrLn IO.stderr ("cannot specify both --copy and --move")
+          exitWith (ExitFailure 1)
+
         when (null imgs') $ do
           IO.hPutStrLn IO.stderr ("no image specified")
           exitWith (ExitFailure 1)
@@ -189,7 +197,18 @@ getOptionsAndInitialize =
 
         opts <- fillWorkDir imgs opts'
 
-        return (opts, imgs)
+        imgsMoved <- case opts of 
+            Options {optWorkdir = Just wd, optMove = True} -> do
+              let indir = wd </> "raw"
+              IO.hPutStrLn IO.stderr ("INFO: move files to subfolder: " ++ indir)
+              move indir imgs
+            Options {optWorkdir = Just wd, optCopy = True} -> do
+              let indir = wd </> "raw"
+              IO.hPutStrLn IO.stderr ("INFO: copy files to subfolder: " ++ indir)
+              copy indir imgs
+            _ -> return imgs
+
+        return (opts, imgsMoved)
 
 myPhotoStateAction :: Options -> MTL.StateT (Imgs, Imgs) IO ()
 myPhotoStateAction opts@Options {optVerbose = verbose} = do
@@ -203,10 +222,14 @@ myPhotoStateAction opts@Options {optVerbose = verbose} = do
     Nothing -> return ()
     Just gapInSeconds | gapInSeconds < 1 -> return ()
     Just gapInSeconds -> do
-      MTL.liftIO $ IO.hPutStrLn IO.stderr ("INFO: breaking on time gap of " ++ show gapInSeconds ++ " seconds")
-      (imgs, outs) <- MTL.get
-      broken <- MTL.liftIO $ breaking gapInSeconds imgs
-      MTL.put (broken, outs)
+      case (optEveryNth opts) of
+        Just _ -> do
+          MTL.liftIO $ IO.hPutStrLn IO.stderr ("INFO: ignoring --breaking because --every-nth is specified")
+        _ -> do
+          MTL.liftIO $ IO.hPutStrLn IO.stderr ("INFO: breaking on time gap of " ++ show gapInSeconds ++ " seconds")
+          (imgs, outs) <- MTL.get
+          broken <- MTL.liftIO $ breaking gapInSeconds imgs
+          MTL.put (broken, outs)
 
   when (optRemoveOutliers opts) $ do
     MTL.liftIO $ IO.hPutStrLn IO.stderr ("INFO: removing outliers")
@@ -251,7 +274,7 @@ myPhotoStateAction opts@Options {optVerbose = verbose} = do
   do
     MTL.liftIO $ IO.hPutStrLn IO.stderr ("INFO: create montage")
     outs <- MTL.gets snd
-    montageOut <- MTL.liftIO $ montage 300 (inWorkdir opts outputBN) outs
+    montageOut <- MTL.liftIO $ montage 1000 (inWorkdir opts outputBN) outs
     MTL.liftIO $ IO.hPutStrLn IO.stderr ("INFO: wrote " ++ montageOut)
 
   return ()
