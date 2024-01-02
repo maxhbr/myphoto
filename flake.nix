@@ -18,7 +18,7 @@
       let addBuildTools = (t.flip hl.addBuildTools) devTools;
           addExtraLibraries = (t.flip hl.addExtraLibraries) extraLibraries;
       in pkgs.haskellPackages.developPackage {
-        root = ./new.hs;
+        root = ./.;
         name = "myphoto-unwrapped";
         returnShellEnv = !(devTools == [ ]);
 

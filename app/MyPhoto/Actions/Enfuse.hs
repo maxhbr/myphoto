@@ -10,14 +10,11 @@ import           Control.Concurrent.MSem as MS
 import           Control.Monad
 import           Data.List.Split ( chunksOf )
 import           Data.Maybe ( fromMaybe )
-import           GHC.Conc ( numCapabilities )
 import           System.Console.GetOpt
 import           System.Directory
 import           System.Exit
 import           System.FilePath
 import           System.Process
-
-import           Debug.Trace
 
 import MyPhoto.Model hiding (Options(..))
 
@@ -45,9 +42,10 @@ data EnfuseOptions
   { optEnfuseVerbose :: Bool
   , optOutputBN   :: Maybe String
   , optChunks     :: Maybe Int
+  , optChunkLevel :: Int
   , optProjection :: Projection
   , optOpts       :: EnfuseOpts
-  , optConcurrent :: Maybe Int
+  , optConcurrent :: Bool
   , optAll        :: Bool
   , optSaveMasks  :: Bool
   } deriving Show
@@ -58,9 +56,10 @@ enfuseDefaultOptions
   { optEnfuseVerbose = False
   , optOutputBN   = Nothing
   , optChunks     = Nothing
+  , optChunkLevel = 2
   , optProjection = Proj1
   , optOpts       = Opts1
-  , optConcurrent = Nothing
+  , optConcurrent = True
   , optAll        = False
   , optSaveMasks  = False
   }
@@ -90,11 +89,14 @@ getEnfuseArgs opts = let
      ++ projectionToArgs (optProjection opts)
      ++ optsToArgs (optOpts opts)
 
-runEnfuse :: Int -> (FilePath, Bool, [String]) -> [FilePath] -> IO (Either String [FilePath])
+inWorkdir :: FilePath -> FilePath -> FilePath
+inWorkdir workdir img = workdir </> takeFileName img
+
+runEnfuse :: Int -> (FilePath, FilePath, Bool, [String]) -> [FilePath] -> IO (Either String [FilePath])
 runEnfuse _ _ [img] = return (Right [img])
-runEnfuse retries (outFile, saveMasks, enfuseArgs) imgs' = do
+runEnfuse retries args@(outFile, workdir, saveMasks, enfuseArgs) imgs' = do
   putStrLn (">>>>>>>>>>>>>>>>>>>>>>>> start >> " ++ outFile)
-  let outMasksFolder = outFile ++ "-masks"
+  let outMasksFolder = inWorkdir workdir (outFile ++ "-masks")
   when saveMasks $
     createDirectoryIfMissing True outMasksFolder
   let maskArgs = ["--save-masks=\"" ++ outMasksFolder ++ "/softmask-%04n.tif:" ++ outMasksFolder ++ "/hardmask-%04n.tif\"" | saveMasks]
@@ -115,7 +117,7 @@ runEnfuse retries (outFile, saveMasks, enfuseArgs) imgs' = do
       if retries > 0
       then do
         putStrLn ("### " ++ msg ++ " (retrying)")
-        runEnfuse (retries - 1) (outFile, saveMasks, enfuseArgs) imgs'
+        runEnfuse (retries - 1) args imgs'
       else do
         putStrLn ("### " ++ msg ++ " (giving up)")
         return (Left msg)
@@ -155,12 +157,12 @@ getStackedFilename opts img = let
 getChunkFilename :: FilePath -> FilePath -> Int -> Int -> FilePath
 getChunkFilename workdir img indexOfChunk numberOfChunks = let
     (bn,ext) = splitExtensions img
-  in workdir </> (takeBaseName bn) ++ "_CHUNK" ++ show indexOfChunk ++ "of" ++ show numberOfChunks <.> ext
+  in inWorkdir workdir (bn ++ "_CHUNK" ++ show indexOfChunk ++ "of" ++ show numberOfChunks <.> ext)
 
 enfuseStackImgs:: EnfuseOptions -> [FilePath] -> IO (Either String [FilePath])
 enfuseStackImgs opts' = let
 
-    stackImpl'' :: MS.MSem Int -> EnfuseOptions -> (FilePath, FilePath Bool, [String]) -> [FilePath] -> IO (Either String [FilePath])
+    stackImpl'' :: MS.MSem Int -> EnfuseOptions -> (FilePath, FilePath, Bool, [String]) -> [FilePath] -> IO (Either String [FilePath])
     stackImpl'' sem opts args@(outFile, workdir, saveMasks, enfuseArgs) imgs = case calculateNextChunkSize opts imgs of
       Nothing -> do
         (MS.with sem . runEnfuse 2 args) imgs
@@ -185,19 +187,30 @@ enfuseStackImgs opts' = let
         enfuseArgs = getEnfuseArgs opts
       in do
         let outFile = getStackedFilename opts (head imgs)
-        let workdir = outFile -<.> "workdir"
-        createDirectoryIfMissing True workdir
-        stackImpl'' sem opts (outFile, workdir, optSaveMasks opts, enfuseArgs) imgs
+
+        outFileExists <- doesFileExist outFile
+        if outFileExists 
+        then do
+          putStrLn ("#### " ++ outFile ++ " already exists, skipping")
+          return (Right [outFile])
+        else do
+          let workdir = outFile -<.> "workdir"
+          createDirectoryIfMissing True workdir
+          stackImpl'' sem opts (outFile, workdir, optSaveMasks opts, enfuseArgs) imgs
 
   in \imgs -> do
+
     -- apply autochunk
     let opts = case optChunks opts' of
-                  Just chunkSize | chunkSize < 1 && length imgs > 50 -> opts'{optChunks = Just (ceiling (sqrt (fromIntegral (length imgs))))}
-                  Just chunkSize | chunkSize < 1                     -> opts'{optChunks = Nothing}
-                  _                                                  -> opts'
+                  Nothing | optChunkLevel opts' == 2 && length imgs > 50 -> opts'{optChunks = Just (ceiling (sqrt (fromIntegral (length imgs))))}
+                  _ -> opts'
 
     print opts
-    sem <- MS.new (fromMaybe 1 (optConcurrent opts)) -- semathore to limit number of parallel threads
+    numCapabilities <- getNumCapabilities
+    let numThreads = if optConcurrent opts then numCapabilities else 1
+    putStrLn ("#### use " ++ show numThreads ++ " threads")
+    sem <- MS.new numThreads -- semathore to limit number of parallel threads
+
     if optAll opts
       then do
         results <- mapConcurrently (\opts' -> stackImpl' sem opts' imgs)

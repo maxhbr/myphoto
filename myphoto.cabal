@@ -69,8 +69,6 @@ executable myphoto
 
     -- Other library packages from which modules are imported.
     build-depends:    base ^>=4.17.2.1,
-                      shake,
-                      shelly,
                       bytestring,
                       containers,
                       directory,
@@ -85,7 +83,10 @@ executable myphoto
                       async,
                       temporary,
                       split,
-                      SafeSemaphore
+                      SafeSemaphore,
+                      aeson,
+                      bytestring,
+                      mtl
 
     -- Directories containing source files.
     hs-source-dirs:   app
