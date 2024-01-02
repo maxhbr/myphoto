@@ -83,15 +83,13 @@ options =
              prg <- getProgName
              IO.hPutStr IO.stderr (usageInfo prg options)
              IO.hPutStrLn IO.stderr "  IMG0 [IMG1]..."
+
              exitWith ExitSuccess))
         "Show help"
     ]
 
 getOptionsAndInitialize :: IO (Options, [FilePath])
 getOptionsAndInitialize = let
-        makeImgPathsAbsolute :: [FilePath] -> IO [FilePath]
-        makeImgPathsAbsolute imgs = mapM makeAbsolute imgs
-
         fillWorkDir :: [FilePath] -> Options -> IO Options
         fillWorkDir imgs opts@Options{optWorkdir = Just wd} = do
             absWd <- makeAbsolute wd
@@ -132,20 +130,19 @@ getOptionsAndInitialize = let
 
         opts' <- foldl (>>=) (return startOptions) actions
 
-        imgs <- makeImgPathsAbsolute (applySparse opts' imgs')
-        print imgs
-        when (null imgs)$ do
-            IO.hPutStrLn IO.stderr ("no image specified: " ++ show imgs)
+        when (null imgs')$ do
+            IO.hPutStrLn IO.stderr ("no image specified")
             exitWith (ExitFailure 1)
 
-        opts <- fillWorkDir imgs opts'
-
-        mapM_ (\img -> do
+        imgs <- mapM (\img -> do
             exists <- doesFileExist img
             unless exists $ do
                 IO.hPutStrLn IO.stderr $ "image not found: " ++ img
                 exitWith (ExitFailure 1)
-            ) imgs
+            makeAbsolute img
+            ) (applySparse opts' imgs')
+
+        opts <- fillWorkDir imgs opts'
 
         return (opts, imgs)
 
@@ -178,7 +175,6 @@ myPhotoStateAction opts@Options{optVerbose = verbose} = do
         aligned <- MTL.liftIO $ align opts imgs
         MTL.put (aligned, outs)
         return aligned
-
       
     when (optEnfuse opts) $ do
       (imgs, outs) <- MTL.get
