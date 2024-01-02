@@ -2,11 +2,14 @@ module MyPhoto.Model
     ( module FilePath
     , module Directory
     , module Exit
+    , module Maybe
     , Img
     , Imgs
     , Options(..)
     , setCurrentWD
     , computeStackOutputBN
+    , inWorkdir'
+    , inWorkdir
     , findOutFile
     )where
 
@@ -16,6 +19,7 @@ import           System.Directory           as Directory (createDirectoryIfMissi
 import           System.Exit                as Exit ( ExitCode(..), exitWith )
 import qualified System.IO                  as IO
 import           System.Posix.LoadAvg       (LoadAvg (..), getLoadAvgSafe)
+import qualified Data.Maybe as Maybe (fromJust, maybe, mapMaybe)
 
 type Img = FilePath
 type Imgs = [FilePath]
@@ -23,6 +27,7 @@ type Imgs = [FilePath]
 data Options = Options  { optVerbose   :: Bool
                         , optWorkdir   :: Maybe FilePath 
                         , optEveryNth  :: Maybe Int
+                        , optRemoveOutliers :: Bool
                         , optBreaking  :: Maybe Int
                         , optEnfuse    :: Bool
                         }
@@ -46,6 +51,13 @@ setCurrentWD opts = do
         Nothing -> do
             IO.hPutStrLn IO.stderr "no work directory specified"
             exitWith (ExitFailure 1)
+
+inWorkdir' :: FilePath -> FilePath -> FilePath
+inWorkdir' workdir img = workdir </> takeFileName img
+inWorkdir :: Options -> FilePath -> FilePath
+inWorkdir opts img = case optWorkdir opts of
+    Just workdir -> inWorkdir' workdir img
+    Nothing -> img
 
 
 findOutFile :: String -> String -> IO FilePath

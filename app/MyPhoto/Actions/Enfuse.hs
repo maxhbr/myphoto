@@ -89,14 +89,11 @@ getEnfuseArgs opts = let
      ++ projectionToArgs (optProjection opts)
      ++ optsToArgs (optOpts opts)
 
-inWorkdir :: FilePath -> FilePath -> FilePath
-inWorkdir workdir img = workdir </> takeFileName img
-
 runEnfuse :: Int -> (FilePath, FilePath, Bool, [String]) -> [FilePath] -> IO (Either String [FilePath])
 runEnfuse _ _ [img] = return (Right [img])
 runEnfuse retries args@(outFile, workdir, saveMasks, enfuseArgs) imgs' = do
   putStrLn (">>>>>>>>>>>>>>>>>>>>>>>> start >> " ++ outFile)
-  let outMasksFolder = inWorkdir workdir (outFile ++ "-masks")
+  let outMasksFolder = inWorkdir' workdir (outFile ++ "-masks")
   when saveMasks $
     createDirectoryIfMissing True outMasksFolder
   let maskArgs = ["--save-masks=\"" ++ outMasksFolder ++ "/softmask-%04n.tif:" ++ outMasksFolder ++ "/hardmask-%04n.tif\"" | saveMasks]
@@ -157,7 +154,7 @@ getStackedFilename opts img = let
 getChunkFilename :: FilePath -> FilePath -> Int -> Int -> FilePath
 getChunkFilename workdir img indexOfChunk numberOfChunks = let
     (bn,ext) = splitExtensions img
-  in inWorkdir workdir (bn ++ "_CHUNK" ++ show indexOfChunk ++ "of" ++ show numberOfChunks <.> ext)
+  in inWorkdir' workdir (bn ++ "_CHUNK" ++ show indexOfChunk ++ "of" ++ show numberOfChunks <.> ext)
 
 enfuseStackImgs:: EnfuseOptions -> [FilePath] -> IO (Either String [FilePath])
 enfuseStackImgs opts' = let

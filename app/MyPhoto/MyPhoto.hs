@@ -13,11 +13,14 @@ import MyPhoto.Model
 import MyPhoto.Actions.FocusStack 
 import MyPhoto.Actions.Enfuse
 import MyPhoto.Actions.Exiftool
+import MyPhoto.Actions.Montage
+import MyPhoto.Actions.Outliers
 
 startOptions :: Options
 startOptions = Options  { optVerbose    = False
                         , optWorkdir    = Nothing
                         , optEveryNth   = Nothing
+                        , optRemoveOutliers = True
                         , optBreaking   = Just 300
                         , optEnfuse     = True
                         }
@@ -45,6 +48,16 @@ options =
             (\arg opt -> return opt { optEveryNth = Just (read arg :: Int)})
             "N")
         "just take every n-th image (at least first and last)"
+    
+    , Option "" ["no-remove-outliers"]
+        (NoArg
+            (\opt -> return opt { optRemoveOutliers = False }))
+        "Do not remove outliers"
+
+    , Option "" ["remove-outliers"]
+        (NoArg
+            (\opt -> return opt { optRemoveOutliers = True }))
+        "Remove outliers (default)"
 
     , Option "" ["breaking"]
         (ReqArg
@@ -138,20 +151,35 @@ myPhotoStateAction opts@Options{optVerbose = verbose} = do
         broken <- MTL.liftIO $ breaking gapInSeconds imgs
         MTL.put (broken, outs)
 
-    do
+    when (optRemoveOutliers opts) $ do
+      (imgs, outs) <- MTL.get
+      withoutOutliers <- MTL.liftIO $ rmOutliers (optWorkdir opts) imgs
+      MTL.put (withoutOutliers, outs)
+
+    outputBN <- do
+      imgs <- MTL.gets fst
+      return (computeStackOutputBN imgs)
+
+    aligned <- do
       (imgs, outs) <- MTL.get
       (focusStacked,aligned) <- MTL.liftIO $ focusStackImgs opts imgs
       MTL.put (aligned, outs ++ [focusStacked])
+      return aligned
       
     when (optEnfuse opts) $ do
       (imgs, outs) <- MTL.get
       enfuseResult <- MTL.liftIO $ enfuseStackImgs (enfuseDefaultOptions
-                        { optOutputBN = Just (computeStackOutputBN imgs)
+                        { optOutputBN = Just outputBN
                         , optEnfuseVerbose = verbose
-                      }) imgs
+                      }) aligned
       case enfuseResult of
         Left err -> MTL.liftIO $ IO.hPutStrLn IO.stderr err
         Right enfuseOuts -> MTL.put (imgs, outs ++ enfuseOuts)
+
+    do 
+      (_, outs) <- MTL.get
+      montageOut <- MTL.liftIO $ montage (inWorkdir opts outputBN) outs
+      MTL.liftIO $ IO.hPutStrLn IO.stderr ("INFO: wrote " ++ montageOut)
 
     return ()
 
