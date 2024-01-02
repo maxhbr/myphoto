@@ -68,7 +68,7 @@
         };
     };
 
-    devShell = project (with pkgs.haskellPackages; [
+    devShell.${system} = project (with pkgs.haskellPackages; [
       cabal-fmt
       cabal-install
       haskell-language-server

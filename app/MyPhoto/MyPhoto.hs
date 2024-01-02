@@ -151,11 +151,13 @@ myPhotoStateAction opts@Options{optVerbose = verbose} = do
     case optBreaking opts of
       Nothing -> return ()
       Just gapInSeconds -> do
+        MTL.liftIO $ IO.hPutStrLn IO.stderr ("INFO: breaking on time gap of " ++ show gapInSeconds ++ " seconds")
         (imgs, outs) <- MTL.get
         broken <- MTL.liftIO $ breaking gapInSeconds imgs
         MTL.put (broken, outs)
 
     when (optRemoveOutliers opts) $ do
+      MTL.liftIO $ IO.hPutStrLn IO.stderr ("INFO: removing outliers")
       (imgs, outs) <- MTL.get
       withoutOutliers <- MTL.liftIO $ rmOutliers (optWorkdir opts) imgs
       MTL.put (withoutOutliers, outs)
@@ -166,17 +168,20 @@ myPhotoStateAction opts@Options{optVerbose = verbose} = do
 
     if optFocusStack opts
     then do
+        MTL.liftIO $ IO.hPutStrLn IO.stderr ("INFO: focus stacking (and aligning) with PetteriAimonen/focus-stack")
         (imgs, outs) <- MTL.get
         (focusStacked,aligned) <- MTL.liftIO $ focusStackImgs opts imgs
         MTL.put (aligned, outs ++ [focusStacked])
         return aligned
     else do
+        MTL.liftIO $ IO.hPutStrLn IO.stderr ("INFO: just aligning with hugin")
         (imgs, outs) <- MTL.get
         aligned <- MTL.liftIO $ align opts imgs
         MTL.put (aligned, outs)
         return aligned
       
     when (optEnfuse opts) $ do
+      MTL.liftIO $ IO.hPutStrLn IO.stderr ("INFO: focus stacking with enfuse")
       (imgs, outs) <- MTL.get
       enfuseResult <- MTL.liftIO $ enfuseStackImgs (enfuseDefaultOptions
                         { optOutputBN = Just outputBN
@@ -187,6 +192,7 @@ myPhotoStateAction opts@Options{optVerbose = verbose} = do
         Right enfuseOuts -> MTL.put (imgs, outs ++ enfuseOuts)
 
     do 
+      MTL.liftIO $ IO.hPutStrLn IO.stderr ("INFO: create montage")
       (_, outs) <- MTL.get
       montageOut <- MTL.liftIO $ montage (inWorkdir opts outputBN) outs
       MTL.liftIO $ IO.hPutStrLn IO.stderr ("INFO: wrote " ++ montageOut)

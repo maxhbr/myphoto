@@ -55,7 +55,7 @@ copyAndRenameImages renamer imgs = mapM (\(img, i) -> do
 align :: Options -> Imgs -> IO Imgs
 align _ [] = return []
 align opts@Options{optWorkdir = Nothing} imgs@(img1:_) = align opts{optWorkdir = Just (takeDirectory img1)} imgs
-align opts@Options{optWorkdir = Just wd}  imgs@(img1:_) = do
+align opts@Options{optWorkdir = Just wd} imgs = do
   let alignWD = wd </> "_align"
   createDirectoryIfMissing True alignWD
 
