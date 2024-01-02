@@ -86,13 +86,13 @@
         inherit (pkgs.stdenv.hostPlatform) system;
       in {
         config = {
-          home.packages = with pkgs; [
+          home.packages = (with pkgs; [
             gphoto2
             gphoto2fs
             gimp # -with-plugins
             darktable
             geeqie
-          ] ++ (with self.packages.${system}; [ 
+          ]) ++ (with self.packages.${system}; [ 
             focus-stack
             my-focus-stack
             myphoto

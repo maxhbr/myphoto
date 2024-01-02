@@ -88,7 +88,7 @@ options =
           (\arg opt -> return opt {optBreaking = Just (read arg :: Int)})
           "SECONDS"
       )
-      "break on time gap",
+      "break on time gap (0 to disable)",
     Option
       "v"
       ["verbose"]
@@ -179,6 +179,7 @@ myPhotoStateAction :: Options -> MTL.StateT (Imgs, Imgs) IO ()
 myPhotoStateAction opts@Options {optVerbose = verbose} = do
   case optBreaking opts of
     Nothing -> return ()
+    Just gapInSeconds | gapInSeconds < 1 -> return ()
     Just gapInSeconds -> do
       MTL.liftIO $ IO.hPutStrLn IO.stderr ("INFO: breaking on time gap of " ++ show gapInSeconds ++ " seconds")
       (imgs, outs) <- MTL.get
