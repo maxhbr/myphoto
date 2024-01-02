@@ -3,6 +3,7 @@ module MyPhoto.MyPhoto
   )
 where
 
+import Control.Concurrent (getNumCapabilities)
 import Control.Monad (unless, when)
 import qualified Control.Monad.State.Lazy as MTL
 import MyPhoto.Actions.Align
@@ -105,11 +106,33 @@ options =
               IO.hPutStr IO.stderr (usageInfo prg options)
               IO.hPutStrLn IO.stderr "  IMG0 [IMG1]..."
 
+              numCapabilities <- getNumCapabilities
+              when (numCapabilities == 1) $
+                IO.hPutStrLn IO.stderr ("WARN: numCapabilities=" ++ show numCapabilities ++ " this looks suspicious")
+
               exitWith ExitSuccess
           )
       )
       "Show help"
   ]
+
+everyNth :: Int -> [a] -> [a]
+everyNth _ [] = []
+everyNth n (x : xs) =
+  let everyNth' :: Int -> [a] -> [a]
+      everyNth' n xs = case drop (n - 1) xs of
+        (y : ys) -> y : everyNth n ys
+        [] -> [last xs | not (null xs)]
+   in x : everyNth' n xs
+
+sampleOfM :: Int -> [a] -> [a]
+sampleOfM _ [] = []
+sampleOfM m xs = let
+    len = length xs
+    n = len `div` m
+  in if len <= m
+     then xs
+     else everyNth n xs
 
 getOptionsAndInitialize :: IO (Options, [FilePath])
 getOptionsAndInitialize =
@@ -125,14 +148,7 @@ getOptionsAndInitialize =
                  in Just $ (takeDirectory img) <.> imgBN <.> "myphoto"
             }
       fillWorkDir _ _ = undefined -- should not happen
-      everyNth :: Int -> [a] -> [a]
-      everyNth _ [] = []
-      everyNth n (x : xs) =
-        let everyNth' :: Int -> [a] -> [a]
-            everyNth' n xs = case drop (n - 1) xs of
-              (y : ys) -> y : everyNth n ys
-              [] -> [last xs | not (null xs)]
-         in x : everyNth' n xs
+
 
       applySparse :: Options -> [FilePath] -> [FilePath]
       applySparse Options {optEveryNth = Just n} imgs = everyNth n imgs
@@ -177,6 +193,12 @@ getOptionsAndInitialize =
 
 myPhotoStateAction :: Options -> MTL.StateT (Imgs, Imgs) IO ()
 myPhotoStateAction opts@Options {optVerbose = verbose} = do
+  do
+    MTL.liftIO $ IO.hPutStrLn IO.stderr ("INFO: create montage")
+    imgs <- MTL.gets (sampleOfM 25 . fst)
+    montageOut <- MTL.liftIO $ montage 100 (inWorkdir opts "all") imgs
+    MTL.liftIO $ IO.hPutStrLn IO.stderr ("INFO: wrote " ++ montageOut)
+
   case optBreaking opts of
     Nothing -> return ()
     Just gapInSeconds | gapInSeconds < 1 -> return ()
@@ -228,8 +250,8 @@ myPhotoStateAction opts@Options {optVerbose = verbose} = do
 
   do
     MTL.liftIO $ IO.hPutStrLn IO.stderr ("INFO: create montage")
-    (_, outs) <- MTL.get
-    montageOut <- MTL.liftIO $ montage (inWorkdir opts outputBN) outs
+    outs <- MTL.gets snd
+    montageOut <- MTL.liftIO $ montage 300 (inWorkdir opts outputBN) outs
     MTL.liftIO $ IO.hPutStrLn IO.stderr ("INFO: wrote " ++ montageOut)
 
   return ()

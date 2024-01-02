@@ -156,15 +156,17 @@ calculateNextChunkSize opts imgs =
 
 getStackedFilename :: EnfuseOptions -> FilePath -> FilePath
 getStackedFilename opts img =
-  let (bn, ext) = splitExtensions img
+  let (bn, ext') = splitExtensions img
+      ext = if map toLower ext' == ".jpg" then ".png" else ext
    in case optOutputBN opts of
-        Nothing -> bn ++ "_STACKED" ++ optionsToFilenameAppendix opts <.> ext
-        Just outputBN -> outputBN ++ "_STACKED" ++ optionsToFilenameAppendix opts <.> ext
+        Nothing -> bn ++ "_enfuse" ++ optionsToFilenameAppendix opts <.> ext
+        Just outputBN -> outputBN ++ "__enfuse" ++ optionsToFilenameAppendix opts <.> ext
 
 getChunkFilename :: FilePath -> FilePath -> Int -> Int -> FilePath
 getChunkFilename workdir img indexOfChunk numberOfChunks =
-  let (bn, ext) = splitExtensions img
-   in inWorkdir' workdir (bn ++ "_CHUNK" ++ show indexOfChunk ++ "of" ++ show numberOfChunks <.> ext)
+  let (bn, ext') = splitExtensions img
+      ext = if map toLower ext' == ".jpg" then ".png" else ext
+   in inWorkdir' workdir (bn ++ "_chunk" ++ show indexOfChunk ++ "of" ++ show numberOfChunks <.> ext)
 
 enfuseStackImgs :: EnfuseOptions -> [FilePath] -> IO (Either String [FilePath])
 enfuseStackImgs opts' =
@@ -214,7 +216,7 @@ enfuseStackImgs opts' =
         print opts
         numCapabilities <- getNumCapabilities
         let numThreads = if optConcurrent opts then numCapabilities else 1
-        putStrLn ("#### use " ++ show numThreads ++ " threads")
+        when (optConcurrent opts) $ putStrLn ("#### use " ++ show numThreads ++ " threads")
         sem <- MS.new numThreads -- semathore to limit number of parallel threads
         if optAll opts
           then do

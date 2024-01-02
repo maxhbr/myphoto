@@ -30,6 +30,7 @@
           hl.justStaticExecutables
           hl.disableLibraryProfiling
           hl.disableExecutableProfiling
+          ((t.flip hl.appendBuildFlags) ["--ghc-options=\" -threaded -rtsopts -with-rtsopts=-N\"" "+RTS"])
         ];
       };
 

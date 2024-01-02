@@ -10,12 +10,17 @@ import System.Exit
 import System.FilePath
 import System.Process
 
-montage :: FilePath -> Imgs -> IO FilePath
-montage outputFileBN imgs =
+montage :: Int -> FilePath -> Imgs -> IO FilePath
+montage xySize outputFileBN imgs =
   let (bn, ext) = splitExtensions outputFileBN
       outputFile = outputFileBN ++ "_MONTAGE.png"
    in do
-        (_, _, _, pHandle) <- createProcess (proc "montage" (["-geometry", "100x100+2+2"] ++ imgs ++ [outputFile]))
+        (_, _, _, pHandle) <- 
+          createProcess (proc "montage" 
+                              (concat [ ["-geometry", show xySize ++ "x" ++ show xySize ++ "+2+2"]
+                                      , imgs
+                                      , [outputFile]
+                                      ]))
         exitCode <- waitForProcess pHandle
         unless (exitCode == ExitSuccess) $
           fail ("Resize failed with " ++ show exitCode)
