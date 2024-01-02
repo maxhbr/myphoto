@@ -22,6 +22,7 @@ startOptions :: Options
 startOptions =
   Options
     { optVerbose = False,
+      optFSAction = NoFSAction,
       optCopy = False,
       optMove = False,
       optWorkdir = Nothing,
@@ -31,6 +32,7 @@ startOptions =
       optEnfuse = True,
       optFocusStack = True
     }
+data FSAction = NoFSAction | FSActionCopy | FSActionMove | FSActionLink | FSActionReverseLink
 
 options :: [OptDescr (Options -> IO Options)]
 options =
@@ -42,8 +44,10 @@ options =
           "DIR"
       )
       "work directory",
-    Option "" ["copy"] (NoArg (\opt -> return opt {optCopy = True})) "copy files to subfolder",
-    Option "" ["move"] (NoArg (\opt -> return opt {optMove = True})) "move files to subfolder",
+    Option "" ["copy"] (NoArg (\opt -> return opt {optFSAction = FSActionCopy})) "copy files to subfolder",
+    Option "" ["move"] (NoArg (\opt -> return opt {optFSAction = FSActionMove})) "move files to subfolder",
+    Option "" ["link"] (NoArg (\opt -> return opt {optFSAction = FSActionLink})) "link files to subfolder",
+    Option "" ["reverse-link"] (NoArg (\opt -> return opt {optFSAction = FSActionReverseLink})) "move and reverse link files to subfolder",
     Option
       ""
       ["no-enfuse"]
@@ -146,7 +150,7 @@ getOptionsAndInitialize =
         absWd <- makeAbsolute wd
         return opts {optWorkdir = Just absWd}
       fillWorkDir imgs@(img : _) opts = let
-            wd = if (optCopy opts || optMove opts)
+            wd = if optFSAction opts /= NoFSAction
                  then (takeDirectory img) </> "myphoto"
                  else let imgBN = computeStackOutputBN imgs
                        in (takeDirectory img) <.> imgBN <.> "myphoto"
@@ -176,10 +180,6 @@ getOptionsAndInitialize =
 
         opts' <- foldl (>>=) (return startOptions) actions
 
-        when (optCopy opts' && optMove opts') $ do
-          IO.hPutStrLn IO.stderr ("cannot specify both --copy and --move")
-          exitWith (ExitFailure 1)
-
         when (null imgs') $ do
           IO.hPutStrLn IO.stderr ("no image specified")
           exitWith (ExitFailure 1)
@@ -197,18 +197,27 @@ getOptionsAndInitialize =
 
         opts <- fillWorkDir imgs opts'
 
-        imgsMoved <- case opts of 
-            Options {optWorkdir = Just wd, optMove = True} -> do
+        finalImgs <- case opts of 
+            Options {optWorkdir = Just wd, optFSAction = NoFSAction} -> do
+              return imgs
+            Options {optWorkdir = Just wd, optFSAction = FSActionCopy} -> do
               let indir = wd </> "raw"
               IO.hPutStrLn IO.stderr ("INFO: move files to subfolder: " ++ indir)
               move indir imgs
-            Options {optWorkdir = Just wd, optCopy = True} -> do
+            Options {optWorkdir = Just wd, optFSAction = FSActionMove} -> do
               let indir = wd </> "raw"
               IO.hPutStrLn IO.stderr ("INFO: copy files to subfolder: " ++ indir)
               copy indir imgs
-            _ -> return imgs
+            Options {optWorkdir = Just wd, optFSAction = FSActionLink} -> do
+              let indir = wd </> "raw"
+              IO.hPutStrLn IO.stderr ("INFO: link files to subfolder: " ++ indir)
+              link indir imgs
+            Options {optWorkdir = Just wd, optFSAction = FSActionReverseLink} -> do
+              let indir = wd </> "raw"
+              IO.hPutStrLn IO.stderr ("INFO: move and reverse link files to subfolder: " ++ indir)
+              reverseLink indir imgs
 
-        return (opts, imgsMoved)
+        return (opts, finalImgs)
 
 myPhotoStateAction :: Options -> MTL.StateT (Imgs, Imgs) IO ()
 myPhotoStateAction opts@Options {optVerbose = verbose} = do

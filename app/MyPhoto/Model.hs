@@ -5,6 +5,7 @@ module MyPhoto.Model
     module Maybe,
     Img,
     Imgs,
+    FSAction (..),
     Options (..),
     setCurrentWD,
     computeStackOutputBN,
@@ -27,10 +28,17 @@ type Img = FilePath
 
 type Imgs = [FilePath]
 
+data FSAction
+  = NoFSAction
+  | FSActionCopy
+  | FSActionMove
+  | FSActionLink
+  | FSActionReverseLink
+  deriving (Show, Eq)
+
 data Options = Options
   { optVerbose :: Bool,
-    optCopy :: Bool,
-    optMove :: Bool,
+    optFSAction :: FSAction,
     optWorkdir :: Maybe FilePath,
     optEveryNth :: Maybe Int,
     optRemoveOutliers :: Bool,
