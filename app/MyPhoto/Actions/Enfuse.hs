@@ -213,27 +213,27 @@ enfuseStackImgs opts' =
                   createDirectoryIfMissing True workdir
                   stackImpl'' sem opts (outFile, workdir, optSaveMasks opts, enfuseArgs) imgs
    in \imgs -> do
-
         -- apply autochunk
         let opts = case optChunkSize opts' of
-                          Nothing -> let
-                              chunkSizeFromChunkLevel = case optChunkLevel opts' of
-                                                          2 -> (ceiling (sqrt (fromIntegral (length imgs))))
-                                                          1 -> length imgs
-                                                          _ -> undefined
-                              chunkSizeFromChunkMaxSize = optChunkMaxSize opts'
-                              minChunkSize = max 6 (length imgs)
-                              chunkSize = max (min chunkSizeFromChunkLevel chunkSizeFromChunkMaxSize) minChunkSize
-                            in if chunkSize >= length imgs
-                               then opts'
-                               else opts' {optChunkSize = Just chunkSize}
-                          _ -> opts'
+              Nothing ->
+                let chunkSizeFromChunkLevel = case optChunkLevel opts' of
+                      2 -> (ceiling (sqrt (fromIntegral (length imgs))))
+                      1 -> length imgs
+                      _ -> undefined
+                    chunkSizeFromChunkMaxSize = optChunkMaxSize opts'
+                    minChunkSize = max 6 (length imgs)
+                    chunkSize = max (min chunkSizeFromChunkLevel chunkSizeFromChunkMaxSize) minChunkSize
+                 in if chunkSize >= length imgs
+                      then opts'
+                      else opts' {optChunkSize = Just chunkSize}
+              _ -> opts'
 
         print opts
         numCapabilities <- getNumCapabilities
-        let numThreads = if optConcurrent opts
-                         then min numCapabilities (optMaxCapabilities opts)
-                         else 1
+        let numThreads =
+              if optConcurrent opts
+                then min numCapabilities (optMaxCapabilities opts)
+                else 1
         when (optConcurrent opts) $ putStrLn ("#### use " ++ show numThreads ++ " threads")
         sem <- MS.new numThreads -- semathore to limit number of parallel threads
         if optAll opts

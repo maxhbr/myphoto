@@ -17,7 +17,7 @@ module MyPhoto.Model
 where
 
 import Control.Monad (unless, when)
-import qualified Data.Maybe as Maybe (isJust, fromJust, mapMaybe, maybe)
+import qualified Data.Maybe as Maybe (fromJust, isJust, mapMaybe, maybe)
 import System.Directory as Directory (createDirectoryIfMissing, doesDirectoryExist, doesFileExist, listDirectory, makeAbsolute, setCurrentDirectory)
 import System.Exit as Exit (ExitCode (..), exitWith)
 import System.FilePath as FilePath (splitExtensions, takeBaseName, takeDirectory, takeFileName, (-<.>), (<.>), (</>))
