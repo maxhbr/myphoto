@@ -23,8 +23,6 @@ startOptions =
   Options
     { optVerbose = False,
       optFSAction = NoFSAction,
-      optCopy = False,
-      optMove = False,
       optWorkdir = Nothing,
       optEveryNth = Nothing,
       optRemoveOutliers = True,
@@ -150,7 +148,7 @@ getOptionsAndInitialize args =
       let (actions, imgs', errors) = getOpt RequireOrder options args
       MTL.put (opts, imgs ++ imgs')
 
-      unless (null errors) $ do
+      unless (null errors) $ MTL.liftIO $ do
         mapM_ (IO.hPutStrLn IO.stderr) errors
         exitWith (ExitFailure 1)
 
@@ -158,23 +156,26 @@ getOptionsAndInitialize args =
 
     do
       (opts, imgs) <- MTL.get
-      case imgs of
-        [maybeDir] -> do
+      imgs' <- case imgs of
+        [maybeDir] -> MTL.liftIO $ do
           isExistingDirectory <- doesDirectoryExist maybeDir
-          when isExistingDirectory $ do
+          if isExistingDirectory
+          then do
             IO.hPutStrLn IO.stderr ("directory specified: " ++ maybeDir)
             imgs' <- map (maybeDir </>) <$> listDirectory maybeDir
-            MTL.put (opts, imgs')
-        _ -> return ()
+            return imgs'
+          else return imgs
+        _ -> return imgs
+      MTL.put (opts, imgs')
 
     do
       (opts, imgs) <- MTL.get
-      opts' <- foldl (>>=) (return opts) actions
+      opts' <- MTL.liftIO $ foldl (>>=) (return opts) actions
       MTL.put (opts', imgs)
 
     do
       (opts, imgs) <- MTL.get
-      when (null imgs) $ do
+      when (null imgs) $ MTL.liftIO $ do
         IO.hPutStrLn IO.stderr ("no image specified")
         exitWith (ExitFailure 1)
 
@@ -188,19 +189,21 @@ getOptionsAndInitialize args =
 
     do
       (opts, imgs) <- MTL.get
-      mapM
+      imgs' <- MTL.liftIO $ mapM
         ( \img -> do
             exists <- doesFileExist img
             unless exists $ do
               IO.hPutStrLn IO.stderr $ "image not found: " ++ img
               exitWith (ExitFailure 1)
             makeAbsolute img
-        )
+        ) imgs
+      MTL.put (opts, imgs')
+
     do
       (opts, imgs) <- MTL.get
       case opts of
         Options {optWorkdir = Just wd} -> do
-          absWd <- makeAbsolute wd
+          absWd <- MTL.liftIO $ makeAbsolute wd
           let opts' = opts {optWorkdir = Just absWd}
           MTL.put (opts', imgs)
         _ -> case imgs of
@@ -221,24 +224,24 @@ getOptionsAndInitialize args =
           return ()
         Options {optWorkdir = Just wd, optFSAction = FSActionCopy} -> do
           let indir = wd </> "raw"
-          IO.hPutStrLn IO.stderr ("INFO: move files to subfolder: " ++ indir)
-          imgs' <- move indir imgs
-          MTl.put (opts, imgs')
+          MTL.liftIO $ IO.hPutStrLn IO.stderr ("INFO: move files to subfolder: " ++ indir)
+          imgs' <- MTL.liftIO $ move indir imgs
+          MTL.put (opts, imgs')
         Options {optWorkdir = Just wd, optFSAction = FSActionMove} -> do
           let indir = wd </> "raw"
-          IO.hPutStrLn IO.stderr ("INFO: copy files to subfolder: " ++ indir)
-          imgs' <- copy indir imgs
-          MTl.put (opts, imgs')
+          MTL.liftIO $ IO.hPutStrLn IO.stderr ("INFO: copy files to subfolder: " ++ indir)
+          imgs' <- MTL.liftIO $ copy indir imgs
+          MTL.put (opts, imgs')
         Options {optWorkdir = Just wd, optFSAction = FSActionLink} -> do
           let indir = wd </> "raw"
-          IO.hPutStrLn IO.stderr ("INFO: link files to subfolder: " ++ indir)
-          imgs' <- link indir imgs
-          MTl.put (opts, imgs')
+          MTL.liftIO $ IO.hPutStrLn IO.stderr ("INFO: link files to subfolder: " ++ indir)
+          imgs' <- MTL.liftIO $ link indir imgs
+          MTL.put (opts, imgs')
         Options {optWorkdir = Just wd, optFSAction = FSActionReverseLink} -> do
           let indir = wd </> "raw"
-          IO.hPutStrLn IO.stderr ("INFO: move and reverse link files to subfolder: " ++ indir)
-          imgs' <- reverseLink indir imgs
-          MTl.put (opts, imgs')
+          MTL.liftIO $ IO.hPutStrLn IO.stderr ("INFO: move and reverse link files to subfolder: " ++ indir)
+          imgs' <- MTL.liftIO $ reverseLink indir imgs
+          MTL.put (opts, imgs')
 
     return ()
 
@@ -314,10 +317,11 @@ myPhotoStateAction opts@Options {optVerbose = verbose} = do
 runMyPhoto :: IO ()
 runMyPhoto = do
   args <- getArgs
-  (_, (opts@Options {optVerbose = verbose}, imgs)) <- MTL.execStateT (getOptionsAndInitialize args) (startOptions, [])
+  (_, (opts, imgs)) <-
+    (MTL.runStateT (getOptionsAndInitialize args) (startOptions, []))
   setCurrentWD opts
-  when verbose $ print opts
+  when (optVerbose opts) $ print opts
 
-  (ret, (imgs', outs)) <- MTL.runStateT (myPhotoStateAction opts) (imgs, [])
+  (_, (_, outs)) <- MTL.runStateT (myPhotoStateAction opts) (imgs, [])
 
   IO.hPutStrLn IO.stderr ("Done")
