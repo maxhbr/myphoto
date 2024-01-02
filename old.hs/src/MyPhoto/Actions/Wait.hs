@@ -1,13 +1,13 @@
 module MyPhoto.Actions.Wait
-    ( waitPAct
-    ) where
+  ( waitPAct,
+  )
+where
 
-import           System.Process
-import           System.IO
-import           Control.Concurrent
-
+import Control.Concurrent
 import MyPhoto.Model
 import MyPhoto.Utils
+import System.IO
+import System.Process
 
 waitForConfirm :: [Img] -> PActionBody
 waitForConfirm imgs = do
@@ -20,11 +20,10 @@ waitForSeconds s imgs = do
   threadDelay ms
   return (Right imgs)
 
-
 help :: PAction
-help = PAction $ \_ -> pure (Left (unlines [ "wait [-s SECONDS]" ]))
+help = PAction $ \_ -> pure (Left (unlines ["wait [-s SECONDS]"]))
 
 waitPAct :: PrePAction
-waitPAct ["-h"]    = help
-waitPAct []        = logSeparator "Wait for key" <> PAction waitForConfirm
+waitPAct ["-h"] = help
+waitPAct [] = logSeparator "Wait for key" <> PAction waitForConfirm
 waitPAct ["-s", s] = logSeparator ("Wait for " ++ s ++ " seconds") <> PAction (waitForSeconds s)

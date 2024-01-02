@@ -1,6 +1,7 @@
 module MyPhoto.Actions.Init
-  ( initPAct
-  ) where
+  ( initPAct,
+  )
+where
 
 import MyPhoto.Model
 import MyPhoto.Utils
