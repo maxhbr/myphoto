@@ -2,11 +2,11 @@
   description = "A flake for my photography stuff";
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs";
-    flake-utils.url = "github:numtide/flake-utils";
   };
 
-  outputs = inputs@{ self, nixpkgs, flake-utils }:
-  ( flake-utils.lib.eachDefaultSystem (system: let
+  outputs = inputs@{ self, nixpkgs, ... }:let
+    system = "x86_64-linux";
+
     pkgs = nixpkgs.legacyPackages.${system};
     lib = pkgs.lib;
 
@@ -35,7 +35,7 @@
 
   in {
 
-    packages = {
+    packages.${system} = {
       focus-stack = pkgs.focus-stack.overrideDerivation (oldAttrs: {
         version = "master";
         src = ./PetteriAimonen-focus-stack;
@@ -75,7 +75,7 @@
       hlint
       ghcid
     ]);
-  })) // {
+
     homeManagerModules.myphoto = (
       {
         config,
