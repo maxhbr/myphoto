@@ -55,7 +55,7 @@
       myphoto = pkgs.buildEnv {
           name = "myphoto";
 
-          paths = [ self.packages.${system}.myphoto-unwrapped ];
+          paths = [ ];
           pathsToLink = [ "/share" ];
 
           nativeBuildInputs = [ pkgs.makeWrapper ];
