@@ -11,9 +11,10 @@ module MyPhoto.Model
     , inWorkdir'
     , inWorkdir
     , findOutFile
+    , findAltFileOfFile
     )where
 
-import           System.FilePath            as FilePath (takeBaseName, takeFileName, takeDirectory, (<.>), (-<.>), (</>))
+import           System.FilePath            as FilePath (takeBaseName, takeFileName, takeDirectory, splitExtensions, (<.>), (-<.>), (</>))
 import           Control.Monad              (unless, when)
 import           System.Directory           as Directory (createDirectoryIfMissing, makeAbsolute, doesFileExist, doesDirectoryExist, setCurrentDirectory, listDirectory)
 import           System.Exit                as Exit ( ExitCode(..), exitWith )
@@ -29,6 +30,7 @@ data Options = Options  { optVerbose   :: Bool
                         , optEveryNth  :: Maybe Int
                         , optRemoveOutliers :: Bool
                         , optBreaking  :: Maybe Int
+                        , optFocusStack :: Bool
                         , optEnfuse    :: Bool
                         }
                         deriving (Show)
@@ -79,3 +81,8 @@ findOutFile bn ext = let
     (if exists
       then findOutFile' 1
       else return fn) >>= touchFile
+
+findAltFileOfFile :: FilePath -> IO FilePath
+findAltFileOfFile file = let
+    (bn,ext) = splitExtensions file
+  in findOutFile bn ext

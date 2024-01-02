@@ -15,6 +15,7 @@ import MyPhoto.Actions.Enfuse
 import MyPhoto.Actions.Exiftool
 import MyPhoto.Actions.Montage
 import MyPhoto.Actions.Outliers
+import MyPhoto.Actions.Align
 
 startOptions :: Options
 startOptions = Options  { optVerbose    = False
@@ -23,6 +24,7 @@ startOptions = Options  { optVerbose    = False
                         , optRemoveOutliers = True
                         , optBreaking   = Just 300
                         , optEnfuse     = True
+                        , optFocusStack = True
                         }
 
 options :: [ OptDescr (Options -> IO Options) ]
@@ -42,6 +44,11 @@ options =
         (NoArg
             (\opt -> return opt { optEnfuse = True }))
         "Run enfuse (default)"
+
+    , Option "" ["no-focus-stack"]
+        (NoArg
+            (\opt -> return opt { optFocusStack = False }))
+        "Do not run focus stacking by PetteriAimonen/focus-stack"
 
     , Option "" ["every-nth"]
         (ReqArg
@@ -160,18 +167,25 @@ myPhotoStateAction opts@Options{optVerbose = verbose} = do
       imgs <- MTL.gets fst
       return (computeStackOutputBN imgs)
 
-    aligned <- do
-      (imgs, outs) <- MTL.get
-      (focusStacked,aligned) <- MTL.liftIO $ focusStackImgs opts imgs
-      MTL.put (aligned, outs ++ [focusStacked])
-      return aligned
+    if optFocusStack opts
+    then do
+        (imgs, outs) <- MTL.get
+        (focusStacked,aligned) <- MTL.liftIO $ focusStackImgs opts imgs
+        MTL.put (aligned, outs ++ [focusStacked])
+        return aligned
+    else do
+        (imgs, outs) <- MTL.get
+        aligned <- MTL.liftIO $ align opts imgs
+        MTL.put (aligned, outs)
+        return aligned
+
       
     when (optEnfuse opts) $ do
       (imgs, outs) <- MTL.get
       enfuseResult <- MTL.liftIO $ enfuseStackImgs (enfuseDefaultOptions
                         { optOutputBN = Just outputBN
                         , optEnfuseVerbose = verbose
-                      }) aligned
+                      }) imgs
       case enfuseResult of
         Left err -> MTL.liftIO $ IO.hPutStrLn IO.stderr err
         Right enfuseOuts -> MTL.put (imgs, outs ++ enfuseOuts)
