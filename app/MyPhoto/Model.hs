@@ -18,7 +18,7 @@ import Control.Monad (unless, when)
 import qualified Data.Maybe as Maybe (fromJust, isJust, mapMaybe, maybe)
 import System.Directory as Directory (createDirectoryIfMissing, doesDirectoryExist, doesFileExist, listDirectory, makeAbsolute, setCurrentDirectory)
 import System.Exit as Exit (ExitCode (..), exitWith)
-import System.FilePath as FilePath (splitExtensions, takeBaseName, takeDirectory, takeFileName, (-<.>), (<.>), (</>))
+import System.FilePath as FilePath (makeRelative, splitExtensions, takeBaseName, takeDirectory, takeFileName, (-<.>), (<.>), (</>))
 import qualified System.IO as IO
 import System.Posix.LoadAvg (LoadAvg (..), getLoadAvgSafe)
 
@@ -29,8 +29,9 @@ type Imgs = [FilePath]
 data WorkdirStrategy
   = CreateNextToImgDir
   | MoveExistingImgsToSubfolder
+  | NextToImgFiles
   | WorkdirStrategyOverwrite FilePath
-  deriving (Show)
+  deriving (Show, Eq)
 
 data Options = Options
   { optVerbose :: Bool,

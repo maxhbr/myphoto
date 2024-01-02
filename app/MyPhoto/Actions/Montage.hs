@@ -15,18 +15,22 @@ montage xySize outputFileBN imgs =
   let (bn, ext) = splitExtensions outputFileBN
       outputFile = outputFileBN ++ "_MONTAGE.png"
    in do
-        (_, _, _, pHandle) <-
-          createProcess
-            ( proc
-                "montage"
-                ( concat
-                    [ ["-geometry", show xySize ++ "x" ++ show xySize ++ "+2+2"],
-                      imgs,
-                      [outputFile]
-                    ]
+        alreadyExists <- doesFileExist outputFile
+        if alreadyExists
+          then putStrLn ("previously generated " ++ outputFile)
+          else do
+            (_, _, _, pHandle) <-
+              createProcess
+                ( proc
+                    "montage"
+                    ( concat
+                        [ ["-geometry", show xySize ++ "x" ++ show xySize ++ "+2+2"],
+                          imgs,
+                          [outputFile]
+                        ]
+                    )
                 )
-            )
-        exitCode <- waitForProcess pHandle
-        unless (exitCode == ExitSuccess) $
-          fail ("Resize failed with " ++ show exitCode)
+            exitCode <- waitForProcess pHandle
+            unless (exitCode == ExitSuccess) $
+              fail ("Resize failed with " ++ show exitCode)
         return outputFile

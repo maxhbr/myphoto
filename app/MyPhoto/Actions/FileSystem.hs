@@ -7,7 +7,7 @@ module MyPhoto.Actions.FileSystem
 where
 
 import MyPhoto.Model
-import System.Directory (copyFile, createDirectoryIfMissing, createFileLink, removeFile)
+import System.Directory (copyFile, createDirectoryIfMissing, createFileLink, renameFile)
 import System.FilePath (replaceDirectory)
 
 getPathInTargetFolder :: FilePath -> FilePath -> IO FilePath
@@ -26,8 +26,34 @@ applyFsFunc fsFunc target imgs = do
       imgs
   return imgs'
 
+createFileLinkRelative :: FilePath -> FilePath -> IO ()
+createFileLinkRelative img img' = do
+  let img'' = makeRelative (takeDirectory img') img
+  createFileLink img'' img'
+
 copy, move, link, reverseLink :: FilePath -> Imgs -> IO Imgs
-copy = applyFsFunc (\target img img' -> copyFile img img' >> return img')
-move = applyFsFunc (\target img img' -> copyFile img img' >> removeFile img >> return img')
-link = applyFsFunc (\target img img' -> createFileLink img img' >> return img')
-reverseLink = applyFsFunc (\target img img' -> copyFile img img' >> removeFile img >> createFileLink img' img >> return img')
+copy =
+  applyFsFunc
+    ( \target img img' -> do
+        copyFile img img'
+        return img'
+    )
+move =
+  applyFsFunc
+    ( \target img img' -> do
+        renameFile img img'
+        return img'
+    )
+link =
+  applyFsFunc
+    ( \target img img' -> do
+        createFileLinkRelative img img'
+        return img'
+    )
+reverseLink =
+  applyFsFunc
+    ( \target img img' -> do
+        renameFile img img'
+        createFileLinkRelative img' img
+        return img'
+    )

@@ -23,7 +23,16 @@ executable myphoto
     import:           warnings
     main-is:          Main.hs
     ghc-options:      -Wall -threaded -rtsopts
-    -- other-modules:
+    other-modules:
+        MyPhoto.Actions.Align,
+        MyPhoto.Actions.Enfuse,
+        MyPhoto.Actions.Exiftool,
+        MyPhoto.Actions.FileSystem,
+        MyPhoto.Actions.FocusStack,
+        MyPhoto.Actions.Montage,
+        MyPhoto.Actions.Outliers,
+        MyPhoto.Model,
+        MyPhoto.MyPhoto
     other-extensions: OverloadedStrings
     build-depends:    base ^>=4.17.2.1,
                       SafeSemaphore,
