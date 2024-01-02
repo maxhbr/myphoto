@@ -6,7 +6,7 @@
   };
 
   outputs = inputs@{ self, nixpkgs, flake-utils }:
-  flake-utils.lib.eachDefaultSystem (system: let
+  ( flake-utils.lib.eachDefaultSystem (system: let
     pkgs = nixpkgs.legacyPackages.${system};
     lib = pkgs.lib;
 
@@ -75,7 +75,7 @@
       hlint
       ghcid
     ]);
-
+  })) // {
     homeManagerModules.myphoto = (
       {
         config,
@@ -100,5 +100,5 @@
         };
       }
     );
-  });
+  };
 }
