@@ -44,10 +44,9 @@ computImgsVecs size tmpdir imgs = do
   sem <- MS.new capabilities
   mapConcurrently (MS.with sem . computImgVec size tmpdir) imgs
 
-rmOutliers :: Maybe FilePath -> Imgs -> IO Imgs
+rmOutliers :: FilePath -> Imgs -> IO Imgs
 rmOutliers _ [] = return []
-rmOutliers Nothing imgs@(img1 : _) = rmOutliers (Just (takeDirectory img1)) imgs
-rmOutliers (Just workdir) imgs =
+rmOutliers workdir imgs =
   let (maxDistance, size) = (200, 6)
       dropByDistances :: Double -> [(Img, [Int])] -> [Int] -> IO [(Img, Double)]
       dropByDistances _ [] _ = return []

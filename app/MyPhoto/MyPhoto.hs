@@ -16,14 +16,15 @@ import MyPhoto.Actions.Outliers
 import MyPhoto.Model
 import System.Console.GetOpt
 import System.Environment (getArgs, getProgName, withArgs)
+import Data.List.Split (splitOn)
+
 import qualified System.IO as IO
 
 startOptions :: Options
 startOptions =
   Options
     { optVerbose = False,
-      optFSAction = NoFSAction,
-      optWorkdir = Nothing,
+      optWorkdirStrategy = CreateNextToImgDir,
       optEveryNth = Nothing,
       optRemoveOutliers = True,
       optBreaking = Just 300,
@@ -37,14 +38,11 @@ options =
       "w"
       ["workdir"]
       ( ReqArg
-          (\arg opt -> return opt {optWorkdir = Just arg})
+          (\arg opt -> return opt {optWorkdirStrategy = WorkdirStrategyOverwrite arg})
           "DIR"
       )
-      "work directory",
-    Option "" ["copy"] (NoArg (\opt -> return opt {optFSAction = FSActionCopy})) "copy files to subfolder",
-    Option "" ["move"] (NoArg (\opt -> return opt {optFSAction = FSActionMove})) "move files to subfolder",
-    Option "" ["link"] (NoArg (\opt -> return opt {optFSAction = FSActionLink})) "link files to subfolder",
-    Option "" ["reverse-link"] (NoArg (\opt -> return opt {optFSAction = FSActionReverseLink})) "move and reverse link files to subfolder",
+      "overwrite work directory",
+    Option "" ["use-input-dir"] (NoArg (\opt -> return opt {optWorkdirStrategy = MoveExistingImgsToSubfolder})) "use input directory as work directory",
     Option
       ""
       ["no-enfuse"]
@@ -112,6 +110,8 @@ options =
               IO.hPutStr IO.stderr (usageInfo prg options)
               IO.hPutStrLn IO.stderr "  IMG0 [IMG1]..."
 
+              IO.hPutStrLn IO.stderr "  --dirs [ARG1[,ARG2[,...]] --] DIR1[,DIR2[,...]]"
+
               numCapabilities <- getNumCapabilities
               when (numCapabilities == 1) $
                 IO.hPutStrLn IO.stderr ("WARN: numCapabilities=" ++ show numCapabilities ++ " this looks suspicious")
@@ -141,9 +141,9 @@ sampleOfM m xs =
         else everyNth n xs
 
 getOptionsAndInitialize :: [String] -> MTL.StateT (Options, [FilePath]) IO ()
-getOptionsAndInitialize args =
-  do
-    actions <- do
+getOptionsAndInitialize = let
+    getActionsFromArgs :: [String] -> MTL.StateT (Options, [FilePath]) IO [Options -> IO Options]
+    getActionsFromArgs args = do
       (opts, imgs) <- MTL.get
       let (actions, imgs', errors) = getOpt RequireOrder options args
       MTL.put (opts, imgs ++ imgs')
@@ -153,8 +153,8 @@ getOptionsAndInitialize args =
         exitWith (ExitFailure 1)
 
       return actions
-
-    do
+    readDirectoryIfOnlyOneWasSpecified :: MTL.StateT (Options, [FilePath]) IO ()
+    readDirectoryIfOnlyOneWasSpecified = do
       (opts, imgs) <- MTL.get
       imgs' <- case imgs of
         [maybeDir] -> MTL.liftIO $ do
@@ -167,27 +167,27 @@ getOptionsAndInitialize args =
           else return imgs
         _ -> return imgs
       MTL.put (opts, imgs')
-
-    do
+    readActionsIntoOpts :: [Options -> IO Options] -> MTL.StateT (Options, [FilePath]) IO ()
+    readActionsIntoOpts actions = do
       (opts, imgs) <- MTL.get
       opts' <- MTL.liftIO $ foldl (>>=) (return opts) actions
       MTL.put (opts', imgs)
-
-    do
+    failIfNoImagesWereSpecified :: MTL.StateT (Options, [FilePath]) IO ()
+    failIfNoImagesWereSpecified = do
       (opts, imgs) <- MTL.get
       when (null imgs) $ MTL.liftIO $ do
         IO.hPutStrLn IO.stderr ("no image specified")
         exitWith (ExitFailure 1)
-
-    do
+    applyEveryNth :: MTL.StateT (Options, [FilePath]) IO ()
+    applyEveryNth = do
       (opts, imgs) <- MTL.get
       case opts of
         Options {optEveryNth = Just n} -> do
           let imgs' = everyNth n imgs
           MTL.put (opts, imgs')
         _ -> return ()
-
-    do
+    makeImgsPathsAbsoluteAndCheckExistence :: MTL.StateT (Options, [FilePath]) IO ()
+    makeImgsPathsAbsoluteAndCheckExistence = do
       (opts, imgs) <- MTL.get
       imgs' <- MTL.liftIO $ mapM
         ( \img -> do
@@ -198,59 +198,45 @@ getOptionsAndInitialize args =
             makeAbsolute img
         ) imgs
       MTL.put (opts, imgs')
-
-    do
-      (opts, imgs) <- MTL.get
-      case opts of
-        Options {optWorkdir = Just wd} -> do
-          absWd <- MTL.liftIO $ makeAbsolute wd
-          let opts' = opts {optWorkdir = Just absWd}
-          MTL.put (opts', imgs)
-        _ -> case imgs of
-          (img : _) -> do
-            let wd =
-                  if optFSAction opts /= NoFSAction
-                    then (takeDirectory img) </> "myphoto"
-                    else
-                      let imgBN = computeStackOutputBN imgs
-                       in (takeDirectory img) <.> imgBN <.> "myphoto"
-            let opts' = opts {optWorkdir = Just wd}
-            MTL.put (opts', imgs)
-          _ -> undefined -- should not happen
-    do
-      (opts, imgs) <- MTL.get
-      case opts of
-        Options {optWorkdir = Just wd, optFSAction = NoFSAction} -> do
-          return ()
-        Options {optWorkdir = Just wd, optFSAction = FSActionCopy} -> do
-          let indir = wd </> "raw"
-          MTL.liftIO $ IO.hPutStrLn IO.stderr ("INFO: move files to subfolder: " ++ indir)
-          imgs' <- MTL.liftIO $ move indir imgs
-          MTL.put (opts, imgs')
-        Options {optWorkdir = Just wd, optFSAction = FSActionMove} -> do
-          let indir = wd </> "raw"
-          MTL.liftIO $ IO.hPutStrLn IO.stderr ("INFO: copy files to subfolder: " ++ indir)
-          imgs' <- MTL.liftIO $ copy indir imgs
-          MTL.put (opts, imgs')
-        Options {optWorkdir = Just wd, optFSAction = FSActionLink} -> do
-          let indir = wd </> "raw"
-          MTL.liftIO $ IO.hPutStrLn IO.stderr ("INFO: link files to subfolder: " ++ indir)
-          imgs' <- MTL.liftIO $ link indir imgs
-          MTL.put (opts, imgs')
-        Options {optWorkdir = Just wd, optFSAction = FSActionReverseLink} -> do
-          let indir = wd </> "raw"
-          MTL.liftIO $ IO.hPutStrLn IO.stderr ("INFO: move and reverse link files to subfolder: " ++ indir)
-          imgs' <- MTL.liftIO $ reverseLink indir imgs
-          MTL.put (opts, imgs')
+  in \args  -> do
+    actions <- getActionsFromArgs args
+    readDirectoryIfOnlyOneWasSpecified
+    readActionsIntoOpts actions
+    failIfNoImagesWereSpecified
+    applyEveryNth
+    makeImgsPathsAbsoluteAndCheckExistence
 
     return ()
 
 myPhotoStateAction :: Options -> MTL.StateT (Imgs, Imgs) IO ()
 myPhotoStateAction opts@Options {optVerbose = verbose} = do
+  wd <- case optWorkdirStrategy opts  of 
+    CreateNextToImgDir -> do
+      imgs@(img0:_) <- MTL.gets fst
+      let imgBN = computeStackOutputBN imgs
+      let wd = (takeDirectory img0) <.> imgBN <.> "myphoto"
+      MTL.liftIO $ createDirectoryIfMissing True wd
+      return wd
+    MoveExistingImgsToSubfolder -> do
+      (imgs@(img0:_) ,outs) <- MTL.get
+      let wd = takeDirectory img0
+      let imgBN = computeStackOutputBN imgs
+      let indir = wd </> imgBN <.> "raw"
+      imgs' <- MTL.liftIO $ move indir imgs
+      MTL.put (imgs', outs)
+      return wd
+    WorkdirStrategyOverwrite wd -> do
+      MTL.liftIO $ createDirectoryIfMissing True wd
+      absWd <- MTL.liftIO $ makeAbsolute wd
+      return absWd
+  MTL.liftIO $ do
+    setCurrentDirectory wd
+    IO.hPutStrLn IO.stderr ("INFO: work directory: " ++ wd)
+
   do
     MTL.liftIO $ IO.hPutStrLn IO.stderr ("INFO: create montage")
     imgs <- MTL.gets (sampleOfM 25 . fst)
-    montageOut <- MTL.liftIO $ montage 100 (inWorkdir opts "all") imgs
+    montageOut <- MTL.liftIO $ montage 100 (inWorkdir wd "all") imgs
     MTL.liftIO $ IO.hPutStrLn IO.stderr ("INFO: wrote " ++ montageOut)
 
   case optBreaking opts of
@@ -269,7 +255,7 @@ myPhotoStateAction opts@Options {optVerbose = verbose} = do
   when (optRemoveOutliers opts) $ do
     MTL.liftIO $ IO.hPutStrLn IO.stderr ("INFO: removing outliers")
     (imgs, outs) <- MTL.get
-    withoutOutliers <- MTL.liftIO $ rmOutliers (optWorkdir opts) imgs
+    withoutOutliers <- MTL.liftIO $ rmOutliers wd imgs
     MTL.put (withoutOutliers, outs)
 
   outputBN <- do
@@ -286,7 +272,7 @@ myPhotoStateAction opts@Options {optVerbose = verbose} = do
     else do
       MTL.liftIO $ IO.hPutStrLn IO.stderr ("INFO: just aligning with hugin")
       (imgs, outs) <- MTL.get
-      aligned <- MTL.liftIO $ align opts imgs
+      aligned <- MTL.liftIO $ align wd opts imgs
       MTL.put (aligned, outs)
       return aligned
 
@@ -309,19 +295,35 @@ myPhotoStateAction opts@Options {optVerbose = verbose} = do
   do
     MTL.liftIO $ IO.hPutStrLn IO.stderr ("INFO: create montage")
     outs <- MTL.gets snd
-    montageOut <- MTL.liftIO $ montage 1000 (inWorkdir opts outputBN) outs
+    montageOut <- MTL.liftIO $ montage 1000 (inWorkdir wd outputBN) outs
     MTL.liftIO $ IO.hPutStrLn IO.stderr ("INFO: wrote " ++ montageOut)
 
   return ()
 
-runMyPhoto :: IO ()
-runMyPhoto = do
+runMyPhoto' :: IO ()
+runMyPhoto' = do
   args <- getArgs
   (_, (opts, imgs)) <-
     (MTL.runStateT (getOptionsAndInitialize args) (startOptions, []))
-  setCurrentWD opts
   when (optVerbose opts) $ print opts
 
   (_, (_, outs)) <- MTL.runStateT (myPhotoStateAction opts) (imgs, [])
 
   IO.hPutStrLn IO.stderr ("Done")
+
+runMyPhoto :: IO ()
+runMyPhoto = do
+  args <- getArgs
+  case args of
+    "--dirs" : args' -> do
+      let (args'',dirs) = case splitOn ["--"] args' of
+            [args'',dirs] -> (args'',dirs)
+            [dirs] -> ([],dirs)
+            _ -> error "invalid args"
+      mapM_ (\dir -> do
+        isExistingDirectory <- doesDirectoryExist dir
+        unless isExistingDirectory $ do
+          IO.hPutStrLn IO.stderr ("directory not found: " ++ dir)
+          exitWith (ExitFailure 1)
+        withArgs (args'' ++ [dir]) runMyPhoto') dirs
+    _ -> runMyPhoto'

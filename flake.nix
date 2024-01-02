@@ -65,6 +65,12 @@
             mkdir $out/bin
             makeWrapper ${self.packages.${system}.myphoto-unwrapped}/bin/myphoto $out/bin/myphoto \
               --set PATH ${pkgs.lib.makeBinPath extraLibraries}
+            makeWrapper ${self.packages.${system}.myphoto-unwrapped}/bin/myphoto $out/bin/myphoto-inplace \
+              --set PATH ${pkgs.lib.makeBinPath extraLibraries} \
+              --add-flags "--use-input-dir"
+            makeWrapper ${self.packages.${system}.myphoto-unwrapped}/bin/myphoto $out/bin/myphoto-dirs \
+              --set PATH ${pkgs.lib.makeBinPath extraLibraries} \
+              --add-flags "--dirs"
           '';
         };
     };

@@ -101,7 +101,7 @@ runEnfuse :: Int -> (FilePath, FilePath, Bool, [String]) -> [FilePath] -> IO (Ei
 runEnfuse _ _ [img] = return (Right [img])
 runEnfuse retries args@(outFile, workdir, saveMasks, enfuseArgs) imgs' = do
   putStrLn (">>>>>>>>>>>>>>>>>>>>>>>> start >> " ++ outFile)
-  let outMasksFolder = inWorkdir' workdir (outFile ++ "-masks")
+  let outMasksFolder = inWorkdir workdir (outFile ++ "-masks")
   when saveMasks $
     createDirectoryIfMissing True outMasksFolder
   let maskArgs = ["--save-masks=\"" ++ outMasksFolder ++ "/softmask-%04n.tif:" ++ outMasksFolder ++ "/hardmask-%04n.tif\"" | saveMasks]
@@ -171,7 +171,7 @@ getChunkFilename :: FilePath -> FilePath -> Int -> Int -> FilePath
 getChunkFilename workdir img indexOfChunk numberOfChunks =
   let (bn, ext') = splitExtensions img
       ext = if map toLower ext' == ".jpg" then ".png" else ext
-   in inWorkdir' workdir (bn ++ "_chunk" ++ show indexOfChunk ++ "of" ++ show numberOfChunks <.> ext)
+   in inWorkdir workdir (bn ++ "_chunk" ++ show indexOfChunk ++ "of" ++ show numberOfChunks <.> ext)
 
 enfuseStackImgs :: EnfuseOptions -> [FilePath] -> IO (Either String [FilePath])
 enfuseStackImgs opts' =

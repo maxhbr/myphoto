@@ -5,11 +5,9 @@ module MyPhoto.Model
     module Maybe,
     Img,
     Imgs,
-    FSAction (..),
+    WorkdirStrategy (..),
     Options (..),
-    setCurrentWD,
     computeStackOutputBN,
-    inWorkdir',
     inWorkdir,
     findOutFile,
     findAltFileOfFile,
@@ -28,18 +26,15 @@ type Img = FilePath
 
 type Imgs = [FilePath]
 
-data FSAction
-  = NoFSAction
-  | FSActionCopy
-  | FSActionMove
-  | FSActionLink
-  | FSActionReverseLink
-  deriving (Show, Eq)
+data WorkdirStrategy
+  = CreateNextToImgDir
+  | MoveExistingImgsToSubfolder
+  | WorkdirStrategyOverwrite FilePath
+  deriving (Show)
 
 data Options = Options
   { optVerbose :: Bool,
-    optFSAction :: FSAction,
-    optWorkdir :: Maybe FilePath,
+    optWorkdirStrategy :: WorkdirStrategy,
     optEveryNth :: Maybe Int,
     optRemoveOutliers :: Bool,
     optBreaking :: Maybe Int,
@@ -56,24 +51,8 @@ computeStackOutputBN (img0 : oimgs) =
         _ -> "_to_" ++ takeBaseName (last oimgs)
    in takeBaseName img0 ++ lastImg ++ "_stack_of_" ++ show (length oimgs + 1)
 
-setCurrentWD :: Options -> IO ()
-setCurrentWD opts = do
-  case optWorkdir opts of
-    Just wd -> do
-      IO.hPutStrLn IO.stderr $ "INFO: work directory: " ++ wd
-      createDirectoryIfMissing True wd
-      setCurrentDirectory wd
-    Nothing -> do
-      IO.hPutStrLn IO.stderr "no work directory specified"
-      exitWith (ExitFailure 1)
-
-inWorkdir' :: FilePath -> FilePath -> FilePath
-inWorkdir' workdir img = workdir </> takeFileName img
-
-inWorkdir :: Options -> FilePath -> FilePath
-inWorkdir opts img = case optWorkdir opts of
-  Just workdir -> inWorkdir' workdir img
-  Nothing -> img
+inWorkdir :: FilePath -> FilePath -> FilePath
+inWorkdir workdir img = workdir </> takeFileName img
 
 findOutFile :: String -> String -> IO FilePath
 findOutFile bn ext =

@@ -57,11 +57,11 @@ copyAndRenameImages renamer imgs =
     )
     (zip imgs [1 ..])
 
-align :: Options -> Imgs -> IO Imgs
-align _ [] = return []
-align opts@Options {optWorkdir = Nothing} imgs@(img1 : _) = align opts {optWorkdir = Just (takeDirectory img1)} imgs
-align opts@Options {optWorkdir = Just wd} imgs = do
-  let alignWD = wd </> "_align"
+align :: FilePath -> Options -> Imgs -> IO Imgs
+align _ _ [] = return []
+align wd opts imgs = do
+  let imgBN = computeStackOutputBN imgs
+  let alignWD = wd </> imgBN <.> "align"
   createDirectoryIfMissing True alignWD
 
   -- TODO: look at: https://photo.stackexchange.com/a/83179
@@ -80,7 +80,7 @@ align opts@Options {optWorkdir = Just wd} imgs = do
 
   let prefix = dropExtension (head imgs)
       mkOutImgName :: Int -> String
-      mkOutImgName i = inWorkdir' alignWD (printf (prefix ++ "_ALIGN-%04d-%04d.tif") i (length imgs))
+      mkOutImgName i = inWorkdir alignWD (printf (prefix ++ "_ALIGN-%04d-%04d.tif") i (length imgs))
 
   withTempDirectory
     wd
