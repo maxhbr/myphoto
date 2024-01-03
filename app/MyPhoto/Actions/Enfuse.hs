@@ -225,8 +225,7 @@ enfuseStackImgs =
                   putStrLn ("#### " ++ outFile ++ " already exists, skipping")
                   return (Right [outFile])
                 else do
-                  let workdir = "." -- outFile -<.> "workdir"
-                  createDirectoryIfMissing True workdir
+                  let workdir = "."
                   stackImpl'' sem opts (outFile, workdir, optSaveMasks opts, enfuseArgs) imgs
    in \opts imgs -> do
         print opts
