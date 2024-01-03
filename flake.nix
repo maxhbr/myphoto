@@ -13,7 +13,15 @@
     t = lib.trivial;
     hl = pkgs.haskell.lib;
 
-    extraLibraries = with pkgs; [glew self.packages.${system}.focus-stack hugin enblend-enfuse imagemagick exiftool];
+    extraLibraries = with pkgs; [
+      self.packages.${system}.focus-stack # main aligning and focus stacking
+      hugin # provides align_image_stack, for alternative aligning
+      glew # for parallel processing
+      enblend-enfuse # provides enfuse, for alternative focus stacking
+      imagemagick # for composing colages and more
+      exiftool # for extracting metadata
+      ffmpeg-headless # for extracting imgs from video
+    ];
     project = devTools:
       let addBuildTools = (t.flip hl.addBuildTools) devTools;
           addExtraLibraries = (t.flip hl.addExtraLibraries) extraLibraries;

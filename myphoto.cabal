@@ -32,7 +32,7 @@ executable myphoto
         MyPhoto.Actions.Montage,
         MyPhoto.Actions.Outliers,
         MyPhoto.Model,
-        MyPhoto.MyPhoto
+        MyPhoto.Stack
     other-extensions: OverloadedStrings
     build-depends:    base ^>=4.17.2.1,
                       SafeSemaphore,

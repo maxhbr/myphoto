@@ -1,10 +1,9 @@
-module MyPhoto.MyPhoto
-  ( runMyPhoto,
+module MyPhoto.Stack
+  ( runMyPhotoStack,
   )
 where
 
 import Control.Concurrent (getNumCapabilities)
-import Control.Monad (unless, when)
 import qualified Control.Monad.State.Lazy as MTL
 import Data.List.Split (splitOn)
 import MyPhoto.Actions.Align
@@ -15,6 +14,7 @@ import MyPhoto.Actions.FocusStack
 import MyPhoto.Actions.Montage
 import MyPhoto.Actions.Outliers
 import MyPhoto.Model
+import MyPhoto.Video
 import System.Console.GetOpt
 import System.Environment (getArgs, getProgName, withArgs)
 import qualified System.IO as IO
@@ -41,8 +41,16 @@ options =
           "DIR"
       )
       "overwrite work directory",
-    Option "" ["use-input-dir"] (NoArg (\opt -> return opt {optWorkdirStrategy = MoveExistingImgsToSubfolder})) "use input directory as work directory",
-    Option "" ["work-in-input-dir"] (NoArg (\opt -> return opt {optWorkdirStrategy = NextToImgFiles})) "work in input directory",
+    Option
+      ""
+      ["use-input-dir"]
+      (NoArg (\opt -> return opt {optWorkdirStrategy = MoveExistingImgsToSubfolder}))
+      "use input directory as work directory",
+    Option
+      ""
+      ["use-input-dir-without-move"]
+      (NoArg (\opt -> return opt {optWorkdirStrategy = NextToImgFiles}))
+      "work in input directory",
     Option
       ""
       ["no-enfuse"]
@@ -310,21 +318,40 @@ myPhotoStateAction opts@Options {optVerbose = verbose} = do
 
   return ()
 
-runMyPhoto' :: IO ()
-runMyPhoto' = do
+runMyPhotoStack' :: IO ()
+runMyPhotoStack' = do
   args <- getArgs
   (_, (opts, imgs)) <-
     (MTL.runStateT (getOptionsAndInitialize args) (startOptions, []))
-  when (optVerbose opts) $ print opts
+  IO.hPutStrLn IO.stderr ("DEBUG: " ++ show opts)
 
   (_, (_, outs)) <- MTL.runStateT (myPhotoStateAction opts) (imgs, [])
 
+  mapM_
+    ( \out -> do
+      IO.hPutStrLn IO.stderr ("INFO: output: " ++ out)
+    )
+    outs
+
   IO.hPutStrLn IO.stderr ("Done")
 
-runMyPhoto :: IO ()
-runMyPhoto = do
+runMyPhotoStackForVideo :: FilePath -> [String] -> IO ()
+runMyPhotoStackForVideo vid args = do
+  isExistingFile <- doesFileExist vid
+  unless isExistingFile $ do
+    IO.hPutStrLn IO.stderr ("video not found: " ++ vid)
+    exitWith (ExitFailure 1)
+  imgs <- extractFrames vid
+  let args' = args ++ ["--workdir", takeDirectory vid] ++ imgs
+  withArgs args' runMyPhotoStack'
+
+
+runMyPhotoStack :: IO ()
+runMyPhotoStack = do
   args <- getArgs
   case args of
+    "--video" : vid : args' -> do
+      runMyPhotoStackForVideo vid args'
     "--dirs" : args' -> do
       let (args'', dirs) = case splitOn ["--"] args' of
             [args'', dirs] -> (args'', dirs)
@@ -336,7 +363,7 @@ runMyPhoto = do
             unless isExistingDirectory $ do
               IO.hPutStrLn IO.stderr ("directory not found: " ++ dir)
               exitWith (ExitFailure 1)
-            withArgs (args'' ++ [dir]) runMyPhoto'
+            withArgs (args'' ++ [dir]) runMyPhotoStack'
         )
         dirs
-    _ -> runMyPhoto'
+    _ -> runMyPhotoStack'
