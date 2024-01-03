@@ -22,4 +22,4 @@ extractFrames vid = let
     exitCode <- waitForProcess pHandle
     unless (exitCode == ExitSuccess) $
       fail ("Extract of images failed with " ++ show exitCode)
-    listDirectory imgDir 
+    map (imgDir </>) <$> listDirectory imgDir 

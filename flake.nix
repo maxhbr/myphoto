@@ -75,7 +75,10 @@
               --set PATH ${pkgs.lib.makeBinPath extraLibraries}
             makeWrapper ${self.packages.${system}.myphoto-unwrapped}/bin/myphoto $out/bin/myphoto-inplace \
               --set PATH ${pkgs.lib.makeBinPath extraLibraries} \
-              --add-flags "--use-input-dir"
+              --add-flags "--inplace"
+            makeWrapper ${self.packages.${system}.myphoto-unwrapped}/bin/myphoto $out/bin/myphoto-replace \
+              --set PATH ${pkgs.lib.makeBinPath extraLibraries} \
+              --add-flags "--replace"
             makeWrapper ${self.packages.${system}.myphoto-unwrapped}/bin/myphoto $out/bin/myphoto-dirs \
               --set PATH ${pkgs.lib.makeBinPath extraLibraries} \
               --add-flags "--dirs"

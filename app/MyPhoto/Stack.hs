@@ -6,6 +6,7 @@ where
 import Control.Concurrent (getNumCapabilities)
 import qualified Control.Monad.State.Lazy as MTL
 import Data.List.Split (splitOn)
+import qualified Data.Map as Map
 import MyPhoto.Actions.Align
 import MyPhoto.Actions.Enfuse
 import MyPhoto.Actions.Exiftool
@@ -28,7 +29,8 @@ startOptions =
       optRemoveOutliers = True,
       optBreaking = Just 300,
       optEnfuse = True,
-      optFocusStack = True
+      optFocusStack = True,
+      optParameters = mempty
     }
 
 options :: [OptDescr (Options -> IO Options)]
@@ -43,35 +45,14 @@ options =
       "overwrite work directory",
     Option
       ""
-      ["use-input-dir"]
+      ["replace","use-input-dir-with-move"]
       (NoArg (\opt -> return opt {optWorkdirStrategy = MoveExistingImgsToSubfolder}))
       "use input directory as work directory",
     Option
       ""
-      ["use-input-dir-without-move"]
+      ["inplace","use-input-dir-without-move"]
       (NoArg (\opt -> return opt {optWorkdirStrategy = NextToImgFiles}))
       "work in input directory",
-    Option
-      ""
-      ["no-enfuse"]
-      ( NoArg
-          (\opt -> return opt {optEnfuse = False})
-      )
-      "Do not run enfuse",
-    Option
-      ""
-      ["enfuse"]
-      ( NoArg
-          (\opt -> return opt {optEnfuse = True})
-      )
-      "Run enfuse (default)",
-    Option
-      ""
-      ["no-focus-stack"]
-      ( NoArg
-          (\opt -> return opt {optFocusStack = False})
-      )
-      "Do not run focus stacking by PetteriAimonen/focus-stack",
     Option
       ""
       ["every-nth"]
@@ -98,10 +79,61 @@ options =
       ""
       ["breaking"]
       ( ReqArg
-          (\arg opt -> return opt {optBreaking = Just (read arg :: Int)})
+          (\arg opt -> let
+                intArg = read arg :: Int
+              in return $ if intArg <= 0
+                          then opt {optBreaking = Nothing}
+                          else opt {optBreaking = Just intArg})
           "SECONDS"
       )
       "break on time gap (0 to disable)",
+    Option
+      ""
+      ["no-breaking"]
+      ( NoArg
+          (\opt -> return opt {optBreaking = Nothing})
+      )
+      "disable breaking",
+  -- focus stack
+    Option
+      ""
+      ["no-focus-stack"]
+      ( NoArg
+          (\opt -> return opt {optFocusStack = False})
+      )
+      "Do not run focus stacking by PetteriAimonen/focus-stack",
+    Option
+      ""
+      ["focus-stack-parameter"]
+      ( ReqArg
+          (\arg opt -> return opt {optParameters = Map.insertWith (++) "focus-stack" [arg] (optParameters opt)})
+          "PARAMETER"
+      )
+      "Parameters for PetteriAimonen/focus-stack",
+  -- enfuse
+    Option
+      ""
+      ["no-enfuse"]
+      ( NoArg
+          (\opt -> return opt {optEnfuse = False})
+      )
+      "Do not run enfuse",
+    Option
+      ""
+      ["enfuse"]
+      ( NoArg
+          (\opt -> return opt {optEnfuse = True})
+      )
+      "Run enfuse (default)",
+    -- Option
+    --   ""
+    --   ["enfuse-parameter"]
+    --   ( ReqArg
+    --       (\arg opt -> return opt {optParameters = Map.insertWith (++) "enfuse" [arg] (optParameters opt)})
+    --       "PARAMETER"
+    --   )
+    --   "Parameters for enfuse",
+  -- help
     Option
       "v"
       ["verbose"]
@@ -342,9 +374,20 @@ runMyPhotoStackForVideo vid args = do
     IO.hPutStrLn IO.stderr ("video not found: " ++ vid)
     exitWith (ExitFailure 1)
   imgs <- extractFrames vid
-  let args' = args ++ ["--workdir", takeDirectory vid] ++ imgs
+  let args' = args ++ ["--workdir", takeDirectory vid, "--no-remove-outliers", "--no-breaking"] ++ imgs
   withArgs args' runMyPhotoStack'
 
+runMyPhotoStackForDirs :: [FilePath] -> [String] -> IO ()
+runMyPhotoStackForDirs dirs args = do
+      mapM_
+        ( \dir -> do
+            isExistingDirectory <- doesDirectoryExist dir
+            unless isExistingDirectory $ do
+              IO.hPutStrLn IO.stderr ("directory not found: " ++ dir)
+              exitWith (ExitFailure 1)
+            withArgs (args ++ [dir]) runMyPhotoStack'
+        )
+        dirs
 
 runMyPhotoStack :: IO ()
 runMyPhotoStack = do
@@ -357,13 +400,5 @@ runMyPhotoStack = do
             [args'', dirs] -> (args'', dirs)
             [dirs] -> ([], dirs)
             _ -> error "invalid args"
-      mapM_
-        ( \dir -> do
-            isExistingDirectory <- doesDirectoryExist dir
-            unless isExistingDirectory $ do
-              IO.hPutStrLn IO.stderr ("directory not found: " ++ dir)
-              exitWith (ExitFailure 1)
-            withArgs (args'' ++ [dir]) runMyPhotoStack'
-        )
-        dirs
+      runMyPhotoStackForDirs dirs args''
     _ -> runMyPhotoStack'

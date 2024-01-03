@@ -4,6 +4,7 @@ module MyPhoto.Model
     module Exit,
     module Maybe,
     module Monad,
+    module Map,
     Img,
     Imgs,
     WorkdirStrategy (..),
@@ -22,6 +23,7 @@ import System.Exit as Exit (ExitCode (..), exitWith)
 import System.FilePath as FilePath (makeRelative, splitExtensions, splitFileName, takeBaseName, takeDirectory, takeFileName, (-<.>), (<.>), (</>))
 import qualified System.IO as IO
 import System.Posix.LoadAvg (LoadAvg (..), getLoadAvgSafe)
+import Data.Map as Map (Map(..))
 
 type Img = FilePath
 
@@ -31,6 +33,7 @@ data WorkdirStrategy
   = CreateNextToImgDir
   | MoveExistingImgsToSubfolder
   | NextToImgFiles
+  -- | ParentOfImgFiles
   | WorkdirStrategyOverwrite FilePath
   deriving (Show, Eq)
 
@@ -41,7 +44,8 @@ data Options = Options
     optRemoveOutliers :: Bool,
     optBreaking :: Maybe Int,
     optFocusStack :: Bool,
-    optEnfuse :: Bool
+    optEnfuse :: Bool,
+    optParameters :: Map String [String]
   }
   deriving (Show)
 
