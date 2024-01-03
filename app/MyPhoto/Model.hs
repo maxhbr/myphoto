@@ -17,13 +17,13 @@ module MyPhoto.Model
 where
 
 import Control.Monad as Monad (unless, when)
+import Data.Map as Map (Map (..))
 import qualified Data.Maybe as Maybe (fromJust, isJust, mapMaybe, maybe)
 import System.Directory as Directory (createDirectoryIfMissing, doesDirectoryExist, doesFileExist, listDirectory, makeAbsolute, setCurrentDirectory)
 import System.Exit as Exit (ExitCode (..), exitWith)
 import System.FilePath as FilePath (makeRelative, splitExtensions, splitFileName, takeBaseName, takeDirectory, takeFileName, (-<.>), (<.>), (</>))
 import qualified System.IO as IO
 import System.Posix.LoadAvg (LoadAvg (..), getLoadAvgSafe)
-import Data.Map as Map (Map(..))
 
 type Img = FilePath
 
@@ -33,8 +33,8 @@ data WorkdirStrategy
   = CreateNextToImgDir
   | MoveExistingImgsToSubfolder
   | NextToImgFiles
-  -- | ParentOfImgFiles
-  | WorkdirStrategyOverwrite FilePath
+  | -- | ParentOfImgFiles
+    WorkdirStrategyOverwrite FilePath
   deriving (Show, Eq)
 
 data Options = Options

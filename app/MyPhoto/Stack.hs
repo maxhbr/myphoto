@@ -125,6 +125,13 @@ options =
           (\opt -> return opt {optEnfuse = True})
       )
       "Run enfuse (default)",
+    Option
+      ""
+      ["enfuse-all-variants"]
+      ( NoArg
+          (\opt -> return opt {optEnfuse = True})
+      )
+      "Run enfuse (default)",
     -- Option
     --   ""
     --   ["enfuse-parameter"]
