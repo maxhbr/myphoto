@@ -26,8 +26,8 @@ startOptions =
     { optVerbose = False,
       optWorkdirStrategy = CreateNextToImgDir,
       optEveryNth = Nothing,
-      optRemoveOutliers = True,
-      optBreaking = Just 300,
+      optRemoveOutliers = False,
+      optBreaking = Nothing,
       optEnfuse = True,
       optFocusStack = True,
       optParameters = mempty
@@ -55,7 +55,7 @@ options =
       "work in input directory",
     Option
       ""
-      ["every-nth"]
+      ["every-nth", "sparse"]
       ( ReqArg
           (\arg opt -> return opt {optEveryNth = Just (read arg :: Int)})
           "N"
@@ -63,18 +63,18 @@ options =
       "just take every n-th image (at least first and last)",
     Option
       ""
-      ["no-remove-outliers"]
-      ( NoArg
-          (\opt -> return opt {optRemoveOutliers = False})
-      )
-      "Do not remove outliers",
-    Option
-      ""
       ["remove-outliers"]
       ( NoArg
           (\opt -> return opt {optRemoveOutliers = True})
       )
       "Remove outliers (default)",
+    Option
+      ""
+      ["no-remove-outliers"]
+      ( NoArg
+          (\opt -> return opt {optRemoveOutliers = False})
+      )
+      "Do not remove outliers",
     Option
       ""
       ["breaking"]
@@ -316,13 +316,14 @@ myPhotoStateAction opts@Options {optVerbose = verbose} = do
     then do
       MTL.liftIO $ IO.hPutStrLn IO.stderr ("INFO: focus stacking (and aligning) with PetteriAimonen/focus-stack")
       (imgs, outs) <- MTL.get
-      (focusStacked, aligned) <- MTL.liftIO $ focusStackImgs opts imgs
+      let additionalParameters = Map.findWithDefault [] "focus-stack" (optParameters opts)
+      (focusStacked, aligned) <- MTL.liftIO $ focusStackImgs additionalParameters imgs
       MTL.put (aligned, outs ++ [focusStacked])
       return aligned
     else do
       MTL.liftIO $ IO.hPutStrLn IO.stderr ("INFO: just aligning with hugin")
       (imgs, outs) <- MTL.get
-      aligned <- MTL.liftIO $ align wd opts imgs
+      aligned <- MTL.liftIO $ align verbose wd imgs
       MTL.put (aligned, outs)
       return aligned
 
@@ -342,12 +343,18 @@ myPhotoStateAction opts@Options {optVerbose = verbose} = do
       Left err -> MTL.liftIO $ IO.hPutStrLn IO.stderr err
       Right enfuseOuts -> MTL.put (imgs, outs ++ enfuseOuts)
 
-  do
-    MTL.liftIO $ IO.hPutStrLn IO.stderr ("INFO: create montage")
-    outs <- MTL.gets snd
-    montageOut <- MTL.liftIO $ montage 1000 (inWorkdir wd outputBN) outs
-    MTL.liftIO $ IO.hPutStrLn IO.stderr ("INFO: wrote " ++ montageOut)
+  -- do
+  --   MTL.liftIO $ IO.hPutStrLn IO.stderr ("INFO: create montage")
+  --   outs <- MTL.gets snd
+  --   montageOut <- MTL.liftIO $ montage 1000 (inWorkdir wd outputBN) outs
+  --   MTL.liftIO $ IO.hPutStrLn IO.stderr ("INFO: wrote " ++ montageOut)
 
+
+  do 
+    (imgs, outs) <- MTL.get
+    outs' <- MTL.liftIO $ mapM makeAbsolute outs
+    MTL.put (imgs, outs')
+    
   return ()
 
 runMyPhotoStack' :: IO ()
@@ -361,7 +368,7 @@ runMyPhotoStack' = do
 
   mapM_
     ( \out -> do
-      IO.hPutStrLn IO.stderr ("INFO: output: " ++ out)
+      IO.hPutStrLn IO.stderr ("RESULT: output: " ++ out)
     )
     outs
 

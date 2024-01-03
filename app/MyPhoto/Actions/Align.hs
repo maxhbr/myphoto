@@ -57,16 +57,16 @@ copyAndRenameImages renamer imgs =
     )
     (zip imgs [1 ..])
 
-align :: FilePath -> Options -> Imgs -> IO Imgs
+align :: Bool -> FilePath -> Imgs -> IO Imgs
 align _ _ [] = return []
-align wd opts imgs = do
+align verbose wd imgs = do
   let imgBN = computeStackOutputBN imgs
   let alignWD = wd </> imgBN <.> "align"
   createDirectoryIfMissing True alignWD
 
   -- TODO: look at: https://photo.stackexchange.com/a/83179
   let alignArgs =
-        ["-v" | optVerbose opts]
+        ["-v" | verbose]
           ++ [ "--use-given-order",
                "-l", -- Assume linear input files
                "-c",
