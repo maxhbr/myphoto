@@ -8,22 +8,21 @@ import MyPhoto.Model
 import qualified System.IO as IO
 import System.Process
 
-focusStackImgs :: [String] -> [FilePath] -> IO (FilePath, [FilePath])
-focusStackImgs additionalParameters imgs = do
+focusStackImgs :: Bool -> [String] -> [FilePath] -> IO (FilePath, [FilePath])
+focusStackImgs verbose additionalParameters imgs = do
   let outputName = computeStackOutputBN imgs ++ "_focus-stack.png"
   let focusStackWorkdir = outputName -<.> "workdir"
   let alignedImgs = map (\img -> focusStackWorkdir </> "aligned_" ++ takeFileName img) imgs
-  let outputs = outputName : alignedImgs
-
   let parameters =
-        [ ("--output=../" ++ outputName),
-          ("--depthmap=" ++ outputName ++ ".depthmap.png"),
-          ("--3dview=" ++ outputName ++ ".3dviewpt.png"),
-          "--save-steps",
-          "--jpgquality=100",
-          "--nocrop"
-          -- , "--align-keep-size"
-        ]
+        ["--verbose" | verbose]
+        ++ [ ("--output=../" ++ outputName),
+             -- ("--depthmap=" ++ outputName ++ ".depthmap.png"),
+             -- ("--3dview=" ++ outputName ++ ".3dviewpt.png"),
+             "--save-steps",
+             "--jpgquality=100",
+             "--nocrop"
+             -- , "--align-keep-size"
+           ]
           ++ additionalParameters
 
   outputExists <- doesFileExist outputName
@@ -42,6 +41,20 @@ focusStackImgs additionalParameters imgs = do
             { cwd = Just focusStackWorkdir
             }
       exitcode <- waitForProcess ph
-      IO.hPutStrLn IO.stderr $ "INFO: focus-stack exited with " ++ (show exitcode)
-
+      if exitcode /= ExitSuccess
+        then do
+          fail $ "ERR: focus-stack exited with " ++ (show exitcode)
+        else do
+          return ()
+      exists <- doesFileExist outputName
+      unless exists $ do
+        fail $ "image not found: " ++ outputName
+  mapM_
+    ( \img -> do
+        exists <- doesFileExist img
+        unless exists $ do
+          fail $ "image not found: " ++ img
+    )
+    alignedImgs
+  
   return (outputName, alignedImgs)

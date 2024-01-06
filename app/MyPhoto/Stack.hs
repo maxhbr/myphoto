@@ -9,7 +9,7 @@ import Data.List.Split (splitOn)
 import qualified Data.Map as Map
 import MyPhoto.Actions.Align
 import MyPhoto.Actions.Enfuse
-import MyPhoto.Actions.Exiftool
+import MyPhoto.Actions.Metadata
 import MyPhoto.Actions.FileSystem
 import MyPhoto.Actions.FocusStack
 import MyPhoto.Actions.Montage
@@ -26,6 +26,7 @@ startOptions =
     { optVerbose = False,
       optWorkdirStrategy = CreateNextToImgDir,
       optEveryNth = Nothing,
+      optSortOnCreateDate = True,
       optRemoveOutliers = False,
       optBreaking = Nothing,
       optEnfuse = True,
@@ -61,6 +62,20 @@ options =
           "N"
       )
       "just take every n-th image (at least first and last)",
+    Option
+      ""
+      ["sort-on-create-date"]
+      ( NoArg
+          (\opt -> return opt {optSortOnCreateDate = True})
+      )
+      "Try to sort on create date",
+    Option
+      ""
+      ["no-sort-on-create-date"]
+      ( NoArg
+          (\opt -> return opt {optSortOnCreateDate = False})
+      )
+      "Do not sort on create date",
     Option
       ""
       ["remove-outliers"]
@@ -260,6 +275,14 @@ getOptionsAndInitialize =
 
 myPhotoStateAction :: Options -> MTL.StateT (Imgs, Imgs) IO ()
 myPhotoStateAction opts@Options {optVerbose = verbose} = do
+  when (optSortOnCreateDate opts) $ do
+    (imgs, outs) <- MTL.get
+    MTL.liftIO $ IO.hPutStrLn IO.stderr ("INFO: sorting on create date")
+    imgs' <- MTL.liftIO $ sortByCreateDate verbose imgs
+    when (imgs /= imgs') $ do
+      MTL.liftIO $ IO.hPutStrLn IO.stderr ("WARN: sorting on date changed order")
+    MTL.put (imgs', outs)
+
   wd <- case optWorkdirStrategy opts of
     CreateNextToImgDir -> do
       imgs@(img0 : _) <- MTL.gets fst
@@ -297,7 +320,7 @@ myPhotoStateAction opts@Options {optVerbose = verbose} = do
         _ -> do
           MTL.liftIO $ IO.hPutStrLn IO.stderr ("INFO: breaking on time gap of " ++ show gapInSeconds ++ " seconds")
           (imgs, outs) <- MTL.get
-          broken <- MTL.liftIO $ breaking gapInSeconds imgs
+          broken <- MTL.liftIO $ breaking verbose gapInSeconds imgs
           MTL.put (broken, outs)
 
   when (optRemoveOutliers opts) $ do
@@ -324,7 +347,7 @@ myPhotoStateAction opts@Options {optVerbose = verbose} = do
       MTL.liftIO $ IO.hPutStrLn IO.stderr ("INFO: focus stacking (and aligning) with PetteriAimonen/focus-stack")
       (imgs, outs) <- MTL.get
       let additionalParameters = Map.findWithDefault [] "focus-stack" (optParameters opts)
-      (focusStacked, aligned) <- MTL.liftIO $ focusStackImgs additionalParameters imgs
+      (focusStacked, aligned) <- MTL.liftIO $ focusStackImgs verbose additionalParameters imgs
       MTL.put (aligned, outs ++ [focusStacked])
       return aligned
     else do

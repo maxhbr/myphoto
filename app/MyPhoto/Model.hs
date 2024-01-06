@@ -5,6 +5,7 @@ module MyPhoto.Model
     module Maybe,
     module Monad,
     module Map,
+    module List,
     Img,
     Imgs,
     WorkdirStrategy (..),
@@ -18,6 +19,7 @@ where
 
 import Control.Monad as Monad (unless, when)
 import Data.Map as Map (Map (..))
+import Data.List as List (sortOn)
 import qualified Data.Maybe as Maybe (fromJust, isJust, mapMaybe, maybe)
 import System.Directory as Directory (createDirectoryIfMissing, doesDirectoryExist, doesFileExist, listDirectory, makeAbsolute, setCurrentDirectory)
 import System.Exit as Exit (ExitCode (..), exitWith)
@@ -41,6 +43,7 @@ data Options = Options
   { optVerbose :: Bool,
     optWorkdirStrategy :: WorkdirStrategy,
     optEveryNth :: Maybe Int,
+    optSortOnCreateDate :: Bool,
     optRemoveOutliers :: Bool,
     optBreaking :: Maybe Int,
     optFocusStack :: Bool,

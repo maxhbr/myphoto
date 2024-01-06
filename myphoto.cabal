@@ -26,7 +26,7 @@ executable myphoto
     other-modules:
         MyPhoto.Actions.Align,
         MyPhoto.Actions.Enfuse,
-        MyPhoto.Actions.Exiftool,
+        MyPhoto.Actions.Metadata,
         MyPhoto.Actions.FileSystem,
         MyPhoto.Actions.FocusStack,
         MyPhoto.Actions.Montage,
@@ -56,6 +56,7 @@ executable myphoto
                       text,
                       time,
                       unix,
-                      vector
+                      vector,
+                      hsexif
     hs-source-dirs:   app
     default-language: Haskell2010
