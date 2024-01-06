@@ -35,12 +35,14 @@ data WorkdirStrategy
   = CreateNextToImgDir
   | MoveExistingImgsToSubfolder
   | NextToImgFiles
+  | ImportToWorkdir FilePath
   | -- | ParentOfImgFiles
     WorkdirStrategyOverwrite FilePath
   deriving (Show, Eq)
 
 data Options = Options
   { optVerbose :: Bool,
+    optRedirectLog :: Bool, 
     optWorkdirStrategy :: WorkdirStrategy,
     optEveryNth :: Maybe Int,
     optSortOnCreateDate :: Bool,

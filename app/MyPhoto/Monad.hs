@@ -23,6 +23,7 @@ startOptions :: Options
 startOptions =
   Options
     { optVerbose = False,
+      optRedirectLog = False,
       optWorkdirStrategy = CreateNextToImgDir,
       optEveryNth = Nothing,
       optSortOnCreateDate = True,
@@ -87,10 +88,16 @@ withOptsIO f = do
   opts <- getOpts
   opts' <- MTL.liftIO $ f opts
   withOpts (const opts')
+guardWithOpts :: (Options -> Bool) -> MyPhotoM () -> MyPhotoM ()
+guardWithOpts f action = do
+  opts <- getOpts
+  when (f opts) action
 getImgs :: MyPhotoM Imgs
 getImgs = MTL.gets myPhotoStateImgs
 putImgs :: Imgs -> MyPhotoM ()
-putImgs imgs = MTL.modify (\s -> s {myPhotoStateImgs = imgs})
+putImgs imgs = do
+  logDebug $ "putImgs: " ++ show (length imgs)
+  MTL.modify (\s -> s {myPhotoStateImgs = imgs})
 withImgs :: (Imgs -> Imgs) -> MyPhotoM ()
 withImgs f = MTL.modify (\s -> s {myPhotoStateImgs = f (myPhotoStateImgs s)})
 withImgsIO :: (Imgs -> IO Imgs) -> MyPhotoM ()

@@ -8,6 +8,7 @@ import Control.Concurrent (getNumCapabilities)
 import qualified Control.Monad.State.Lazy as MTL
 import Data.List.Split (splitOn)
 import qualified Data.Map as Map
+import Data.Maybe (isJust)
 import MyPhoto.Actions.Align
 import MyPhoto.Actions.Enfuse
 import MyPhoto.Actions.Metadata
@@ -42,6 +43,17 @@ options =
       ["inplace","use-input-dir-without-move"]
       (NoArg (\opt -> return opt {optWorkdirStrategy = NextToImgFiles}))
       "work in input directory",
+    Option
+      ""
+      ["import", "import-to-workdir"]
+      (OptArg (\arg opt -> do
+        let wd = case arg of
+              Nothing -> "."
+              Just arg -> arg
+
+        return opt {optWorkdirStrategy = ImportToWorkdir wd}
+      ) "DIR")
+      "import to work directory",
     Option
       ""
       ["every-nth", "sparse"]
@@ -145,6 +157,13 @@ options =
     --   "Parameters for enfuse",
   -- help
     Option
+      ""
+      ["redirect-log-to-file"]
+      ( NoArg
+          (\opt -> return opt {optRedirectLog = True})
+      )
+      "Enable verbose messages",
+    Option
       "v"
       ["verbose"]
       ( NoArg
@@ -161,10 +180,6 @@ options =
               IO.hPutStrLn IO.stderr "  IMG0 [IMG1]..."
 
               IO.hPutStrLn IO.stderr "  --dirs [ARG1[,ARG2[,...]] --] DIR1[,DIR2[,...]]"
-
-              numCapabilities <- getNumCapabilities
-              when (numCapabilities == 1) $
-                IO.hPutStrLn IO.stderr ("WARN: numCapabilities=" ++ show numCapabilities ++ " this looks suspicious")
 
               exitWith ExitSuccess
           )
@@ -195,6 +210,7 @@ getWdAndMaybeMoveImgs = do
   case wd of
     Just wd -> return wd
     Nothing -> do
+      logDebug ("determine working directory")
       opts <- getOpts
       wd <- case optWorkdirStrategy opts of
         CreateNextToImgDir -> do
@@ -204,10 +220,14 @@ getWdAndMaybeMoveImgs = do
           MTL.liftIO $ createDirectoryIfMissing True wd
           return wd
         MoveExistingImgsToSubfolder -> do
+          opts <- getOpts
+          when (optEveryNth opts /= Nothing) $ do
+            fail "cannot move images to subfolder when --every-nth is specified"
           imgs@(img0 : _) <- getImgs
           let wd = takeDirectory img0
           let imgBN = computeStackOutputBN imgs
           let indir = wd </> imgBN <.> "raw"
+          logInfo ("moving images to " ++ indir)
           imgs' <- MTL.liftIO $ move indir imgs
           putImgs imgs'
           return wd
@@ -218,6 +238,19 @@ getWdAndMaybeMoveImgs = do
         WorkdirStrategyOverwrite wd -> do
           MTL.liftIO $ createDirectoryIfMissing True wd
           absWd <- MTL.liftIO $ makeAbsolute wd
+          return absWd
+        ImportToWorkdir wd -> do 
+          opts <- getOpts
+          when (optEveryNth opts /= Nothing) $ do
+            fail "cannot import images to subfolder when --every-nth is specified"
+          MTL.liftIO $ createDirectoryIfMissing True wd
+          absWd <- MTL.liftIO $ makeAbsolute wd
+          imgs <- getImgs
+          let imgBN = computeStackOutputBN imgs
+          let indir =  absWd </> imgBN <.> "raw"
+          logInfo ("copy images to " ++ indir)
+          imgs' <- MTL.liftIO $ copy indir imgs
+          putImgs imgs'
           return absWd
       setWd wd
       return wd
@@ -302,13 +335,11 @@ runMyPhotoStack' args = do
                 putImgs broken
       applyRemoveOutliers :: MyPhotoM ()
       applyRemoveOutliers = do
-        opts <- getOpts
-        when (optRemoveOutliers opts) $ do
-          logInfo ("removing outliers")
-          imgs <- getImgs
-          wd <- getWdAndMaybeMoveImgs
-          withoutOutliers <- MTL.liftIO $ rmOutliers wd imgs
-          putImgs withoutOutliers
+        logInfo ("removing outliers")
+        imgs <- getImgs
+        wd <- getWdAndMaybeMoveImgs
+        withoutOutliers <- MTL.liftIO $ rmOutliers wd imgs
+        putImgs withoutOutliers
       createMontage :: MyPhotoM ()
       createMontage = do
         logInfo ("create montage")
@@ -345,21 +376,20 @@ runMyPhotoStack' args = do
       runEnfuse :: [FilePath] -> MyPhotoM ()
       runEnfuse aligned = do
         logInfo ("focus stacking with enfuse")
-        opts <- getOpts
-        when (optEnfuse opts) $ do
-          let outputBN = computeStackOutputBN aligned
-          enfuseResult <-
-            MTL.liftIO $
-              enfuseStackImgs
-                ( enfuseDefaultOptions
-                    { optOutputBN = Just outputBN,
-                      optEnfuseVerbose = optVerbose opts
-                    }
-                )
-                aligned
-          case enfuseResult of
-            Left err -> fail err
-            Right enfuseOuts -> addOuts enfuseOuts
+        outputBn <- getOutputBN
+        enfuseResult <- do
+          opts <- getOpts
+          MTL.liftIO $
+            enfuseStackImgs
+              ( enfuseDefaultOptions
+                  { optOutputBN = Just outputBn,
+                    optEnfuseVerbose = optVerbose opts
+                  }
+              )
+              aligned
+        case enfuseResult of
+          Left err -> fail err
+          Right enfuseOuts -> addOuts enfuseOuts
 
       makeOutsPathsAbsolute :: MyPhotoM ()
       makeOutsPathsAbsolute = do
@@ -374,8 +404,14 @@ runMyPhotoStack' args = do
                   makeAbsolute out
               )
               outs
+      maybeRedirectLogToLogFile :: MyPhotoM a -> MyPhotoM a
+      maybeRedirectLogToLogFile action = do
+        opts <- getOpts
+        if optRedirectLog opts
+          then redirectLogToLogFile action
+          else action
 
-  let fun = do
+  let stateFun = do
         readDirectoryIfOnlyOneWasSpecified
         readActionsIntoOpts actions
         failIfNoImagesWereSpecified
@@ -383,20 +419,22 @@ runMyPhotoStack' args = do
         makeImgsPathsAbsoluteAndCheckExistence
         sortOnCreateDate
         wd <- getWdAndMaybeMoveImgs
-        -- redirectLogToLogFile $ do
-        do
+        maybeRedirectLogToLogFile $ do
           MTL.liftIO $ do
             setCurrentDirectory wd
             logInfoIO ("work directory: " ++ wd)
-          applyBreaking
-          applyRemoveOutliers
+          guardWithOpts (\opts -> let
+                                    breaking = optBreaking opts
+                                  in isJust breaking && breaking > Just 0) $ applyBreaking
+          guardWithOpts optRemoveOutliers $ applyRemoveOutliers
           -- createMontage
           aligned <- runFoucsStack
-          runEnfuse aligned
+          opts <- getOpts
+          guardWithOpts optEnfuse $ runEnfuse aligned
           makeOutsPathsAbsolute
 
     
-  (_, endState) <- (MTL.runStateT fun (startMyPhotoState startImgs))
+  (_, endState) <- (MTL.runStateT stateFun (startMyPhotoState startImgs))
   print endState
 
 runMyPhotoStackForVideo :: FilePath -> [String] -> IO ()
@@ -423,6 +461,10 @@ runMyPhotoStackForDirs dirs args = do
 
 runMyPhotoStack :: IO ()
 runMyPhotoStack = do
+  numCapabilities <- getNumCapabilities
+  when (numCapabilities == 1) $
+    IO.hPutStrLn IO.stderr ("WARN: numCapabilities=" ++ show numCapabilities ++ " this looks suspicious")
+
   args <- getArgs
   case args of
     "--video" : vid : args' -> do
