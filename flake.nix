@@ -87,9 +87,9 @@
     };
 
     apps.${system} = {
-      myphoto-stack {
+      myphoto-stack = {
         type = "app";
-        program = "${self.packages.myphoto}/bin/myphoto-stack";
+        program = "${self.packages.${system}.myphoto}/bin/myphoto-stack";
       };
     };
 
