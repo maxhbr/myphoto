@@ -50,21 +50,17 @@
         src = ./PetteriAimonen-focus-stack;
       });
 
-      my-focus-stack = 
-        with pkgs;
-        writeShellApplication {
-        name = "my-focus-stack";
-
-        runtimeInputs = [ self.packages."${system}".focus-stack exiftool ];
-
-        text = builtins.readFile ./my-focus-stack.sh; # or "path =" ??
-      };
-
       myphoto-unwrapped = project [];
+      myphoto-stack-from-github = pkgs..writeShellScriptBin "myphoto-gh-stack" ''
+         exec nix run "https://github.com/maxhbr/myphoto"#myphoto-stack -- "$@"
+      '';
+      myphoto-watch-from-github = pkgs..writeShellScriptBin "myphoto-gh-watch" ''
+         exec nix run "https://github.com/maxhbr/myphoto"#myphoto-watch -- "$@"
+      '';
       myphoto = pkgs.buildEnv {
           name = "myphoto";
 
-          paths = [ ];
+          paths = [ self.packages.${system}.myphoto-stack-from-github self.packages.${system}.myphoto-watch-from-github ];
           pathsToLink = [ "/share" ];
 
           nativeBuildInputs = [ pkgs.makeWrapper ];
@@ -126,7 +122,6 @@
             geeqie
           ]) ++ (with self.packages.${system}; [ 
             focus-stack
-            my-focus-stack
             myphoto
           ]);
         };

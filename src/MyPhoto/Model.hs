@@ -18,8 +18,8 @@ module MyPhoto.Model
 where
 
 import Control.Monad as Monad (unless, when)
-import Data.Map as Map (Map (..))
 import Data.List as List (sortOn)
+import Data.Map as Map (Map (..))
 import qualified Data.Maybe as Maybe (fromJust, isJust, mapMaybe, maybe)
 import System.Directory as Directory (createDirectoryIfMissing, doesDirectoryExist, doesFileExist, listDirectory, makeAbsolute, setCurrentDirectory)
 import System.Exit as Exit (ExitCode (..), exitWith)
@@ -42,7 +42,7 @@ data WorkdirStrategy
 
 data Options = Options
   { optVerbose :: Bool,
-    optRedirectLog :: Bool, 
+    optRedirectLog :: Bool,
     optWorkdirStrategy :: WorkdirStrategy,
     optEveryNth :: Maybe Int,
     optSortOnCreateDate :: Bool,

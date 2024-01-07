@@ -1,10 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module MyPhoto.Actions.Metadata
-  ( breaking
-  , sortByCreateDate
-  , getMetadaFromImg
-  , Metadata (..)
+  ( breaking,
+    sortByCreateDate,
+    getMetadaFromImg,
+    Metadata (..),
   )
 where
 
@@ -12,16 +12,14 @@ import Control.Monad
 import qualified Data.Aeson as A
 import qualified Data.Aeson.Types as A
 import qualified Data.ByteString.Lazy as B
-import MyPhoto.Model hiding (Options (..))
-import System.Exit
-import System.Process
-
 import Data.Text (Text, unpack)
 import Data.Time
 import Data.Time.Clock.POSIX (utcTimeToPOSIXSeconds)
 import Data.Time.LocalTime
-
 import Graphics.HsExif
+import MyPhoto.Model hiding (Options (..))
+import System.Exit
+import System.Process
 
 data Metadata
   = Metadata Img Int
@@ -60,7 +58,6 @@ breaking :: Bool -> Int -> Imgs -> IO Imgs
 breaking verbose gapInSeconds imgs = do
   metadatas <- getMetadaFromImgs verbose imgs
   return (breakingOnMetadatas gapInSeconds metadatas)
-
 
 sortByCreateDate :: Bool -> Imgs -> IO Imgs
 sortByCreateDate verbose imgs = do

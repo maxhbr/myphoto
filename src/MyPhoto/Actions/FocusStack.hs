@@ -15,14 +15,14 @@ focusStackImgs verbose additionalParameters imgs = do
   let alignedImgs = map (\img -> focusStackWorkdir </> "aligned_" ++ takeFileName img) imgs
   let parameters =
         ["--verbose" | verbose]
-        ++ [ ("--output=../" ++ outputName),
-             -- ("--depthmap=" ++ outputName ++ ".depthmap.png"),
-             -- ("--3dview=" ++ outputName ++ ".3dviewpt.png"),
-             "--save-steps",
-             "--jpgquality=100",
-             "--nocrop"
-             -- , "--align-keep-size"
-           ]
+          ++ [ ("--output=../" ++ outputName),
+               -- ("--depthmap=" ++ outputName ++ ".depthmap.png"),
+               -- ("--3dview=" ++ outputName ++ ".3dviewpt.png"),
+               "--save-steps",
+               "--jpgquality=100",
+               "--nocrop"
+               -- , "--align-keep-size"
+             ]
           ++ additionalParameters
 
   outputExists <- doesFileExist outputName
@@ -56,5 +56,5 @@ focusStackImgs verbose additionalParameters imgs = do
           fail $ "image not found: " ++ img
     )
     alignedImgs
-  
+
   return (outputName, alignedImgs)

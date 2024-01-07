@@ -172,46 +172,46 @@ enfuseStackImgs =
   let stackImpl'' :: MS.MSem Int -> EnfuseOptions -> (FilePath, FilePath, Bool, [String]) -> [FilePath] -> IO (Either String [FilePath])
       stackImpl'' sem opts args@(outFile, workdir, saveMasks, enfuseArgs) imgs = do
         putStrLn ("#### calculate " ++ outFile)
-        let
-            chunkSize = computeChunkSize (optChunk opts) imgs
+        let chunkSize = computeChunkSize (optChunk opts) imgs
             maybeChunks = case chunkSize of
               Nothing -> Nothing
-              Just chunkSize -> let
-                  joinLastTwoChunks :: [[FilePath]] -> [[FilePath]]
-                  joinLastTwoChunks [] = []
-                  joinLastTwoChunks [chunk] = [chunk]
-                  joinLastTwoChunks [chunk1, chunk2] = [chunk1 ++ chunk2]
-                  joinLastTwoChunks (chunk1 : chunk2 : chunks) = chunk1 : joinLastTwoChunks (chunk2 : chunks)
-                  joinLastTwoChunksIfNeeded :: [[FilePath]] -> [[FilePath]]
-                  joinLastTwoChunksIfNeeded [] = []
-                  joinLastTwoChunksIfNeeded [chunk] = [chunk]
-                  joinLastTwoChunksIfNeeded chunks = if length (last chunks) > (chunkSize `div` 2) 
-                                                       then chunks
-                                                       else joinLastTwoChunks chunks
-                in Just . joinLastTwoChunksIfNeeded $ chunksOf chunkSize imgs
-          in case maybeChunks of
-            Just chunks | length chunks > 1 -> do
-              let chunkSize = length $ head chunks
-              let numberOfChunks = length chunks
-              putStrLn ("#### use " ++ show numberOfChunks ++ " chunks of chunkSize " ++ show chunkSize ++ " to calculate " ++ outFile)
-              chunkImgs <-
-                mapConcurrently
-                  ( \(i, chunk) -> do
-                      let (bn,ext) = splitExtensions outFile
-                          chunkOutputDir = workdir </> bn <> "_chunks_of" <> show chunkSize
-                          chunkOutputFilename = bn <> "_chunk" <> show i <> "of" <> show numberOfChunks <.> ext
-                      createDirectoryIfMissing True chunkOutputDir
-                      stackImpl'' sem opts (chunkOutputFilename, chunkOutputDir, saveMasks, enfuseArgs) chunk
-                  )
-                  (zip [1 ..] chunks)
+              Just chunkSize ->
+                let joinLastTwoChunks :: [[FilePath]] -> [[FilePath]]
+                    joinLastTwoChunks [] = []
+                    joinLastTwoChunks [chunk] = [chunk]
+                    joinLastTwoChunks [chunk1, chunk2] = [chunk1 ++ chunk2]
+                    joinLastTwoChunks (chunk1 : chunk2 : chunks) = chunk1 : joinLastTwoChunks (chunk2 : chunks)
+                    joinLastTwoChunksIfNeeded :: [[FilePath]] -> [[FilePath]]
+                    joinLastTwoChunksIfNeeded [] = []
+                    joinLastTwoChunksIfNeeded [chunk] = [chunk]
+                    joinLastTwoChunksIfNeeded chunks =
+                      if length (last chunks) > (chunkSize `div` 2)
+                        then chunks
+                        else joinLastTwoChunks chunks
+                 in Just . joinLastTwoChunksIfNeeded $ chunksOf chunkSize imgs
+         in case maybeChunks of
+              Just chunks | length chunks > 1 -> do
+                let chunkSize = length $ head chunks
+                let numberOfChunks = length chunks
+                putStrLn ("#### use " ++ show numberOfChunks ++ " chunks of chunkSize " ++ show chunkSize ++ " to calculate " ++ outFile)
+                chunkImgs <-
+                  mapConcurrently
+                    ( \(i, chunk) -> do
+                        let (bn, ext) = splitExtensions outFile
+                            chunkOutputDir = workdir </> bn <> "_chunks_of" <> show chunkSize
+                            chunkOutputFilename = bn <> "_chunk" <> show i <> "of" <> show numberOfChunks <.> ext
+                        createDirectoryIfMissing True chunkOutputDir
+                        stackImpl'' sem opts (chunkOutputFilename, chunkOutputDir, saveMasks, enfuseArgs) chunk
+                    )
+                    (zip [1 ..] chunks)
 
-              case foldl foldResults (Right []) chunkImgs of
-                Right chunkImgs' -> stackImpl'' sem opts args chunkImgs'
-                err -> return err
-            _ -> do
-              avaial <- MS.peekAvail sem
-              putStrLn ("#### use " ++ show (length imgs) ++ " images to calculate " ++ outFile ++ " (available threads: " ++ show avaial ++ ")")
-              (MS.with sem . runEnfuse 2 args) imgs
+                case foldl foldResults (Right []) chunkImgs of
+                  Right chunkImgs' -> stackImpl'' sem opts args chunkImgs'
+                  err -> return err
+              _ -> do
+                avaial <- MS.peekAvail sem
+                putStrLn ("#### use " ++ show (length imgs) ++ " images to calculate " ++ outFile ++ " (available threads: " ++ show avaial ++ ")")
+                (MS.with sem . runEnfuse 2 args) imgs
 
       stackImpl' :: MS.MSem Int -> EnfuseOptions -> [FilePath] -> IO (Either String [FilePath])
       stackImpl' sem opts imgs =

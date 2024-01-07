@@ -1,8 +1,9 @@
 {-# LANGUAGE CPP #-}
+
 module MyPhoto.Stack
-  ( runMyPhotoStack
-  , runMyPhotoStack'
-  , runMyPhotoStack''
+  ( runMyPhotoStack,
+    runMyPhotoStack',
+    runMyPhotoStack'',
   )
 where
 
@@ -13,9 +14,9 @@ import qualified Data.Map as Map
 import Data.Maybe (isJust)
 import MyPhoto.Actions.Align
 import MyPhoto.Actions.Enfuse
-import MyPhoto.Actions.Metadata
 import MyPhoto.Actions.FileSystem
 import MyPhoto.Actions.FocusStack
+import MyPhoto.Actions.Metadata
 import MyPhoto.Actions.Montage
 import MyPhoto.Actions.Outliers
 import MyPhoto.Model
@@ -37,24 +38,27 @@ options =
       "overwrite work directory",
     Option
       ""
-      ["replace","use-input-dir-with-move"]
+      ["replace", "use-input-dir-with-move"]
       (NoArg (\opt -> return opt {optWorkdirStrategy = MoveExistingImgsToSubfolder}))
       "use input directory as work directory",
     Option
       ""
-      ["inplace","use-input-dir-without-move"]
+      ["inplace", "use-input-dir-without-move"]
       (NoArg (\opt -> return opt {optWorkdirStrategy = NextToImgFiles}))
       "work in input directory",
     Option
       ""
       ["import", "import-to-workdir"]
-      (OptArg (\arg opt -> do
-        let wd = case arg of
-              Nothing -> "."
-              Just arg -> arg
+      ( OptArg
+          ( \arg opt -> do
+              let wd = case arg of
+                    Nothing -> "."
+                    Just arg -> arg
 
-        return opt {optWorkdirStrategy = ImportToWorkdir wd}
-      ) "DIR")
+              return opt {optWorkdirStrategy = ImportToWorkdir wd}
+          )
+          "DIR"
+      )
       "import to work directory",
     Option
       ""
@@ -96,11 +100,13 @@ options =
       ""
       ["breaking"]
       ( ReqArg
-          (\arg opt -> let
-                intArg = read arg :: Int
-              in return $ if intArg <= 0
-                          then opt {optBreaking = Nothing}
-                          else opt {optBreaking = Just intArg})
+          ( \arg opt ->
+              let intArg = read arg :: Int
+               in return $
+                    if intArg <= 0
+                      then opt {optBreaking = Nothing}
+                      else opt {optBreaking = Just intArg}
+          )
           "SECONDS"
       )
       "break on time gap (0 to disable)",
@@ -111,7 +117,7 @@ options =
           (\opt -> return opt {optBreaking = Nothing})
       )
       "disable breaking",
-  -- focus stack
+    -- focus stack
     Option
       ""
       ["no-focus-stack"]
@@ -127,7 +133,7 @@ options =
           "PARAMETER"
       )
       "Parameters for PetteriAimonen/focus-stack",
-  -- enfuse
+    -- enfuse
     Option
       ""
       ["no-enfuse"]
@@ -157,7 +163,7 @@ options =
     --       "PARAMETER"
     --   )
     --   "Parameters for enfuse",
-  -- help
+    -- help
     Option
       ""
       ["redirect-log-to-file"]
@@ -206,6 +212,7 @@ sampleOfM m xs =
    in if len <= m
         then xs
         else everyNth n xs
+
 getWdAndMaybeMoveImgs :: MyPhotoM FilePath
 getWdAndMaybeMoveImgs = do
   wd <- MTL.gets myPhotoStateWd
@@ -241,7 +248,7 @@ getWdAndMaybeMoveImgs = do
           MTL.liftIO $ createDirectoryIfMissing True wd
           absWd <- MTL.liftIO $ makeAbsolute wd
           return absWd
-        ImportToWorkdir wd -> do 
+        ImportToWorkdir wd -> do
           opts <- getOpts
           when (optEveryNth opts /= Nothing) $ do
             fail "cannot import images to subfolder when --every-nth is specified"
@@ -249,13 +256,14 @@ getWdAndMaybeMoveImgs = do
           absWd <- MTL.liftIO $ makeAbsolute wd
           imgs <- getImgs
           let imgBN = computeStackOutputBN imgs
-          let indir =  absWd </> imgBN <.> "raw"
+          let indir = absWd </> imgBN <.> "raw"
           logInfo ("copy images to " ++ indir)
           imgs' <- MTL.liftIO $ copy indir imgs
           putImgs imgs'
           return absWd
       setWd wd
       return wd
+
 getOutputBN :: MyPhotoM FilePath
 getOutputBN = do
   imgs <- getImgs
@@ -270,10 +278,10 @@ runMyPhotoStack'' startOpts actions startImgs = do
           [maybeDir] -> do
             isExistingDirectory <- MTL.liftIO $ doesDirectoryExist maybeDir
             when isExistingDirectory $ do
-                logInfo ("directory specified: " ++ maybeDir)
-                imgs' <-MTL.liftIO $  map (maybeDir </>) <$> listDirectory maybeDir
-                logInfo ("#images: " ++ show (length imgs'))
-                putImgs imgs'
+              logInfo ("directory specified: " ++ maybeDir)
+              imgs' <- MTL.liftIO $ map (maybeDir </>) <$> listDirectory maybeDir
+              logInfo ("#images: " ++ show (length imgs'))
+              putImgs imgs'
           _ -> return ()
       readActionsIntoOpts :: [Options -> IO Options] -> MyPhotoM ()
       readActionsIntoOpts actions = withOptsIO $ \opts -> foldl (>>=) (return opts) actions
@@ -296,15 +304,15 @@ runMyPhotoStack'' startOpts actions startImgs = do
       makeImgsPathsAbsoluteAndCheckExistence = do
         logDebug ("makeImgsPathsAbsoluteAndCheckExistence")
         withImgsIO $ \imgs -> do
-            mapM
-              ( \img -> do
-                  exists <- doesFileExist img
-                  unless exists $ do
-                    IO.hPutStrLn IO.stderr $ "image not found: " ++ img
-                    exitWith (ExitFailure 1)
-                  makeAbsolute img
-              )
-              imgs
+          mapM
+            ( \img -> do
+                exists <- doesFileExist img
+                unless exists $ do
+                  IO.hPutStrLn IO.stderr $ "image not found: " ++ img
+                  exitWith (ExitFailure 1)
+                makeAbsolute img
+            )
+            imgs
       sortOnCreateDate :: MyPhotoM ()
       sortOnCreateDate = do
         opts <- getOpts
@@ -392,15 +400,15 @@ runMyPhotoStack'' startOpts actions startImgs = do
       makeOutsPathsAbsolute = do
         logDebug ("makeOutsPathsAbsolute")
         withOutsIO $ \outs -> do
-            mapM
-              ( \out -> do
-                  exists <- doesFileExist out
-                  unless exists $ do
-                    IO.hPutStrLn IO.stderr $ "output not found: " ++ out
-                    exitWith (ExitFailure 1)
-                  makeAbsolute out
-              )
-              outs
+          mapM
+            ( \out -> do
+                exists <- doesFileExist out
+                unless exists $ do
+                  IO.hPutStrLn IO.stderr $ "output not found: " ++ out
+                  exitWith (ExitFailure 1)
+                makeAbsolute out
+            )
+            outs
       maybeRedirectLogToLogFile :: MyPhotoM a -> MyPhotoM a
       maybeRedirectLogToLogFile action = do
         opts <- getOpts
@@ -420,9 +428,12 @@ runMyPhotoStack'' startOpts actions startImgs = do
           MTL.liftIO $ do
             setCurrentDirectory wd
             logInfoIO ("work directory: " ++ wd)
-          guardWithOpts (\opts -> let
-                                    breaking = optBreaking opts
-                                  in isJust breaking && breaking > Just 0) $ applyBreaking
+          guardWithOpts
+            ( \opts ->
+                let breaking = optBreaking opts
+                 in isJust breaking && breaking > Just 0
+            )
+            $ applyBreaking
           guardWithOpts optRemoveOutliers $ applyRemoveOutliers
           -- createMontage
           aligned <- runFoucsStack
@@ -432,13 +443,11 @@ runMyPhotoStack'' startOpts actions startImgs = do
 
         getWdAndMaybeMoveImgs
 
-    
   (wd, endState) <- (MTL.runStateT stateFun (startMyPhotoState startOpts startImgs))
   print endState
   return wd
 
-
-runMyPhotoStack'  :: [String] -> IO ()
+runMyPhotoStack' :: [String] -> IO ()
 runMyPhotoStack' args = do
   let (actions, startImgs, errors) = getOpt RequireOrder options args
   unless (null errors) $ do
@@ -459,15 +468,15 @@ runMyPhotoStackForVideo vid args = do
 
 runMyPhotoStackForDirs :: [FilePath] -> [String] -> IO ()
 runMyPhotoStackForDirs dirs args = do
-      mapM_
-        ( \dir -> do
-            isExistingDirectory <- doesDirectoryExist dir
-            unless isExistingDirectory $ do
-              IO.hPutStrLn IO.stderr ("directory not found: " ++ dir)
-              exitWith (ExitFailure 1)
-            runMyPhotoStack' (args ++ [dir])
-        )
-        dirs
+  mapM_
+    ( \dir -> do
+        isExistingDirectory <- doesDirectoryExist dir
+        unless isExistingDirectory $ do
+          IO.hPutStrLn IO.stderr ("directory not found: " ++ dir)
+          exitWith (ExitFailure 1)
+        runMyPhotoStack' (args ++ [dir])
+    )
+    dirs
 
 runMyPhotoStack :: IO ()
 runMyPhotoStack = do
