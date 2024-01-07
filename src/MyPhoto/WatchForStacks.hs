@@ -3,16 +3,23 @@ module MyPhoto.WatchForStacks where
 
 
 import MyPhoto.Model
+import MyPhoto.Monad (startOptions)
+import MyPhoto.Stack
+import MyPhoto.Actions.FileSystem ( copy )
 import MyPhoto.Actions.Metadata
 import qualified Control.Monad.State.Lazy as MTL
 import Control.Concurrent as Thread
 import System.Directory.Recursive (getFilesRecursive)
 import System.Environment (getArgs)
+import Control.Exception (catch, SomeException)
+import Data.List (partition)
 
-import Data.Map (Map)
+import Data.Map (Map, union, fromList, toList, unionWith, fromListWith)
+import Data.Time.Clock.POSIX (getCurrentTime, utcTimeToPOSIXSeconds)
 
 supportedExtensions = [".jpg", ".JPG"]
 clusterDistanceInSeconds = 6
+loopIntervalInSeconds = 120
 
 data WatchForStacksFile
   = WatchForStacksFile
@@ -20,24 +27,34 @@ data WatchForStacksFile
   -- , wfsfSize :: Int
   -- , wfsfHash :: String
   , wfsfExifTimeSeconds :: Int
-  }
+  } deriving (Show, Eq)
 
 data WatchForStacksState
   = WatchForStacksState
   { wfsIndir :: FilePath
   , wfsOutdir :: FilePath
+  , wfsMinimalTime :: Int
+  , wfsOldInFiles :: [FilePath]
+  , wfsFailedInFiles :: [FilePath]
   , wfsInFileClusters :: [[WatchForStacksFile]]
-  }
+  , wfsFinishedClusters :: Map FilePath [WatchForStacksFile]
+  } deriving (Show, Eq)
 
 type WatchForStacksM = MTL.StateT WatchForStacksState IO
 
 knowsFile :: FilePath -> WatchForStacksM Bool
 knowsFile img = do
-  WatchForStacksState indir outdir inFiles <- MTL.get
-  return $ img `elem` (map wfsfPath (concat inFiles))
+  WatchForStacksState { wfsFailedInFiles = failedFiles
+                      , wfsInFileClusters = inFiles
+                      , wfsOldInFiles = oldFiles
+                      , wfsFinishedClusters = finishedClusters } <- MTL.get
+  let filePathsInInFiles = map wfsfPath (concat inFiles)
+  let filePathsInFinishedClusters = map wfsfPath (concatMap snd (toList finishedClusters))
+  return $ img `elem` (filePathsInInFiles ++ filePathsInFinishedClusters ++ failedFiles ++ oldFiles)
 
 analyzeFile :: FilePath -> IO WatchForStacksFile
 analyzeFile p = do
+  putStrLn $ "analyzeFile: " ++ p
   Metadata _ exifTimeSeconds <- getMetadaFromImg False p
   return $ WatchForStacksFile p exifTimeSeconds
 
@@ -58,9 +75,14 @@ insertIntoClusters file clusters =
 
 addFile :: WatchForStacksFile -> WatchForStacksM ()
 addFile file = do
-  WatchForStacksState indir outdir clusters <- MTL.get
+  wfss@WatchForStacksState{ wfsInFileClusters = clusters } <- MTL.get
   let newClusters = insertIntoClusters file clusters
-  MTL.put $ WatchForStacksState indir outdir newClusters
+  MTL.put $ wfss { wfsInFileClusters = newClusters }
+
+addFailedFile :: FilePath -> WatchForStacksM ()
+addFailedFile file = do
+  wfss@WatchForStacksState{ wfsFailedInFiles = failedFiles } <- MTL.get
+  MTL.put $ wfss { wfsFailedInFiles = file : failedFiles }
 
 peekFile :: FilePath -> WatchForStacksM ()
 peekFile img = do
@@ -70,22 +92,87 @@ peekFile img = do
       fileIsAlreadyKnown <- knowsFile img
       if not fileIsAlreadyKnown
         then do
-          file <- MTL.liftIO $ analyzeFile img
-          addFile file
+          result <- MTL.liftIO $ catch (do
+            file <- MTL.liftIO $ analyzeFile img
+            return (Just file)
+            ) (\e -> do
+              putStrLn $ "ERROR: " ++ show (e :: SomeException)
+              return Nothing
+            )
+          case result of 
+            Just file -> do
+              WatchForStacksState{ wfsMinimalTime = wfsMinimalTime } <- MTL.get
+              if wfsfExifTimeSeconds file >= wfsMinimalTime
+                then addFile file
+                else MTL.modify (\s -> s {wfsOldInFiles = img : wfsOldInFiles s})
+            Nothing -> addFailedFile img
         else return ()
     else return ()
+
+
+peekFiles :: WatchForStacksM ()
+peekFiles = do
+  WatchForStacksState{ wfsIndir = indir } <- MTL.get
+  filesInDir <- MTL.liftIO $ getFilesRecursive indir
+  MTL.liftIO $ putStrLn $ "#filesInDir: " ++ show (length filesInDir)
+  mapM_ peekFile filesInDir
+
+handleFinishedClusters :: WatchForStacksState -> WatchForStacksM ()
+handleFinishedClusters oldState60SecondsAgo@(WatchForStacksState{wfsInFileClusters = oldClusters}) = do
+  wfss@WatchForStacksState{wfsOutdir = outdir, wfsInFileClusters = newClusters, wfsFinishedClusters = finishedClusters } <- MTL.get
+  let (unchanged, changed) = partition (\cluster -> cluster `elem` oldClusters) newClusters
+
+  MTL.liftIO $ createDirectoryIfMissing True outdir
+  newlyFinished <- mapM (\ cluster -> do
+                              if length cluster > 10
+                              then do
+                                let opts = startOptions { 
+                                              optVerbose = False,
+                                              optRedirectLog = False,
+                                              optWorkdirStrategy = ImportToWorkdir outdir, 
+                                              optEveryNth = Nothing,
+                                              optSortOnCreateDate = True,
+                                              optRemoveOutliers = False,
+                                              optBreaking = Nothing,
+                                              optFocusStack = True,
+                                              optEnfuse = True
+                                            }
+                                wd <- MTL.liftIO $  catch ( runMyPhotoStack'' opts [] (map wfsfPath cluster)) (\e -> do
+                                    putStrLn $ "ERROR: " ++ show (e :: SomeException)
+                                    return (outdir </> (computeStackOutputBN (map wfsfPath cluster)))
+                                  )
+                                return (wd,cluster)
+                              else do
+                                MTL.liftIO $ do
+                                  putStrLn $ "INFO: cluster too small, just copy: " ++ show (length cluster)
+                                  copy outdir (map wfsfPath cluster)
+                                return (outdir,cluster)
+                        ) changed
+
+  let newFinishedClusters = unionWith (++) finishedClusters (fromListWith (++) newlyFinished)
+  MTL.put $ wfss { wfsInFileClusters = changed, wfsFinishedClusters = newFinishedClusters }
   
 watchForStacksLoop :: WatchForStacksM ()
 watchForStacksLoop = do
-  WatchForStacksState indir _ _<- MTL.get
-  filesInDir <- MTL.liftIO $ getFilesRecursive indir
-  MTL.liftIO $ putStrLn $ "#filesInDir: " ++ show (length filesInDir)
+  MTL.liftIO $ putStrLn "start iteration..."
+  oldState60SecondsAgo <- MTL.get
 
-  mapM_ peekFile filesInDir
+  -- add new files
+  peekFiles
 
-  WatchForStacksState _ _ clusters <- MTL.get
-  MTL.liftIO $ putStrLn $ "#clusters: " ++ show (length clusters) ++ " ##clusters: " ++ show (map length clusters)
-  MTL.liftIO $ Thread.threadDelay 60000000
+  -- check for finished clusters
+  handleFinishedClusters oldState60SecondsAgo
+
+  -- log new state
+  WatchForStacksState{ wfsFailedInFiles = failedFiles, wfsInFileClusters = clusters, wfsFinishedClusters = finishedclusters } <- MTL.get
+  MTL.liftIO $ putStrLn $ "#openClusters: " ++ show (length clusters) ++ " ##openClusters: " ++ show (map length clusters)
+  MTL.liftIO $ putStrLn $ "#finishedClusters: " ++ show (length finishedclusters)
+  mapM_ (\(wd,cluster) -> MTL.liftIO $ putStrLn $ "  " ++ wd ++ " #=" ++ show (length cluster)) (toList finishedclusters)
+  MTL.liftIO $ putStrLn $ "#failedFiles: " ++ show (length failedFiles)
+
+  -- wait for next loop
+  MTL.liftIO $ putStrLn "sleeping..."
+  MTL.liftIO $ Thread.threadDelay (loopIntervalInSeconds * 1000000)
   watchForStacksLoop
 
 watchForStacks :: FilePath -> FilePath -> IO ()
@@ -93,15 +180,19 @@ watchForStacks indir outdir = do
   putStrLn "watchForStacks"
   putStrLn $ "indir: " ++ indir
   putStrLn $ "outdir: " ++ outdir
+
+  currentTime <- getCurrentTime
+  let currentSeconds = round (utcTimeToPOSIXSeconds currentTime)
+  let minimalTime = currentSeconds - 60 * 60 * 12 -- 12 h ago
   
-  MTL.evalStateT watchForStacksLoop (WatchForStacksState indir outdir [])
+  MTL.evalStateT watchForStacksLoop (WatchForStacksState indir outdir minimalTime [] [] [] mempty)
 
 
 runMyPhotoWatchForStacks :: IO ()
 runMyPhotoWatchForStacks = do
   let help = do
-        putStrLn "Usage: my-photo-watch-for-stacks <indir>"
-        putStrLn "Usage: my-photo-watch-for-stacks <indir> <outdir>"
+        putStrLn "Usage: myphoto-watch <indir>"
+        putStrLn "Usage: myphoto-watch <indir> <outdir>"
   args <- getArgs
   case args of
     ["-h"] -> do

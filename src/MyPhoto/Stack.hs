@@ -1,6 +1,8 @@
 {-# LANGUAGE CPP #-}
 module MyPhoto.Stack
-  ( runMyPhotoStack,
+  ( runMyPhotoStack
+  , runMyPhotoStack'
+  , runMyPhotoStack''
   )
 where
 
@@ -259,13 +261,8 @@ getOutputBN = do
   imgs <- getImgs
   return (computeStackOutputBN imgs)
 
-runMyPhotoStack'  :: [String] -> IO ()
-runMyPhotoStack' args = do
-  let (actions, startImgs, errors) = getOpt RequireOrder options args
-  unless (null errors) $ do
-    mapM_ (IO.hPutStrLn IO.stderr) errors
-    exitWith (ExitFailure 1)
-
+runMyPhotoStack'' :: Options -> [Options -> IO Options] -> [String] -> IO FilePath
+runMyPhotoStack'' startOpts actions startImgs = do
   let readDirectoryIfOnlyOneWasSpecified :: MyPhotoM ()
       readDirectoryIfOnlyOneWasSpecified = do
         imgs <- getImgs
@@ -433,9 +430,22 @@ runMyPhotoStack' args = do
           guardWithOpts optEnfuse $ runEnfuse aligned
           makeOutsPathsAbsolute
 
+        getWdAndMaybeMoveImgs
+
     
-  (_, endState) <- (MTL.runStateT stateFun (startMyPhotoState startImgs))
+  (wd, endState) <- (MTL.runStateT stateFun (startMyPhotoState startOpts startImgs))
   print endState
+  return wd
+
+
+runMyPhotoStack'  :: [String] -> IO ()
+runMyPhotoStack' args = do
+  let (actions, startImgs, errors) = getOpt RequireOrder options args
+  unless (null errors) $ do
+    mapM_ (IO.hPutStrLn IO.stderr) errors
+    exitWith (ExitFailure 1)
+  _ <- runMyPhotoStack'' startOptions actions startImgs
+  return ()
 
 runMyPhotoStackForVideo :: FilePath -> [String] -> IO ()
 runMyPhotoStackForVideo vid args = do

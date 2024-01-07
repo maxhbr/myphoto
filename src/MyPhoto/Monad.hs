@@ -52,10 +52,10 @@ instance Show MyPhotoState where
       ++ ",\n  myPhotoStateWd = "
       ++ show (myPhotoStateWd s)
       ++ "\n}"
-startMyPhotoState :: Imgs -> MyPhotoState
-startMyPhotoState imgs =
+startMyPhotoState :: Options -> Imgs -> MyPhotoState
+startMyPhotoState startOptions' imgs =
   MyPhotoState
-    { myPhotoStateOpts = startOptions,
+    { myPhotoStateOpts = startOptions',
       myPhotoStateImgs = imgs,
       myPhotoStateOuts = [],
       myPhotoStateWd = Nothing

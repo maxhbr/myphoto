@@ -7,6 +7,7 @@ entr_task() (
   set -ex
   # cabal clean
   cabal build
+  cabal run myphoto-watch -- --help
   cabal run myphoto-stack -- --help
 )
 export -f entr_task
