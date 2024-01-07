@@ -71,19 +71,26 @@
 
           postBuild = ''
             mkdir $out/bin
-            makeWrapper ${self.packages.${system}.myphoto-unwrapped}/bin/myphoto $out/bin/myphoto \
+            makeWrapper ${self.packages.${system}.myphoto-unwrapped}/bin/myphoto-stack $out/bin/myphoto-stack \
               --set PATH ${pkgs.lib.makeBinPath extraLibraries}
-            makeWrapper ${self.packages.${system}.myphoto-unwrapped}/bin/myphoto $out/bin/myphoto-inplace \
+            makeWrapper ${self.packages.${system}.myphoto-unwrapped}/bin/myphoto-stack $out/bin/myphoto-stack-inplace \
               --set PATH ${pkgs.lib.makeBinPath extraLibraries} \
               --add-flags "--inplace"
-            makeWrapper ${self.packages.${system}.myphoto-unwrapped}/bin/myphoto $out/bin/myphoto-replace \
+            makeWrapper ${self.packages.${system}.myphoto-unwrapped}/bin/myphoto-stack $out/bin/myphoto-stack-replace \
               --set PATH ${pkgs.lib.makeBinPath extraLibraries} \
               --add-flags "--replace"
-            makeWrapper ${self.packages.${system}.myphoto-unwrapped}/bin/myphoto $out/bin/myphoto-dirs \
+            makeWrapper ${self.packages.${system}.myphoto-unwrapped}/bin/myphoto-stack $out/bin/myphoto-stack-dirs \
               --set PATH ${pkgs.lib.makeBinPath extraLibraries} \
               --add-flags "--dirs"
           '';
         };
+    };
+
+    apps.${system} = {
+      myphoto-stack {
+        type = "app";
+        program = "${self.packages.myphoto}/bin/myphoto-stack";
+      };
     };
 
     devShell.${system} = project (with pkgs.haskellPackages; [

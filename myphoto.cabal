@@ -17,13 +17,11 @@ extra-doc-files:    CHANGELOG.md
 -- extra-source-files:
 
 common warnings
-    ghc-options:      -Wall -threaded -rtsopts
+    ghc-options:      -Wall -threaded
 
-executable myphoto
+library
     import:           warnings
-    main-is:          Main.hs
-    ghc-options:      -Wall -threaded -rtsopts
-    other-modules:
+    exposed-modules:
         MyPhoto.Actions.Align,
         MyPhoto.Actions.Enfuse,
         MyPhoto.Actions.Metadata,
@@ -33,7 +31,12 @@ executable myphoto
         MyPhoto.Actions.Outliers,
         MyPhoto.Model,
         MyPhoto.Video,
+        MyPhoto.Monad,
         MyPhoto.Stack
+
+    -- Modules included in this library but not exported.
+    -- other-modules:
+
     other-extensions: OverloadedStrings
     build-depends:    base ^>=4.17.2.1,
                       SafeSemaphore,
@@ -58,5 +61,14 @@ executable myphoto
                       unix,
                       vector,
                       hsexif
-    hs-source-dirs:   app
+    hs-source-dirs:   src
+    default-language: Haskell2010
+
+executable myphoto-stack
+    import:           warnings
+    main-is:          Main.hs
+    ghc-options:      -Wall -threaded -rtsopts
+    build-depends:    base ^>=4.17.2.1,
+                      myphoto
+    hs-source-dirs:   app-stack
     default-language: Haskell2010
