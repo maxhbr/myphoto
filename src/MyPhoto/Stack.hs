@@ -386,7 +386,7 @@ runMyPhotoStack'' startOpts actions startImgs = do
           opts <- getOpts
           MTL.liftIO $
             enfuseStackImgs
-              ( enfuseDefaultOptions
+              (def 
                   { optOutputBN = Just outputBn,
                     optEnfuseVerbose = optVerbose opts
                   }
@@ -453,7 +453,7 @@ runMyPhotoStack' args = do
   unless (null errors) $ do
     mapM_ (IO.hPutStrLn IO.stderr) errors
     exitWith (ExitFailure 1)
-  _ <- runMyPhotoStack'' startOptions actions startImgs
+  _ <- runMyPhotoStack'' def actions startImgs
   return ()
 
 runMyPhotoStackForVideo :: FilePath -> [String] -> IO ()

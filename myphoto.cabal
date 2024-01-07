@@ -22,6 +22,9 @@ common warnings
 library
     import:           warnings
     exposed-modules:
+        MyPhoto.Stack,
+        MyPhoto.WatchForStacks
+    other-modules:
         MyPhoto.Actions.Align,
         MyPhoto.Actions.Enfuse,
         MyPhoto.Actions.Metadata,
@@ -29,14 +32,10 @@ library
         MyPhoto.Actions.FocusStack,
         MyPhoto.Actions.Montage,
         MyPhoto.Actions.Outliers,
+        MyPhoto.Actions.UnRAW,
         MyPhoto.Model,
         MyPhoto.Video,
-        MyPhoto.Monad,
-        MyPhoto.Stack,
-        MyPhoto.WatchForStacks
-
-    -- Modules included in this library but not exported.
-    -- other-modules:
+        MyPhoto.Monad
 
     other-extensions: OverloadedStrings
     build-depends:    base ^>=4.17.2.1,
@@ -62,7 +61,8 @@ library
                       unix,
                       vector,
                       hsexif,
-                      dir-traverse
+                      dir-traverse,
+                      data-default
     hs-source-dirs:   src
     default-language: Haskell2010
 

@@ -3,13 +3,11 @@ module MyPhoto.WatchForStacks where
 import Control.Concurrent as Thread
 import Control.Exception (SomeException, catch)
 import qualified Control.Monad.State.Lazy as MTL
-import Data.List (partition)
 import Data.Map (Map, fromList, fromListWith, toList, union, unionWith)
 import Data.Time.Clock.POSIX (getCurrentTime, utcTimeToPOSIXSeconds)
 import MyPhoto.Actions.FileSystem (copy)
 import MyPhoto.Actions.Metadata
 import MyPhoto.Model
-import MyPhoto.Monad (startOptions)
 import MyPhoto.Stack
 import System.Directory.Recursive (getFilesRecursive)
 import System.Environment (getArgs)
@@ -134,7 +132,7 @@ handleFinishedClusters oldState@(WatchForStacksState {wfsInFileClusters = oldClu
           if length cluster > 10
             then do
               let opts =
-                    startOptions
+                   def 
                       { optVerbose = False,
                         optRedirectLog = False,
                         optWorkdirStrategy = ImportToWorkdir outdir,

@@ -21,6 +21,7 @@
       imagemagick # for composing colages and more
       exiftool # for extracting metadata
       ffmpeg-headless # for extracting imgs from video
+      libraw # for converting raw files like ARW to tiff, provides dcraw_emu
     ];
     project = devTools:
       let addBuildTools = (t.flip hl.addBuildTools) devTools;
@@ -51,22 +52,22 @@
       });
 
       myphoto-unwrapped = project [];
-      myphoto-stack-from-github = pkgs..writeShellScriptBin "myphoto-gh-stack" ''
-         exec nix run "https://github.com/maxhbr/myphoto"#myphoto-stack -- "$@"
+      myphoto-stack-from-github = pkgs.writeShellScriptBin "myphoto-gh-stack" ''
+         exec nix run "github:maxhbr/myphoto"#myphoto-stack -- "$@"
       '';
-      myphoto-watch-from-github = pkgs..writeShellScriptBin "myphoto-gh-watch" ''
-         exec nix run "https://github.com/maxhbr/myphoto"#myphoto-watch -- "$@"
+      myphoto-watch-from-github = pkgs.writeShellScriptBin "myphoto-gh-watch" ''
+         exec nix run "github:maxhbr/myphoto"#myphoto-watch -- "$@"
       '';
       myphoto = pkgs.buildEnv {
           name = "myphoto";
 
           paths = [ self.packages.${system}.myphoto-stack-from-github self.packages.${system}.myphoto-watch-from-github ];
-          pathsToLink = [ "/share" ];
+          pathsToLink = [ "/bin" "/share" ];
 
           nativeBuildInputs = [ pkgs.makeWrapper ];
 
           postBuild = ''
-            mkdir $out/bin
+            mkdir -p $out/bin
             makeWrapper ${self.packages.${system}.myphoto-unwrapped}/bin/myphoto-stack $out/bin/myphoto-stack \
               --set PATH ${pkgs.lib.makeBinPath extraLibraries}
             makeWrapper ${self.packages.${system}.myphoto-unwrapped}/bin/myphoto-stack $out/bin/myphoto-stack-inplace \

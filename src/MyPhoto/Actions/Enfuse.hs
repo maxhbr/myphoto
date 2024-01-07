@@ -1,6 +1,5 @@
 module MyPhoto.Actions.Enfuse
   ( EnfuseOptions (..),
-    enfuseDefaultOptions,
     enfuseStackImgs,
   )
 where
@@ -47,8 +46,8 @@ data ChunkSettings
   | NoChunks
   deriving (Show, Eq)
 
-defaultChunkSettings :: ChunkSettings
-defaultChunkSettings = ChunkParameters 2 6 15 -- chunkLevel minChunkSize maxChunkSize
+instance Default ChunkSettings where
+  def = ChunkParameters 2 6 15 -- chunkLevel minChunkSize maxChunkSize
 
 computeChunkSize :: ChunkSettings -> Imgs -> Maybe Int
 computeChunkSize (ChunkParameters chunkLevel minChunkSize maxChunkSize) imgs =
@@ -79,13 +78,12 @@ data EnfuseOptions = EnfuseOptions
   }
   deriving (Show)
 
-enfuseDefaultOptions :: EnfuseOptions
-enfuseDefaultOptions =
-  EnfuseOptions
+instance Default EnfuseOptions where
+  def = EnfuseOptions
     { optEnfuseVerbose = False,
       optMaxCapabilities = 9, -- with to many threads the memory seems to be insufficient
       optOutputBN = Nothing,
-      optChunk = defaultChunkSettings,
+      optChunk = def,
       optProjection = Proj1,
       optOpts = Opts1,
       optConcurrent = True,

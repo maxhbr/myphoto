@@ -6,6 +6,7 @@ module MyPhoto.Model
     module Monad,
     module Map,
     module List,
+    module Default,
     Img,
     Imgs,
     WorkdirStrategy (..),
@@ -18,7 +19,8 @@ module MyPhoto.Model
 where
 
 import Control.Monad as Monad (unless, when)
-import Data.List as List (sortOn)
+import Data.Default as Default
+import Data.List as List (sortOn, partition)
 import Data.Map as Map (Map (..))
 import qualified Data.Maybe as Maybe (fromJust, isJust, mapMaybe, maybe)
 import System.Directory as Directory (createDirectoryIfMissing, doesDirectoryExist, doesFileExist, listDirectory, makeAbsolute, setCurrentDirectory)

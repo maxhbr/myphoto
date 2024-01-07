@@ -1,7 +1,8 @@
 {-# LANGUAGE LambdaCase #-}
 
 module MyPhoto.Wrapper.Dcraw
-  ( getImageSize,
+  ( runDcraw,
+    getImageSize,
     calculateWhitebalance,
   )
 where
@@ -11,14 +12,20 @@ import GHC.IO.Handle (hGetContents)
 import System.Exit
 import System.Process
 
+runDcraw :: [String] -> IO (ExitCode, String, String)
+runDcraw args = do
+  (_, Just hout, Just herr, pHandle) <- createProcess (proc "dcraw_emu" args) {std_out = CreatePipe, std_err = CreatePipe}
+  exitCode <- waitForProcess pHandle
+  out <- hGetContents hout
+  err <- hGetContents herr
+  return (exitCode, out, err)
+
 getImageSize :: FilePath -> IO (Int, Int)
 getImageSize img =
   let imageSizePrefix = "Image size:  "
    in do
         putStrLn ("calculate image size from " ++ img)
-        (_, Just hout, _, pHandle) <- createProcess (proc "dcraw" ["-v", "-i", img]) {std_out = CreatePipe}
-        exitCode <- waitForProcess pHandle
-        out <- hGetContents hout
+        (exitCode, out, err) <- runDcraw ["-v", "-i", img]
         case exitCode of
           ExitSuccess -> case find (imageSizePrefix `isPrefixOf`) (lines out) of
             Just l ->
@@ -46,9 +53,10 @@ calculateWhitebalance wbImg =
         size <- getImageSize wbImg
         putStrLn ("calculate WB from " ++ wbImg)
         let args = getDcrawWBArgs size ++ [wbImg]
-        (_, _, Just herr, pHandle) <- createProcess (proc "dcraw" args) {std_out = NoStream, std_err = CreatePipe}
-        exitCode <- waitForProcess pHandle
-        err <- hGetContents herr
+        -- (_, _, Just herr, pHandle) <- createProcess (proc "dcraw_emu" args) {std_out = NoStream, std_err = CreatePipe}
+        -- exitCode <- waitForProcess pHandle
+        -- err <- hGetContents herr
+        (exitCode, _, err) <- runDcraw args
         case exitCode of
           ExitSuccess -> case find (multipliersPrefix `isPrefixOf`) (lines err) of
             Just l ->

@@ -18,9 +18,8 @@ import System.Console.GetOpt
 import System.Environment (getArgs, getProgName, withArgs)
 import qualified System.IO as IO
 
-startOptions :: Options
-startOptions =
-  Options
+instance Default Options where
+  def = Options
     { optVerbose = False,
       optRedirectLog = False,
       optWorkdirStrategy = CreateNextToImgDir,
