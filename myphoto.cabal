@@ -26,7 +26,7 @@ library
         MyPhoto.WatchForStacks
     other-modules:
         MyPhoto.Actions.Align,
-        MyPhoto.Actions.Enfuse,
+        MyPhoto.Actions.EnblendEnfuse,
         MyPhoto.Actions.Metadata,
         MyPhoto.Actions.FileSystem,
         MyPhoto.Actions.FocusStack,

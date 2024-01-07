@@ -6,7 +6,7 @@ import Data.List.Split (splitOn)
 import qualified Data.Map as Map
 import qualified GHC.IO.Handle as IO
 import MyPhoto.Actions.Align
-import MyPhoto.Actions.Enfuse
+import MyPhoto.Actions.EnblendEnfuse
 import MyPhoto.Actions.FileSystem
 import MyPhoto.Actions.FocusStack
 import MyPhoto.Actions.Metadata

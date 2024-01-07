@@ -13,7 +13,7 @@ import Data.List.Split (splitOn)
 import qualified Data.Map as Map
 import Data.Maybe (isJust)
 import MyPhoto.Actions.Align
-import MyPhoto.Actions.Enfuse
+import MyPhoto.Actions.EnblendEnfuse
 import MyPhoto.Actions.FileSystem
 import MyPhoto.Actions.FocusStack
 import MyPhoto.Actions.Metadata
@@ -411,8 +411,8 @@ runMyPhotoStack'' startOpts actions startImgs = do
           MTL.liftIO $
             enfuseStackImgs
               (def 
-                  { optOutputBN = Just outputBn,
-                    optEnfuseVerbose = optVerbose opts
+                  { eeOptions = def { eeVerbose = optVerbose opts},
+                    eeaOutputBN = Just outputBn
                   }
               )
               aligned

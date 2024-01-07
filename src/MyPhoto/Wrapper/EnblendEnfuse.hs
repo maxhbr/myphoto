@@ -3,6 +3,7 @@ module MyPhoto.Wrapper.EnblendEnfuse
     runEnblendEnfuseWithRetries,
     Projection (..),
     EnfuseOpts (..),
+    EnblendEnfuseOptions (..),
   )
 where
 
