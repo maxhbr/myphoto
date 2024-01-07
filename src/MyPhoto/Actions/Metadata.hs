@@ -3,6 +3,8 @@
 module MyPhoto.Actions.Metadata
   ( breaking
   , sortByCreateDate
+  , getMetadaFromImg
+  , Metadata (..)
   )
 where
 

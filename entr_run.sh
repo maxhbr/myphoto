@@ -14,7 +14,9 @@ export -f entr_task
 while sleep 1; do
   cat <<EOF | entr -dr bash -c entr_task
 $0
-$(find app)
+$(find app-*)
+$(find src)
+$(find test)
 myphoto.cabal
 EOF
 done

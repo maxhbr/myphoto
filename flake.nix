@@ -82,6 +82,9 @@
             makeWrapper ${self.packages.${system}.myphoto-unwrapped}/bin/myphoto-stack $out/bin/myphoto-stack-dirs \
               --set PATH ${pkgs.lib.makeBinPath extraLibraries} \
               --add-flags "--dirs"
+
+            makeWrapper ${self.packages.${system}.myphoto-unwrapped}/bin/myphoto-watch $out/bin/myphoto-watch \
+              --set PATH ${pkgs.lib.makeBinPath extraLibraries}
           '';
         };
     };
@@ -90,6 +93,10 @@
       myphoto-stack = {
         type = "app";
         program = "${self.packages.${system}.myphoto}/bin/myphoto-stack";
+      };
+      myphoto-watch = {
+        type = "app";
+        program = "${self.packages.${system}.myphoto}/bin/myphoto-watch";
       };
     };
 
