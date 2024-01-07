@@ -27,6 +27,7 @@ instance Default Options where
       optSortOnCreateDate = True,
       optRemoveOutliers = False,
       optBreaking = Nothing,
+      optUntiff = False,
       optEnfuse = True,
       optFocusStack = True,
       optParameters = mempty
@@ -62,28 +63,16 @@ startMyPhotoState startOptions' imgs =
 
 type MyPhotoM = MTL.StateT MyPhotoState IO
 
-logDebugIO :: String -> IO ()
-logDebugIO msg = IO.hPutStrLn IO.stderr ("DEBUG: " ++ msg)
-
 logDebug :: String -> MyPhotoM ()
 logDebug msg = do
   opts <- getOpts
   when (optVerbose opts) $ MTL.liftIO $ logDebugIO msg
 
-logInfoIO :: String -> IO ()
-logInfoIO msg = IO.hPutStrLn IO.stderr ("INFO: " ++ msg)
-
 logInfo :: String -> MyPhotoM ()
 logInfo msg = MTL.liftIO $ logInfoIO msg
 
-logWarnIO :: String -> IO ()
-logWarnIO msg = IO.hPutStrLn IO.stderr ("WARN: " ++ msg)
-
 logWarn :: String -> MyPhotoM ()
 logWarn msg = MTL.liftIO $ logWarnIO msg
-
-logErrorIO :: String -> IO ()
-logErrorIO msg = IO.hPutStrLn IO.stderr ("ERROR: " ++ msg)
 
 logError :: String -> MyPhotoM ()
 logError msg = MTL.liftIO $ logErrorIO msg
@@ -105,6 +94,18 @@ guardWithOpts f action = do
   opts <- getOpts
   when (f opts) action
 
+guardByExtensions :: [String] -> MyPhotoM () -> MyPhotoM ()
+guardByExtensions exts action = do
+  imgs <- getImgs
+  let exts' = map (map toLower) exts
+  let pred = (\img -> takeExtension (map toLower img) `elem` exts')
+  let allMatchPred = all pred imgs
+  let anyMatchPred = any pred imgs
+  case (allMatchPred, anyMatchPred) of
+    (True, _) -> action
+    (False, True) -> fail $ "Some, but not all, images have extensions " ++ show exts
+    (False, False) -> return ()
+
 getImgs :: MyPhotoM Imgs
 getImgs = MTL.gets myPhotoStateImgs
 
@@ -120,7 +121,7 @@ withImgsIO :: (Imgs -> IO Imgs) -> MyPhotoM ()
 withImgsIO f = do
   imgs <- getImgs
   imgs' <- MTL.liftIO $ f imgs
-  withImgs (const imgs')
+  putImgs imgs'
 
 getOuts :: MyPhotoM Imgs
 getOuts = MTL.gets myPhotoStateOuts

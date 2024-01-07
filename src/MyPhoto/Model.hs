@@ -7,6 +7,7 @@ module MyPhoto.Model
     module Map,
     module List,
     module Default,
+    module Char,
     Img,
     Imgs,
     WorkdirStrategy (..),
@@ -15,6 +16,10 @@ module MyPhoto.Model
     inWorkdir,
     findOutFile,
     findAltFileOfFile,
+    logDebugIO,
+    logInfoIO,
+    logWarnIO,
+    logErrorIO,
   )
 where
 
@@ -22,12 +27,26 @@ import Control.Monad as Monad (unless, when)
 import Data.Default as Default
 import Data.List as List (sortOn, partition)
 import Data.Map as Map (Map (..))
+import Data.Char as Char (toLower)
 import qualified Data.Maybe as Maybe (fromJust, isJust, mapMaybe, maybe)
 import System.Directory as Directory (createDirectoryIfMissing, doesDirectoryExist, doesFileExist, listDirectory, makeAbsolute, setCurrentDirectory)
 import System.Exit as Exit (ExitCode (..), exitWith)
-import System.FilePath as FilePath (makeRelative, splitExtensions, splitFileName, takeBaseName, takeDirectory, takeFileName, (-<.>), (<.>), (</>))
+import System.FilePath as FilePath (makeRelative, splitExtensions, splitFileName, takeBaseName, takeExtension, takeDirectory, takeFileName, (-<.>), (<.>), (</>))
 import qualified System.IO as IO
 import System.Posix.LoadAvg (LoadAvg (..), getLoadAvgSafe)
+
+
+logDebugIO :: String -> IO ()
+logDebugIO msg = IO.hPutStrLn IO.stderr ("DEBUG: " ++ msg)
+
+logInfoIO :: String -> IO ()
+logInfoIO msg = IO.hPutStrLn IO.stderr ("INFO: " ++ msg)
+
+logWarnIO :: String -> IO ()
+logWarnIO msg = IO.hPutStrLn IO.stderr ("WARN: " ++ msg)
+
+logErrorIO :: String -> IO ()
+logErrorIO msg = IO.hPutStrLn IO.stderr ("ERROR: " ++ msg)
 
 type Img = FilePath
 
@@ -50,6 +69,7 @@ data Options = Options
     optSortOnCreateDate :: Bool,
     optRemoveOutliers :: Bool,
     optBreaking :: Maybe Int,
+    optUntiff :: Bool,
     optFocusStack :: Bool,
     optEnfuse :: Bool,
     optParameters :: Map String [String]

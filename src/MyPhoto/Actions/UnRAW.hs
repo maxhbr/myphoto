@@ -1,5 +1,6 @@
 module MyPhoto.Actions.UnRAW
   ( unRAW,
+    unrawExtensions,
   )
 where
 
@@ -10,6 +11,9 @@ import MyPhoto.Wrapper.Dcraw
 import System.Exit
 import System.FilePath
 import System.Process
+
+unrawExtensions :: [String]
+unrawExtensions = [".arw", ".raw", ".nef"]
 
 data ColorSpace
   = SRGBColorSpace
@@ -30,7 +34,6 @@ colorSpaceToArgs DefaultColorSpace = []
 
 data UnRawOptions = UnRawOptions
   { urVerbose :: Bool,
-    urHelp :: Bool,
     urWhitebalance :: WhiteBalanceOption,
     urColorSpace :: ColorSpace,
     urQuality :: Int
@@ -40,14 +43,13 @@ data UnRawOptions = UnRawOptions
 instance Default UnRawOptions where
   def = UnRawOptions
           { urVerbose = False,
-            urHelp = False,
             urWhitebalance = WBFromRaw,
             urColorSpace = SRGBColorSpace,
             urQuality = 3
           }
 
 calculateUnRAWedName :: FilePath -> FilePath
-calculateUnRAWedName = (`replaceExtension` "tiff")
+calculateUnRAWedName = (<.> "tiff")
 
 getDcrawArgs :: UnRawOptions -> [Img] -> IO ([String], [Img])
 getDcrawArgs opts =

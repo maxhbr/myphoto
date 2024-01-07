@@ -9,10 +9,11 @@ import MyPhoto.Actions.FileSystem (copy)
 import MyPhoto.Actions.Metadata
 import MyPhoto.Model
 import MyPhoto.Stack
+import MyPhoto.Actions.UnRAW (unrawExtensions)
 import System.Directory.Recursive (getFilesRecursive)
 import System.Environment (getArgs)
 
-supportedExtensions = [".jpg", ".JPG"]
+jpgExtensions = [".jpg", ".JPG"]
 
 clusterDistanceInSeconds = 6
 
@@ -27,7 +28,8 @@ data WatchForStacksFile = WatchForStacksFile
   deriving (Show, Eq)
 
 data WatchForStacksState = WatchForStacksState
-  { wfsIndir :: FilePath,
+  { wfsExtensions :: [String],
+    wfsIndir :: FilePath,
     wfsOutdir :: FilePath,
     wfsMinimalTime :: Int,
     wfsOldInFiles :: [FilePath],
@@ -86,8 +88,9 @@ addFailedFile file = do
 
 peekFile :: FilePath -> WatchForStacksM ()
 peekFile img = do
+  WatchForStacksState {wfsExtensions = supportedExtensions} <- MTL.get
   let (_, ext) = splitExtensions img
-  if ext `elem` supportedExtensions
+  if (map toLower ext) `elem` supportedExtensions
     then do
       fileIsAlreadyKnown <- knowsFile img
       if not fileIsAlreadyKnown
@@ -186,17 +189,22 @@ watchForStacksLoop = do
   MTL.liftIO $ Thread.threadDelay (loopIntervalInSeconds * 1000000)
   watchForStacksLoop
 
-watchForStacks :: Int -> FilePath -> FilePath -> IO ()
-watchForStacks offset indir outdir = do
+watchForStacks :: Bool -> Int -> FilePath -> FilePath -> IO ()
+watchForStacks useRaw offset indir outdir = do
   putStrLn "watchForStacks"
+  indirExists <- doesDirectoryExist indir
+  unless indirExists $ do
+    putStrLn $ "ERROR: indir does not exist: " ++ indir
+    exitWith (ExitFailure 1)
   putStrLn $ "indir: " ++ indir
   putStrLn $ "outdir: " ++ outdir
 
   currentTime <- getCurrentTime
   let currentSeconds = round (utcTimeToPOSIXSeconds currentTime)
   let minimalTime = currentSeconds - offset
+  let extensions = if useRaw then unrawExtensions else jpgExtensions
 
-  MTL.evalStateT watchForStacksLoop (WatchForStacksState indir outdir minimalTime [] [] [] mempty)
+  MTL.evalStateT watchForStacksLoop (WatchForStacksState extensions indir outdir minimalTime [] [] [] mempty)
 
 runMyPhotoWatchForStacks :: IO ()
 runMyPhotoWatchForStacks = do
@@ -213,8 +221,10 @@ runMyPhotoWatchForStacks = do
     ["--help"] -> do
       help
       exitWith ExitSuccess
-    [indir] -> watchForStacks h12Ago indir "."
-    [indir, outdir] -> watchForStacks h12Ago indir outdir
+    ["--raw", indir] -> watchForStacks True h12Ago indir "."
+    ["--raw", indir, outdir] -> watchForStacks True h12Ago indir outdir
+    [indir] -> watchForStacks False h12Ago indir "."
+    [indir, outdir] -> watchForStacks False h12Ago indir outdir
     _ -> do
       help
       exitWith (ExitFailure 1)

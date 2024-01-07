@@ -33,6 +33,9 @@ library
         MyPhoto.Actions.Montage,
         MyPhoto.Actions.Outliers,
         MyPhoto.Actions.UnRAW,
+        MyPhoto.Actions.UnTiff,
+        MyPhoto.Wrapper.Dcraw,
+        MyPhoto.Wrapper.EnblendEnfuse,
         MyPhoto.Model,
         MyPhoto.Video,
         MyPhoto.Monad

@@ -1,5 +1,6 @@
 module MyPhoto.Actions.UnTiff
   ( unTiff,
+    untiffExtensions,
   )
 where
 
@@ -8,11 +9,13 @@ import Control.Concurrent.MSem as MS
 import Control.Monad
 import GHC.Conc (numCapabilities)
 import MyPhoto.Model
-import MyPhoto.Utils
 import System.Directory
 import System.Exit
 import System.FilePath
 import System.Process
+
+untiffExtensions :: [String]
+untiffExtensions = [".tiff", ".tif"]
 
 calculateUntiffedName :: Img -> Img
 calculateUntiffedName = (`replaceExtension` "png")
@@ -40,13 +43,7 @@ unTiffImpl1 removeTiff img =
           removeFile img
         return png
 
-unTiffImpl :: Bool -> [Img] -> PActionBody
-unTiffImpl removeTiff imgs = do
-  sem <- MS.new numCapabilities -- semathore to limit number of parallel threads
-  pngs <- mapConcurrently (MS.with sem . unTiffImpl1 removeTiff) imgs
-  return (Right pngs)
-
-unTiff :: PrePAction
-unTiff [] = logSeparator "Run UnTiff" <> PAction (unTiffImpl False)
-unTiff ["--rm"] = logSeparator "Run UnTiff (with --rm)" <> PAction (unTiffImpl True)
-unTiff _ = PAction $ \_ -> pure (Left "Usage: untiff [--rm] files...")
+unTiff :: Bool -> Imgs -> IO Imgs
+unTiff removeTiff imgs = do
+  sem <- MS.new numCapabilities
+  mapConcurrently (MS.with sem . unTiffImpl1 removeTiff) imgs

@@ -19,6 +19,8 @@ import MyPhoto.Actions.FocusStack
 import MyPhoto.Actions.Metadata
 import MyPhoto.Actions.Montage
 import MyPhoto.Actions.Outliers
+import MyPhoto.Actions.UnRAW
+import MyPhoto.Actions.UnTiff
 import MyPhoto.Model
 import MyPhoto.Monad
 import MyPhoto.Video
@@ -77,7 +79,7 @@ options =
       "Try to sort on create date",
     Option
       ""
-      ["no-sort-on-create-date"]
+      ["no-sort","no-sort-on-create-date"]
       ( NoArg
           (\opt -> return opt {optSortOnCreateDate = False})
       )
@@ -117,6 +119,21 @@ options =
           (\opt -> return opt {optBreaking = Nothing})
       )
       "disable breaking",
+    -- untiff
+    Option
+      ""
+      ["untiff"]
+      ( NoArg
+          (\opt -> return opt {optUntiff = True})
+      )
+      "Run untiff, to convert tiff to png",
+    Option
+      ""
+      ["no-untiff"]
+      ( NoArg
+          (\opt -> return opt {optUntiff = False})
+      )
+      "Do not run untiff (default)",
     -- focus stack
     Option
       ""
@@ -338,13 +355,20 @@ runMyPhotoStack'' startOpts actions startImgs = do
                 imgs <- getImgs
                 broken <- MTL.liftIO $ breaking (optVerbose opts) gapInSeconds imgs
                 putImgs broken
+      applyUnRAW = do
+        guardByExtensions unrawExtensions $ do
+          logInfo ("run unraw")
+          withImgsIO $ unRAW def
+      applyUnTiff = do
+        guardByExtensions untiffExtensions $ do
+          logInfo ("run untiff")
+          withImgsIO $ unTiff False
       applyRemoveOutliers :: MyPhotoM ()
       applyRemoveOutliers = do
         logInfo ("removing outliers")
         imgs <- getImgs
         wd <- getWdAndMaybeMoveImgs
-        withoutOutliers <- MTL.liftIO $ rmOutliers wd imgs
-        putImgs withoutOutliers
+        withImgsIO $ rmOutliers wd
       createMontage :: MyPhotoM ()
       createMontage = do
         logInfo ("create montage")
@@ -434,10 +458,15 @@ runMyPhotoStack'' startOpts actions startImgs = do
                  in isJust breaking && breaking > Just 0
             )
             $ applyBreaking
+          applyUnRAW
+          guardWithOpts optUntiff $ applyUnTiff
           guardWithOpts optRemoveOutliers $ applyRemoveOutliers
           -- createMontage
-          aligned <- runFoucsStack
-          opts <- getOpts
+          aligned <- do
+            opts <- getOpts
+            if optFocusStack opts
+              then runFoucsStack
+              else runHuginAlign
           guardWithOpts optEnfuse $ runEnfuse aligned
           makeOutsPathsAbsolute
 
