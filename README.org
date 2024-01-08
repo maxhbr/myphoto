@@ -1,3 +1,0 @@
-* myphoto
-
-This is a collection of scripts, tools and workflows that I use for developping images. In large parts it focuses on stacking of extreme macro images.
