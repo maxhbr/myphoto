@@ -15,9 +15,9 @@ This implements a pipeline to filter, align and stack images with [PetteriAimone
       A --> B["sort images based on exif CreateDate\nif --sort-on-create-date\n(default)"];
       B --> C["take only every nth image\nif --every-nth=?"];
       C --> D["drop images that happened after a time break\nif --breaking"];
-      D --> E["remove images that are outliers\nif --remove-outliers"];
-      E --> F["convert raw files to .tiff with 16bit"];
-      F --> G["convert .tiff to .png with 16bit\nif --untiff"];
+      D --> E["convert raw files to .tiff with 16bit"];
+      E --> F["convert .tiff to .png with 16bit\nif --untiff"];
+      F --> G["remove images that are outliers\nif --remove-outliers"];
       G --> G'{"if --focus-stack"}
       G' -- "(default)" --> H1["run\nPetteriAimonen/focus-stack"];
       G' -- "if --no-focus-stack" --> H2["run\nHugin Align"]

@@ -237,17 +237,17 @@ getWdAndMaybeMoveImgs = do
     Just wd -> return wd
     Nothing -> do
       logDebug ("determine working directory")
-      opts <- getOpts
-      wd <- case optWorkdirStrategy opts of
+      Options{optWorkdirStrategy = workdirStrategy} <- getOpts
+      wd <- case workdirStrategy of
         CreateNextToImgDir -> do
           imgs@(img0 : _) <- getImgs
           let imgBN = computeStackOutputBN imgs
-          let wd = (takeDirectory img0) <.> imgBN <.> "myphoto"
+          let wd = takeDirectory img0 <.> imgBN <.> "myphoto"
           MTL.liftIO $ createDirectoryIfMissing True wd
           return wd
         MoveExistingImgsToSubfolder -> do
           opts <- getOpts
-          when (optEveryNth opts /= Nothing) $ do
+          when (isJust (optEveryNth opts)) $ do
             fail "cannot move images to subfolder when --every-nth is specified"
           imgs@(img0 : _) <- getImgs
           let wd = takeDirectory img0
@@ -258,16 +258,15 @@ getWdAndMaybeMoveImgs = do
           putImgs imgs'
           return wd
         NextToImgFiles -> do
-          imgs@(img0 : _) <- getImgs
+          (img0 : _) <- getImgs
           let wd = takeDirectory img0
           return wd
         WorkdirStrategyOverwrite wd -> do
           MTL.liftIO $ createDirectoryIfMissing True wd
-          absWd <- MTL.liftIO $ makeAbsolute wd
-          return absWd
+          MTL.liftIO $ makeAbsolute wd
         ImportToWorkdir wd -> do
-          opts <- getOpts
-          when (optEveryNth opts /= Nothing) $ do
+          Options{optEveryNth = everyNth} <- getOpts
+          when (isJust everyNth) $ do
             fail "cannot import images to subfolder when --every-nth is specified"
           MTL.liftIO $ createDirectoryIfMissing True wd
           absWd <- MTL.liftIO $ makeAbsolute wd
@@ -282,9 +281,7 @@ getWdAndMaybeMoveImgs = do
       return wd
 
 getOutputBN :: MyPhotoM FilePath
-getOutputBN = do
-  imgs <- getImgs
-  return (computeStackOutputBN imgs)
+getOutputBN = computeStackOutputBN <$> getImgs
 
 runMyPhotoStack'' :: Options -> [Options -> IO Options] -> [String] -> IO FilePath
 runMyPhotoStack'' startOpts actions startImgs = do
@@ -306,20 +303,20 @@ runMyPhotoStack'' startOpts actions startImgs = do
       failIfNoImagesWereSpecified = do
         imgs <- getImgs
         when (null imgs) $ MTL.liftIO $ do
-          IO.hPutStrLn IO.stderr ("no image specified")
+          IO.hPutStrLn IO.stderr "no image specified"
           exitWith (ExitFailure 1)
       applyEveryNth :: MyPhotoM ()
       applyEveryNth = do
         opts <- getOpts
         case opts of
           Options {optEveryNth = Just n} -> do
-            logInfo ("applyEveryNth, value of n: " ++ show n ++ "")
+            logInfo ("applyEveryNth, value of n: " ++ show n)
             imgs <- getImgs
             putImgs (everyNth n imgs)
           _ -> return ()
       makeImgsPathsAbsoluteAndCheckExistence :: MyPhotoM ()
       makeImgsPathsAbsoluteAndCheckExistence = do
-        logDebug ("makeImgsPathsAbsoluteAndCheckExistence")
+        logDebug "makeImgsPathsAbsoluteAndCheckExistence"
         withImgsIO $ \imgs -> do
           mapM
             ( \img -> do
@@ -334,11 +331,11 @@ runMyPhotoStack'' startOpts actions startImgs = do
       sortOnCreateDate = do
         opts <- getOpts
         when (optSortOnCreateDate opts) $ do
-          logDebug ("sorting on create date")
+          logDebug "sorting on create date"
           withImgsIO $ \imgs -> do
             imgs' <- sortByCreateDate (optVerbose opts) imgs
             when (imgs /= imgs') $ do
-              logWarnIO ("WARN: sorting on date changed order")
+              logWarnIO "WARN: sorting on date changed order"
             return imgs'
       applyBreaking :: MyPhotoM ()
       applyBreaking = do
@@ -347,9 +344,9 @@ runMyPhotoStack'' startOpts actions startImgs = do
           Nothing -> return ()
           Just gapInSeconds | gapInSeconds < 1 -> return ()
           Just gapInSeconds -> do
-            case (optEveryNth opts) of
+            case optEveryNth opts of
               Just _ -> do
-                logInfo ("ignoring --breaking because --every-nth is specified")
+                logInfo "ignoring --breaking because --every-nth is specified"
               _ -> do
                 logInfo ("breaking on time gap of " ++ show gapInSeconds ++ " seconds")
                 imgs <- getImgs
@@ -357,35 +354,34 @@ runMyPhotoStack'' startOpts actions startImgs = do
                 putImgs broken
       applyUnRAW = do
         guardByExtensions unrawExtensions $ do
-          logInfo ("run unraw")
+          logInfo "run unraw"
           withImgsIO $ unRAW def
       applyUnTiff = do
         guardByExtensions untiffExtensions $ do
-          logInfo ("run untiff")
+          logInfo "run untiff"
           withImgsIO $ unTiff False
       applyRemoveOutliers :: MyPhotoM ()
       applyRemoveOutliers = do
-        logInfo ("removing outliers")
-        imgs <- getImgs
+        logInfo "removing outliers"
         wd <- getWdAndMaybeMoveImgs
         withImgsIO $ rmOutliers wd
       createMontage :: MyPhotoM ()
       createMontage = do
-        logInfo ("create montage")
+        logInfo "create montage"
         outputBN <- getOutputBN
         imgs <- getImgs
         let imgs' = sampleOfM 25 imgs
         wd <- getWdAndMaybeMoveImgs
-        montageOut <- MTL.liftIO $ montage 100 (inWorkdir wd (outputBN <.> "all")) imgs
+        montageOut <- MTL.liftIO $ montage 100 (inWorkdir wd (outputBN <.> "all")) imgs'
         logInfo ("wrote " ++ montageOut)
 
         opts <- getOpts
         when (optWorkdirStrategy opts == MoveExistingImgsToSubfolder) $ do
-          MTL.liftIO $ reverseLink (wd </> "..") [montageOut]
+          _ <- MTL.liftIO $ reverseLink (wd </> "..") [montageOut]
           return ()
       runFoucsStack :: MyPhotoM [FilePath]
       runFoucsStack = do
-        logInfo ("focus stacking (and aligning) with PetteriAimonen/focus-stack")
+        logInfo "focus stacking (and aligning) with PetteriAimonen/focus-stack"
         imgs <- getImgs
         opts <- getOpts
         let additionalParameters = Map.findWithDefault [] "focus-stack" (optParameters opts)
@@ -395,7 +391,7 @@ runMyPhotoStack'' startOpts actions startImgs = do
 
       runHuginAlign :: MyPhotoM [FilePath]
       runHuginAlign = do
-        logInfo ("just aligning with hugin")
+        logInfo "just aligning with hugin"
         imgs <- getImgs
         opts <- getOpts
         wd <- getWdAndMaybeMoveImgs
@@ -404,13 +400,13 @@ runMyPhotoStack'' startOpts actions startImgs = do
 
       runEnfuse :: [FilePath] -> MyPhotoM ()
       runEnfuse aligned = do
-        logInfo ("focus stacking with enfuse")
+        logInfo "focus stacking with enfuse"
         outputBn <- getOutputBN
         enfuseResult <- do
           opts <- getOpts
           MTL.liftIO $
             enfuseStackImgs
-              (def 
+              (def
                   { eeOptions = def { eeVerbose = optVerbose opts},
                     eeaOutputBN = Just outputBn
                   }
@@ -422,7 +418,7 @@ runMyPhotoStack'' startOpts actions startImgs = do
 
       makeOutsPathsAbsolute :: MyPhotoM ()
       makeOutsPathsAbsolute = do
-        logDebug ("makeOutsPathsAbsolute")
+        logDebug "makeOutsPathsAbsolute"
         withOutsIO $ \outs -> do
           mapM
             ( \out -> do
@@ -457,11 +453,11 @@ runMyPhotoStack'' startOpts actions startImgs = do
                 let breaking = optBreaking opts
                  in isJust breaking && breaking > Just 0
             )
-            $ applyBreaking
+            applyBreaking
           applyUnRAW
-          guardWithOpts optUntiff $ applyUnTiff
-          guardWithOpts optRemoveOutliers $ applyRemoveOutliers
-          -- createMontage
+          guardWithOpts optUntiff applyUnTiff
+          guardWithOpts optRemoveOutliers applyRemoveOutliers
+          createMontage
           aligned <- do
             opts <- getOpts
             if optFocusStack opts
@@ -472,7 +468,7 @@ runMyPhotoStack'' startOpts actions startImgs = do
 
         getWdAndMaybeMoveImgs
 
-  (wd, endState) <- (MTL.runStateT stateFun (startMyPhotoState startOpts startImgs))
+  (wd, endState) <- MTL.runStateT stateFun (startMyPhotoState startOpts startImgs)
   print endState
   return wd
 
