@@ -444,9 +444,9 @@ runMyPhotoStack'' startOpts actions startImgs = do
         readDirectoryIfOnlyOneWasSpecified
         readActionsIntoOpts actions
         failIfNoImagesWereSpecified
-        applyEveryNth
         makeImgsPathsAbsoluteAndCheckExistence
         sortOnCreateDate
+        applyEveryNth
         wd <- getWdAndMaybeMoveImgs
         maybeRedirectLogToLogFile $ do
           MTL.liftIO $ do
