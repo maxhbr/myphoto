@@ -79,7 +79,7 @@ runEnblendEnfuse opts@(EnblendEnfuseOptions{eeSaveMasks = saveMasks}) outFile wo
   logDebugIO (unwords ["$ enfuse", unwords args, "[img [img [...]]]"])
   (_, _, _, pHandle) <-
     createProcess
-      ( proc "enfuse" args)
+      ( proc "enfuse" (args ++ imgs))
   exitCode <- waitForProcess pHandle
   case exitCode of
     ExitSuccess -> do

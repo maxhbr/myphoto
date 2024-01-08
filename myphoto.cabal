@@ -36,6 +36,7 @@ library
         MyPhoto.Actions.UnTiff,
         MyPhoto.Wrapper.Dcraw,
         MyPhoto.Wrapper.EnblendEnfuse,
+        MyPhoto.Wrapper.FocusStack,
         MyPhoto.Model,
         MyPhoto.Video,
         MyPhoto.Monad
