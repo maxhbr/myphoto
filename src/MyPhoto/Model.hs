@@ -24,17 +24,16 @@ module MyPhoto.Model
 where
 
 import Control.Monad as Monad (unless, when)
-import Data.Default as Default
-import Data.List as List (sortOn, partition)
-import Data.Map as Map (Map (..))
 import Data.Char as Char (toLower)
+import Data.Default as Default
+import Data.List as List (partition, sortOn)
+import Data.Map as Map (Map (..))
 import qualified Data.Maybe as Maybe (fromJust, isJust, mapMaybe, maybe)
 import System.Directory as Directory (createDirectoryIfMissing, doesDirectoryExist, doesFileExist, listDirectory, makeAbsolute, setCurrentDirectory)
 import System.Exit as Exit (ExitCode (..), exitWith)
-import System.FilePath as FilePath (makeRelative, splitExtensions, splitFileName, takeBaseName, takeExtension, takeDirectory, takeFileName, (-<.>), (<.>), (</>))
+import System.FilePath as FilePath (makeRelative, splitExtensions, splitFileName, takeBaseName, takeDirectory, takeExtension, takeFileName, (-<.>), (<.>), (</>))
 import qualified System.IO as IO
 import System.Posix.LoadAvg (LoadAvg (..), getLoadAvgSafe)
-
 
 logDebugIO :: String -> IO ()
 logDebugIO msg = IO.hPutStrLn IO.stderr ("DEBUG: " ++ msg)

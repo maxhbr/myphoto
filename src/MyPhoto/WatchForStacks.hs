@@ -7,9 +7,9 @@ import Data.Map (Map, fromList, fromListWith, toList, union, unionWith)
 import Data.Time.Clock.POSIX (getCurrentTime, utcTimeToPOSIXSeconds)
 import MyPhoto.Actions.FileSystem (copy)
 import MyPhoto.Actions.Metadata
+import MyPhoto.Actions.UnRAW (unrawExtensions)
 import MyPhoto.Model
 import MyPhoto.Stack
-import MyPhoto.Actions.UnRAW (unrawExtensions)
 import System.Directory.Recursive (getFilesRecursive)
 import System.Environment (getArgs)
 
@@ -135,7 +135,7 @@ handleFinishedClusters oldState@(WatchForStacksState {wfsInFileClusters = oldClu
           if length cluster > 10
             then do
               let opts =
-                   def 
+                    def
                       { optVerbose = False,
                         optRedirectLog = False,
                         optWorkdirStrategy = ImportToWorkdir outdir,

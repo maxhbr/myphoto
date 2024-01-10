@@ -5,9 +5,9 @@ where
 
 import qualified Data.Map as Map
 import MyPhoto.Model
+import MyPhoto.Wrapper.FocusStack
 import qualified System.IO as IO
 import System.Process
-import MyPhoto.Wrapper.FocusStack
 
 focusStackImgs :: Bool -> [String] -> [FilePath] -> IO (FilePath, [FilePath])
 focusStackImgs verbose additionalParameters imgs = do
@@ -30,8 +30,6 @@ focusStackImgs verbose additionalParameters imgs = do
             _workdir = focusStackWorkdir,
             _output = output
           }
-      
-
 
 --       createDirectoryIfMissing True focusStackWorkdir
 --       putStrLn (unwords ["$ focus-stack", unwords parameters, "[img [img [...]]]"])

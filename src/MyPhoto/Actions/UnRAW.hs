@@ -41,12 +41,13 @@ data UnRawOptions = UnRawOptions
   deriving (Show)
 
 instance Default UnRawOptions where
-  def = UnRawOptions
-          { urVerbose = False,
-            urWhitebalance = WBFromRaw,
-            urColorSpace = SRGBColorSpace,
-            urQuality = 3
-          }
+  def =
+    UnRawOptions
+      { urVerbose = False,
+        urWhitebalance = WBFromRaw,
+        urColorSpace = SRGBColorSpace,
+        urQuality = 3
+      }
 
 calculateUnRAWedName :: FilePath -> FilePath
 calculateUnRAWedName = (<.> "tiff")

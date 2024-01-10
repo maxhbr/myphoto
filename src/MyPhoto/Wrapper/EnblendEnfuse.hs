@@ -21,7 +21,6 @@ import System.Exit
 import System.FilePath
 import System.Process
 
-
 data Projection
   = Proj1
   | Proj2
@@ -54,17 +53,18 @@ data EnblendEnfuseOptions = EnblendEnfuseOptions
   deriving (Show)
 
 instance Default EnblendEnfuseOptions where
-  def = EnblendEnfuseOptions
-          { eeVerbose = False,
-            eeProjection = Proj1,
-            eeOpts = Opts1,
-            eeSaveMasks = False,
-            eeAdditionalArgs = []
-          }
+  def =
+    EnblendEnfuseOptions
+      { eeVerbose = False,
+        eeProjection = Proj1,
+        eeOpts = Opts1,
+        eeSaveMasks = False,
+        eeAdditionalArgs = []
+      }
 
 runEnblendEnfuse :: EnblendEnfuseOptions -> FilePath -> FilePath -> [FilePath] -> IO (Either ExitCode [FilePath])
 runEnblendEnfuse _ _ _ [img] = return (Right [img])
-runEnblendEnfuse opts@(EnblendEnfuseOptions{eeSaveMasks = saveMasks}) outFile workdir imgs = do
+runEnblendEnfuse opts@(EnblendEnfuseOptions {eeSaveMasks = saveMasks}) outFile workdir imgs = do
   logDebugIO (">>>>>>>>>>>>>>>>>>>>>>>> start >> " ++ outFile)
   let outMasksFolder = inWorkdir workdir (outFile ++ "-masks")
   when saveMasks $
@@ -79,7 +79,7 @@ runEnblendEnfuse opts@(EnblendEnfuseOptions{eeSaveMasks = saveMasks}) outFile wo
   logDebugIO (unwords ["$ enfuse", unwords args, "[img [img [...]]]"])
   (_, _, _, pHandle) <-
     createProcess
-      ( proc "enfuse" (args ++ imgs))
+      (proc "enfuse" (args ++ imgs))
   exitCode <- waitForProcess pHandle
   case exitCode of
     ExitSuccess -> do
@@ -103,8 +103,6 @@ runEnblendEnfuseWithRetries retriesLeft opts outFile workdir imgs = do
         else do
           logErrorIO ("### " ++ msg ++ " (giving up)")
           return (Left msg)
-
-
 
 -- runEnfuse :: Int -> (FilePath, FilePath, Bool, [String]) -> [FilePath] -> IO (Either String [FilePath])
 -- runEnfuse _ _ [img] = return (Right [img])

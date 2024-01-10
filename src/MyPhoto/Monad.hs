@@ -19,19 +19,20 @@ import System.Environment (getArgs, getProgName, withArgs)
 import qualified System.IO as IO
 
 instance Default Options where
-  def = Options
-    { optVerbose = False,
-      optRedirectLog = False,
-      optWorkdirStrategy = CreateNextToImgDir,
-      optEveryNth = Nothing,
-      optSortOnCreateDate = True,
-      optRemoveOutliers = False,
-      optBreaking = Nothing,
-      optUntiff = False,
-      optEnfuse = True,
-      optFocusStack = True,
-      optParameters = mempty
-    }
+  def =
+    Options
+      { optVerbose = False,
+        optRedirectLog = False,
+        optWorkdirStrategy = CreateNextToImgDir,
+        optEveryNth = Nothing,
+        optSortOnCreateDate = True,
+        optRemoveOutliers = False,
+        optBreaking = Nothing,
+        optUntiff = False,
+        optEnfuse = True,
+        optFocusStack = True,
+        optParameters = mempty
+      }
 
 data MyPhotoState = MyPhotoState
   { myPhotoStateOpts :: Options,

@@ -56,17 +56,18 @@ data EnblendEnfuseActionOptions = EnblendEnfuseActionOptions
   deriving (Show)
 
 instance Default EnblendEnfuseActionOptions where
-  def = EnblendEnfuseActionOptions
-    { eeOptions = def,
-      eeaMaxCapabilities = 9, -- with to many threads the memory seems to be insufficient
-      eeaOutputBN = Nothing,
-      eeaChunk = def,
-      eeaConcurrent = True,
-      eeaAll = False
-    }
+  def =
+    EnblendEnfuseActionOptions
+      { eeOptions = def,
+        eeaMaxCapabilities = 9, -- with to many threads the memory seems to be insufficient
+        eeaOutputBN = Nothing,
+        eeaChunk = def,
+        eeaConcurrent = True,
+        eeaAll = False
+      }
 
 optionsToFilenameAppendix :: EnblendEnfuseActionOptions -> String
-optionsToFilenameAppendix EnblendEnfuseActionOptions {eeOptions = o } =
+optionsToFilenameAppendix EnblendEnfuseActionOptions {eeOptions = o} =
   let projectionOptionsToFilenameAppendix :: EnblendEnfuseOptions -> String
       projectionOptionsToFilenameAppendix EnblendEnfuseOptions {eeProjection = Proj1} = "p1"
       projectionOptionsToFilenameAppendix EnblendEnfuseOptions {eeProjection = Proj2} = "p2"
@@ -85,7 +86,7 @@ foldResults _ r2@(Left _) = r2
 
 getStackedFilename :: EnblendEnfuseActionOptions -> Imgs -> FilePath
 getStackedFilename _ [] = undefined
-getStackedFilename opts (img:_) =
+getStackedFilename opts (img : _) =
   let (bn, ext') = splitExtensions img
       ext = if map toLower ext' == ".jpg" then ".png" else ext
    in case eeaOutputBN opts of
@@ -139,7 +140,7 @@ enfuseStackImgs =
                 (MS.with sem . runEnblendEnfuseWithRetries 2 (eeOptions opts) outFile workdir) imgs
 
       stackImpl' :: MS.MSem Int -> EnblendEnfuseActionOptions -> [FilePath] -> IO (Either String [FilePath])
-      stackImpl' sem opts imgs =do
+      stackImpl' sem opts imgs = do
         let outFile = getStackedFilename opts imgs
 
         outFileExists <- doesFileExist outFile
@@ -165,15 +166,15 @@ enfuseStackImgs =
             results <-
               mapConcurrently
                 (\opts' -> stackImpl' sem opts' imgs)
-                [ opts {eeaAll = False, eeOptions = eeOpts{eeProjection = Proj1, eeOpts = Opts1}},
-                  opts {eeaAll = False, eeOptions = eeOpts{eeProjection = Proj1, eeOpts = Opts2}},
-                  opts {eeaAll = False, eeOptions = eeOpts{eeProjection = Proj1, eeOpts = Opts3}},
-                  opts {eeaAll = False, eeOptions = eeOpts{eeProjection = Proj2, eeOpts = Opts1}},
-                  opts {eeaAll = False, eeOptions = eeOpts{eeProjection = Proj2, eeOpts = Opts2}},
-                  opts {eeaAll = False, eeOptions = eeOpts{eeProjection = Proj2, eeOpts = Opts3}},
-                  opts {eeaAll = False, eeOptions = eeOpts{eeProjection = Proj3, eeOpts = Opts1}},
-                  opts {eeaAll = False, eeOptions = eeOpts{eeProjection = Proj3, eeOpts = Opts2}},
-                  opts {eeaAll = False, eeOptions = eeOpts{eeProjection = Proj3, eeOpts = Opts3}}
+                [ opts {eeaAll = False, eeOptions = eeOpts {eeProjection = Proj1, eeOpts = Opts1}},
+                  opts {eeaAll = False, eeOptions = eeOpts {eeProjection = Proj1, eeOpts = Opts2}},
+                  opts {eeaAll = False, eeOptions = eeOpts {eeProjection = Proj1, eeOpts = Opts3}},
+                  opts {eeaAll = False, eeOptions = eeOpts {eeProjection = Proj2, eeOpts = Opts1}},
+                  opts {eeaAll = False, eeOptions = eeOpts {eeProjection = Proj2, eeOpts = Opts2}},
+                  opts {eeaAll = False, eeOptions = eeOpts {eeProjection = Proj2, eeOpts = Opts3}},
+                  opts {eeaAll = False, eeOptions = eeOpts {eeProjection = Proj3, eeOpts = Opts1}},
+                  opts {eeaAll = False, eeOptions = eeOpts {eeProjection = Proj3, eeOpts = Opts2}},
+                  opts {eeaAll = False, eeOptions = eeOpts {eeProjection = Proj3, eeOpts = Opts3}}
                 ]
             return (foldl foldResults (Right []) results)
           else stackImpl' sem opts imgs

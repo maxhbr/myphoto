@@ -79,7 +79,7 @@ options =
       "Try to sort on create date",
     Option
       ""
-      ["no-sort","no-sort-on-create-date"]
+      ["no-sort", "no-sort-on-create-date"]
       ( NoArg
           (\opt -> return opt {optSortOnCreateDate = False})
       )
@@ -237,7 +237,7 @@ getWdAndMaybeMoveImgs = do
     Just wd -> return wd
     Nothing -> do
       logDebug ("determine working directory")
-      Options{optWorkdirStrategy = workdirStrategy} <- getOpts
+      Options {optWorkdirStrategy = workdirStrategy} <- getOpts
       wd <- case workdirStrategy of
         CreateNextToImgDir -> do
           imgs@(img0 : _) <- getImgs
@@ -265,7 +265,7 @@ getWdAndMaybeMoveImgs = do
           MTL.liftIO $ createDirectoryIfMissing True wd
           MTL.liftIO $ makeAbsolute wd
         ImportToWorkdir wd -> do
-          Options{optEveryNth = everyNth} <- getOpts
+          Options {optEveryNth = everyNth} <- getOpts
           when (isJust everyNth) $ do
             fail "cannot import images to subfolder when --every-nth is specified"
           MTL.liftIO $ createDirectoryIfMissing True wd
@@ -406,8 +406,8 @@ runMyPhotoStack'' startOpts actions startImgs = do
           opts <- getOpts
           MTL.liftIO $
             enfuseStackImgs
-              (def
-                  { eeOptions = def { eeVerbose = optVerbose opts},
+              ( def
+                  { eeOptions = def {eeVerbose = optVerbose opts},
                     eeaOutputBN = Just outputBn
                   }
               )
