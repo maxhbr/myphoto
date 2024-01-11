@@ -125,8 +125,11 @@ peekFiles = do
 
 handleFinishedClusters :: WatchForStacksState -> WatchForStacksM ()
 handleFinishedClusters oldState@(WatchForStacksState {wfsInFileClusters = oldClusters}) = do
+  MTL.liftIO $ putStrLn "handleFinishedClusters ..."
   wfss@WatchForStacksState {wfsOutdir = outdir, wfsInFileClusters = newClusters, wfsFinishedClusters = finishedClusters} <- MTL.get
   let (unchanged, changed) = partition (\cluster -> cluster `elem` oldClusters) newClusters
+
+  MTL.liftIO . putStrLn $ "#unchanged: " ++ show (length unchanged)
 
   MTL.liftIO $ createDirectoryIfMissing True outdir
   newlyFinished <-
@@ -136,7 +139,7 @@ handleFinishedClusters oldState@(WatchForStacksState {wfsInFileClusters = oldClu
           let bn = computeStackOutputBN imgs
           if length cluster > 10
             then do
-              MTL.liftIO $ putStrLn $ "INFO: work on " ++ bn ++ " of size " ++ show (length cluster)
+              MTL.liftIO . putStrLn $ "INFO: work on " ++ bn ++ " of size " ++ show (length cluster)
               let imgs = map wfsfPath cluster
               let opts =
                     def
