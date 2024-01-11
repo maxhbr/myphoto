@@ -5,7 +5,7 @@ where
 
 import qualified Data.Map as Map
 import MyPhoto.Model
-import MyPhoto.Wrapper.FocusStack
+import MyPhoto.Wrapper.FocusStackWrapper
 import qualified System.IO as IO
 import System.Process
 

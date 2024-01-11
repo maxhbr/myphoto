@@ -1,6 +1,6 @@
 {-# LANGUAGE LambdaCase #-}
 
-module MyPhoto.Wrapper.Dcraw
+module MyPhoto.Wrapper.DcrawWrapper
   ( runDcraw,
     getImageSize,
     calculateWhitebalance,

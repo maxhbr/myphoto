@@ -1,4 +1,4 @@
-module MyPhoto.Wrapper.EnblendEnfuse
+module MyPhoto.Wrapper.EnblendEnfuseWrapper
   ( runEnblendEnfuse,
     runEnblendEnfuseWithRetries,
     Projection (..),

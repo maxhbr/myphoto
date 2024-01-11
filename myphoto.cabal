@@ -34,9 +34,9 @@ library
         MyPhoto.Actions.Outliers,
         MyPhoto.Actions.UnRAW,
         MyPhoto.Actions.UnTiff,
-        MyPhoto.Wrapper.Dcraw,
-        MyPhoto.Wrapper.EnblendEnfuse,
-        MyPhoto.Wrapper.FocusStack,
+        MyPhoto.Wrapper.DcrawWrapper,
+        MyPhoto.Wrapper.EnblendEnfuseWrapper,
+        MyPhoto.Wrapper.FocusStackWrapper,
         MyPhoto.Model,
         MyPhoto.Video,
         MyPhoto.Monad

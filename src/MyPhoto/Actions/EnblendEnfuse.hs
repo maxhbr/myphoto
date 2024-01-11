@@ -13,7 +13,7 @@ import Data.Char (toLower)
 import Data.List.Split (chunksOf)
 import Data.Maybe (fromMaybe)
 import MyPhoto.Model hiding (Options (..))
-import MyPhoto.Wrapper.EnblendEnfuse
+import MyPhoto.Wrapper.EnblendEnfuseWrapper
 import System.Console.GetOpt
 import System.Directory
 import System.Exit

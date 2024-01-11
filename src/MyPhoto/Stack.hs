@@ -4,6 +4,7 @@ module MyPhoto.Stack
   ( runMyPhotoStack,
     runMyPhotoStack',
     runMyPhotoStack'',
+    computeRawImportDirInWorkdir,
   )
 where
 
@@ -230,6 +231,9 @@ sampleOfM m xs =
         then xs
         else everyNth n xs
 
+computeRawImportDirInWorkdir :: FilePath -> Imgs -> FilePath
+computeRawImportDirInWorkdir wd imgs = wd </> computeStackOutputBN imgs <.> "raw"
+
 getWdAndMaybeMoveImgs :: MyPhotoM FilePath
 getWdAndMaybeMoveImgs = do
   wd <- MTL.gets myPhotoStateWd
@@ -271,8 +275,7 @@ getWdAndMaybeMoveImgs = do
           MTL.liftIO $ createDirectoryIfMissing True wd
           absWd <- MTL.liftIO $ makeAbsolute wd
           imgs <- getImgs
-          let imgBN = computeStackOutputBN imgs
-          let indir = absWd </> imgBN <.> "raw"
+          let indir = computeRawImportDirInWorkdir absWd imgs
           logInfo ("copy images to " ++ indir)
           imgs' <- MTL.liftIO $ copy indir imgs
           putImgs imgs'

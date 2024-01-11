@@ -1,4 +1,4 @@
-module MyPhoto.Wrapper.FocusStack
+module MyPhoto.Wrapper.FocusStackWrapper
   ( runFocusStack,
     FocusStackOptions (..),
     FocusStackCropping (..),

@@ -134,6 +134,7 @@ handleFinishedClusters oldState@(WatchForStacksState {wfsInFileClusters = oldClu
       ( \cluster -> do
           if length cluster > 10
             then do
+              let imgs = map wfsfPath cluster
               let opts =
                     def
                       { optVerbose = False,
@@ -146,15 +147,22 @@ handleFinishedClusters oldState@(WatchForStacksState {wfsInFileClusters = oldClu
                         optFocusStack = True,
                         optEnfuse = True
                       }
-              wd <-
-                MTL.liftIO $
-                  catch
-                    (runMyPhotoStack'' opts [] (map wfsfPath cluster))
-                    ( \e -> do
-                        putStrLn $ "ERROR: " ++ show (e :: SomeException)
-                        return (outdir </> (computeStackOutputBN (map wfsfPath cluster)))
-                    )
-              return (wd, cluster)
+              let expectedWD = computeRawImportDirInWorkdir outdir imgs
+              expectedWDExists <- MTL.liftIO $ doesDirectoryExist expectedWD
+              if expectedWDExists
+                then do 
+                  putStrLn $ "INFO: cluster already exists: " ++ expectedWD
+                  return (expectedWD, cluster)
+                else do
+                  wd <-
+                    MTL.liftIO $
+                      catch
+                        (runMyPhotoStack'' opts [] (map wfsfPath cluster))
+                        ( \e -> do
+                            putStrLn $ "ERROR: " ++ show (e :: SomeException)
+                            return (outdir </> (computeStackOutputBN imgs))
+                        )
+                  return (wd, cluster)
             else do
               MTL.liftIO $ do
                 putStrLn $ "INFO: cluster too small, just copy: " ++ show (length cluster)
@@ -162,6 +170,8 @@ handleFinishedClusters oldState@(WatchForStacksState {wfsInFileClusters = oldClu
               return (outdir, cluster)
       )
       unchanged
+
+
 
   let newFinishedClusters = unionWith (++) finishedClusters (fromListWith (++) newlyFinished)
   MTL.put $ wfss {wfsInFileClusters = changed, wfsFinishedClusters = newFinishedClusters}
