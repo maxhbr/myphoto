@@ -151,7 +151,7 @@ handleFinishedClusters oldState@(WatchForStacksState {wfsInFileClusters = oldClu
               expectedWDExists <- MTL.liftIO $ doesDirectoryExist expectedWD
               if expectedWDExists
                 then do 
-                  putStrLn $ "INFO: cluster already exists: " ++ expectedWD
+                  MTL.liftIO . putStrLn $ "INFO: cluster already exists: " ++ expectedWD
                   return (expectedWD, cluster)
                 else do
                   wd <-
