@@ -136,7 +136,7 @@ handleFinishedClusters oldState@(WatchForStacksState {wfsInFileClusters = oldClu
           let bn = computeStackOutputBN imgs
           if length cluster > 10
             then do
-              MTL.liftIO $ putStrLn $ "INFO: work on " bn ++ " of size " ++ show (length cluster)
+              MTL.liftIO $ putStrLn $ "INFO: work on " ++ bn ++ " of size " ++ show (length cluster)
               let imgs = map wfsfPath cluster
               let opts =
                     def
