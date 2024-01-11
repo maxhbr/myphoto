@@ -132,8 +132,11 @@ handleFinishedClusters oldState@(WatchForStacksState {wfsInFileClusters = oldClu
   newlyFinished <-
     mapM
       ( \cluster -> do
+          let imgs = map wfsfPath cluster
+          let bn = computeStackOutputBN imgs
           if length cluster > 10
             then do
+              MTL.liftIO $ putStrLn $ "INFO: work on " bn ++ " of size " ++ show (length cluster)
               let imgs = map wfsfPath cluster
               let opts =
                     def
@@ -145,13 +148,13 @@ handleFinishedClusters oldState@(WatchForStacksState {wfsInFileClusters = oldClu
                         optRemoveOutliers = False,
                         optBreaking = Nothing,
                         optFocusStack = True,
-                        optEnfuse = True
+                        optEnfuse = False
                       }
               let expectedWD = computeRawImportDirInWorkdir outdir imgs
               expectedWDExists <- MTL.liftIO $ doesDirectoryExist expectedWD
               if expectedWDExists
                 then do 
-                  MTL.liftIO . putStrLn $ "INFO: cluster already exists: " ++ expectedWD
+                  MTL.liftIO . putStrLn $ "INFO: img already exists: " ++ expectedWD
                   return (expectedWD, cluster)
                 else do
                   wd <-
