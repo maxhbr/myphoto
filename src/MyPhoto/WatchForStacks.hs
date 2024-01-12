@@ -135,7 +135,7 @@ handleFinishedClusters oldState@(WatchForStacksState {wfsInFileClusters = oldClu
   newlyFinished <-
     mapM
       ( \cluster -> do
-          let imgs = map wfsfPath cluster
+          let imgs = reverse $ map wfsfPath cluster
           let bn = computeStackOutputBN imgs
           if length cluster > 10
             then do
