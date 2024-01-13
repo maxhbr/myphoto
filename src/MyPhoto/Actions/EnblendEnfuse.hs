@@ -87,7 +87,7 @@ enfuseStackImgs =
           else do
             putStrLn ("#### calculate " ++ outFile ++ "...")
 
-            let workdir = outFile <.> "workdir"
+            let workdir = outFile -<.> "workdir"
             createDirectoryIfMissing True workdir
 
             putStrLn ("##### compute Chunks ...")
@@ -95,7 +95,7 @@ enfuseStackImgs =
             putStrLn ("##### chunks: " ++ showChunkTree chunks)
 
             putStrLn ("##### resolve Chunks ...")
-            let (bn, ext) = splitExtensions (takeBaseName outFile)
+            let (bn, ext) = splitExtensions (takeFileName outFile)
             let bnInWorkdir = workdir </> bn
             result <- resolveChunks sem (\bn imgs -> do
               let outFile = bn <.> ext
