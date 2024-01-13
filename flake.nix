@@ -53,10 +53,10 @@
 
       myphoto-unwrapped = project [];
       myphoto-stack-from-github = pkgs.writeShellScriptBin "myphoto-gh-stack" ''
-         exec nix run "github:maxhbr/myphoto"#myphoto-stack -- "$@"
+         exec nix run --refresh "github:maxhbr/myphoto"#myphoto-stack -- "$@"
       '';
       myphoto-watch-from-github = pkgs.writeShellScriptBin "myphoto-gh-watch" ''
-         exec nix run "github:maxhbr/myphoto"#myphoto-watch -- "$@"
+         exec nix run --refresh "github:maxhbr/myphoto"#myphoto-watch -- "$@"
       '';
       myphoto = pkgs.buildEnv {
           name = "myphoto";
