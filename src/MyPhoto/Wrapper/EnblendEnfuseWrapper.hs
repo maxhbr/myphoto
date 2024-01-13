@@ -62,8 +62,8 @@ instance Default EnblendEnfuseOptions where
         eeAdditionalArgs = []
       }
 
-runEnblendEnfuse :: EnblendEnfuseOptions -> FilePath -> FilePath -> [FilePath] -> IO (Either ExitCode [FilePath])
-runEnblendEnfuse _ _ _ [img] = return (Right [img])
+runEnblendEnfuse :: EnblendEnfuseOptions -> FilePath -> FilePath -> [FilePath] -> IO (Either ExitCode FilePath)
+runEnblendEnfuse _ _ _ [img] = return (Right img)
 runEnblendEnfuse opts@(EnblendEnfuseOptions {eeSaveMasks = saveMasks}) outFile workdir imgs = do
   logDebugIO (">>>>>>>>>>>>>>>>>>>>>>>> start >> " ++ outFile)
   let outMasksFolder = inWorkdir workdir (outFile ++ "-masks")
@@ -84,11 +84,11 @@ runEnblendEnfuse opts@(EnblendEnfuseOptions {eeSaveMasks = saveMasks}) outFile w
   case exitCode of
     ExitSuccess -> do
       logDebugIO ("<<<<<<<<<<<<<<<<<<<<<<<<< done << " ++ outFile)
-      return (Right [outFile])
+      return (Right outFile)
     _ -> return (Left exitCode)
 
-runEnblendEnfuseWithRetries :: Int -> EnblendEnfuseOptions -> FilePath -> FilePath -> [FilePath] -> IO (Either String [FilePath])
-runEnblendEnfuseWithRetries _ _ _ _ [img] = return (Right [img])
+runEnblendEnfuseWithRetries :: Int -> EnblendEnfuseOptions -> FilePath -> FilePath -> [FilePath] -> IO (Either String FilePath)
+runEnblendEnfuseWithRetries _ _ _ _ [img] = return (Right img)
 runEnblendEnfuseWithRetries retriesLeft opts outFile workdir imgs = do
   result <- runEnblendEnfuse opts outFile workdir imgs
   case result of
@@ -103,26 +103,3 @@ runEnblendEnfuseWithRetries retriesLeft opts outFile workdir imgs = do
         else do
           logErrorIO ("### " ++ msg ++ " (giving up)")
           return (Left msg)
-
--- runEnfuse :: Int -> (FilePath, FilePath, Bool, [String]) -> [FilePath] -> IO (Either String [FilePath])
--- runEnfuse _ _ [img] = return (Right [img])
--- runEnfuse retries args@(outFile', workdir, saveMasks, enfuseArgs) imgs' = do
---   putStrLn (">>>>>>>>>>>>>>>>>>>>>>>> start >> " ++ outFile')
---   let outFile = inWorkdir workdir outFile'
---   let outMasksFolder = inWorkdir workdir (outFile ++ "-masks")
---   when saveMasks $
---     createDirectoryIfMissing True outMasksFolder
---   let maskArgs = ["--save-masks=\"" ++ outMasksFolder ++ "/softmask-%04n.tif:" ++ outMasksFolder ++ "/hardmask-%04n.tif\"" | saveMasks]
---       outputArgs = ["--output=" ++ outFile]
---   putStrLn (unwords ["$ enfuse", unwords (enfuseArgs ++ maskArgs ++ outputArgs), "[img [img [...]]]"])
---   (_, _, _, pHandle) <-
---     createProcess
---       ( proc
---           "enfuse"
---           ( enfuseArgs
---               ++ maskArgs
---               ++ outputArgs
---               ++ imgs'
---           )
---       )
---   exitCode <- waitForProcess pHandle

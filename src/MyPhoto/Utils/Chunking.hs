@@ -43,14 +43,6 @@ resolveChunks sem f bn (Chunks chunks) = do
     Right imgs -> resolveChunks sem f bn (Chunk imgs)
     Left err -> return (Left err)
 
-data ChunkSettings
-  = ChunkSize Int
-  | NoChunks
-  deriving (Show, Eq)
-
-instance Default ChunkSettings where
-  def = ChunkSize 8
-
 joinLastTwoChunksIfNeeded :: Int -> [[a]] -> [[a]]
 joinLastTwoChunksIfNeeded _ [] = []
 joinLastTwoChunksIfNeeded _ [chunk] = [chunk]

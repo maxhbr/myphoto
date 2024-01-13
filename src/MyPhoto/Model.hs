@@ -11,6 +11,7 @@ module MyPhoto.Model
     Img,
     Imgs,
     WorkdirStrategy (..),
+    ChunkSettings (..),
     Options (..),
     computeStackOutputBN,
     inWorkdir,
@@ -20,6 +21,7 @@ module MyPhoto.Model
     logInfoIO,
     logWarnIO,
     logErrorIO,
+    ChunkSettings,
   )
 where
 
@@ -60,6 +62,15 @@ data WorkdirStrategy
     WorkdirStrategyOverwrite FilePath
   deriving (Show, Eq)
 
+data ChunkSettings
+  = ChunkSize Int
+  | NoChunks
+  deriving (Show, Eq)
+
+instance Default ChunkSettings where
+  def = ChunkSize 8
+
+
 data Options = Options
   { optVerbose :: Bool,
     optRedirectLog :: Bool,
@@ -70,7 +81,9 @@ data Options = Options
     optBreaking :: Maybe Int,
     optUntiff :: Bool,
     optFocusStack :: Bool,
+    optFocusStackBatchSize :: ChunkSettings,
     optEnfuse :: Bool,
+    optEnfuseChunkSettings :: ChunkSettings,
     optParameters :: Map String [String]
   }
   deriving (Show)

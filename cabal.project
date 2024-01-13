@@ -1,0 +1,2 @@
+packages : ./myphoto.cabal
+tests: True

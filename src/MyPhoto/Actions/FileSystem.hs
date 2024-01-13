@@ -15,13 +15,13 @@ getPathInTargetFolder target img = do
   createDirectoryIfMissing True target
   return (replaceDirectory img target)
 
-applyFsFunc :: (FilePath -> Img -> Img -> IO Img) -> FilePath -> Imgs -> IO Imgs
+applyFsFunc :: (Img -> Img -> IO Img) -> FilePath -> Imgs -> IO Imgs
 applyFsFunc fsFunc target imgs = do
   imgs' <-
     mapM
       ( \img -> do
           img' <- getPathInTargetFolder target img
-          fsFunc target img img'
+          fsFunc img img'
       )
       imgs
   return imgs'
@@ -34,25 +34,25 @@ createFileLinkRelative img img' = do
 copy, move, link, reverseLink :: FilePath -> Imgs -> IO Imgs
 copy =
   applyFsFunc
-    ( \target img img' -> do
+    ( \img img' -> do
         copyFile img img'
         return img'
     )
 move =
   applyFsFunc
-    ( \target img img' -> do
+    ( \img img' -> do
         renameFile img img'
         return img'
     )
 link =
   applyFsFunc
-    ( \target img img' -> do
+    ( \img img' -> do
         createFileLinkRelative img img'
         return img'
     )
 reverseLink =
   applyFsFunc
-    ( \target img img' -> do
+    ( \img img' -> do
         renameFile img img'
         createFileLinkRelative img' img
         return img'

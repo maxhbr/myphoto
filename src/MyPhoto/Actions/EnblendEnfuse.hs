@@ -15,69 +15,14 @@ import Data.List.Split (chunksOf)
 import Data.Maybe (fromMaybe)
 import MyPhoto.Model hiding (Options (..))
 import MyPhoto.Wrapper.EnblendEnfuseWrapper
--- import MyPhoto.Utils.Chunking
+import MyPhoto.Utils.Chunking
+import MyPhoto.Actions.FileSystem (move)
 import System.Console.GetOpt
 import System.Directory
 import System.Exit
 import System.FilePath
 import System.Process
 
-data Chunk
-  = ChunkImgs Imgs
-  | Chunks [Chunk]
-  deriving (Show, Eq)
-
-resolveChunks :: (FilePath -> Imgs -> IO (Either String Img)) -> FilePath -> Chunk -> IO (Either String Img)
-resolveChunks f bn (ChunkImgs imgs) = f bn imgs
-resolveChunks f bn (Chunks chunks) = do
-  let chunkSize = length chunks
-  let chunkBn = \i -> bn ++ "_chunk" ++ show i ++ "of" ++ show chunkSize
-  results <- mapM (\(i,c) -> resolveChunks f (chunkBn i) c) (zip [1 ..] chunks)
-  let foldResults :: Either String [FilePath] -> Either String FilePath -> Either String [FilePath]
-      foldResults (Left err1) (Left err2) = Left (unlines [err1, err2])
-      foldResults r1@(Left _) _ = r1
-      foldResults (Right imgs1) (Right img) = Right (imgs1 ++ [img])
-      foldResults _ r2@(Left e) = Left e
-  let result = foldl foldResults (Right []) results
-  case result of
-    Right imgs -> f bn imgs
-    Left err -> return (Left err)
-  -- let chunkSize = length chunks
-  -- let chunkBn = \i -> bn ++ "_chunk" ++ show i ++ "of" ++ show chunkSize
-  -- results <- mapM (\(i,c) -> resolveChunks f (chunkBn i) c) (zip [1 ..] chunks)
-  -- let foldResults :: Either String [FilePath] -> Either String FilePath -> Either String [FilePath]
-  --     foldResults (Left err1) (Left err2) = Left (unlines [err1, err2])
-  --     foldResults r1@(Left _) _ = r1
-  --     foldResults (Right imgs1) (Right img) = Right (imgs1 ++ [img])
-  --     foldResults _ r2@(Left e) = Left e
-  -- case foldl foldResults (Right []) results of
-  --   Right imgs -> f bn imgs
-  --   err -> return err
-
-data ChunkSettings
-  = ChunkParameters Int Int Int
-  | ChunkSize Int
-  | NoChunks
-  deriving (Show, Eq)
-
-instance Default ChunkSettings where
-  def = ChunkParameters 2 6 15 -- chunkLevel minChunkSize maxChunkSize
-
-computeChunkSize :: ChunkSettings -> Imgs -> Maybe Int
-computeChunkSize (ChunkParameters chunkLevel minChunkSize maxChunkSize) imgs =
-  let chunkSizeFromChunkLevel = case chunkLevel of
-        2 -> (ceiling (sqrt (fromIntegral (length imgs))))
-        1 -> length imgs
-        _ -> undefined
-      chunkSize = max (min chunkSizeFromChunkLevel maxChunkSize) minChunkSize
-   in if chunkSize >= length imgs
-        then Nothing
-        else Just chunkSize
-computeChunkSize (ChunkSize chunkSize) imgs =
-  if chunkSize >= length imgs
-    then Nothing
-    else Just chunkSize
-computeChunkSize NoChunks imgs = Nothing
 
 data EnblendEnfuseActionOptions = EnblendEnfuseActionOptions
   { eeOptions :: EnblendEnfuseOptions,
@@ -129,53 +74,10 @@ getStackedFilename opts (img : _) =
 
 enfuseStackImgs :: EnblendEnfuseActionOptions -> [FilePath] -> IO (Either String [FilePath])
 enfuseStackImgs =
-  let stackImpl'' :: MS.MSem Int -> EnblendEnfuseActionOptions -> FilePath -> FilePath -> [FilePath] -> IO (Either String [FilePath])
-      stackImpl'' sem opts outFile workdir imgs = do
-        putStrLn ("#### calculate " ++ outFile)
-        let chunkSize = computeChunkSize (eeaChunk opts) imgs
-            maybeChunks = case chunkSize of
-              Nothing -> Nothing
-              Just chunkSize ->
-                let joinLastTwoChunks :: [[FilePath]] -> [[FilePath]]
-                    joinLastTwoChunks [] = []
-                    joinLastTwoChunks [chunk] = [chunk]
-                    joinLastTwoChunks [chunk1, chunk2] = [chunk1 ++ chunk2]
-                    joinLastTwoChunks (chunk1 : chunk2 : chunks) = chunk1 : joinLastTwoChunks (chunk2 : chunks)
-                    joinLastTwoChunksIfNeeded :: [[FilePath]] -> [[FilePath]]
-                    joinLastTwoChunksIfNeeded [] = []
-                    joinLastTwoChunksIfNeeded [chunk] = [chunk]
-                    joinLastTwoChunksIfNeeded chunks =
-                      if length (last chunks) > (chunkSize `div` 2)
-                        then chunks
-                        else joinLastTwoChunks chunks
-                 in Just . joinLastTwoChunksIfNeeded $ chunksOf chunkSize imgs
-         in case maybeChunks of
-              Just chunks | length chunks > 1 -> do
-                let chunkSize = length $ head chunks
-                let numberOfChunks = length chunks
-                putStrLn ("#### use " ++ show numberOfChunks ++ " chunks of chunkSize " ++ show chunkSize ++ " to calculate " ++ outFile)
-                chunkImgs <-
-                  mapConcurrently
-                    ( \(i, chunk) -> do
-                        let (bn, ext) = splitExtensions outFile
-                            chunkOutputDir = workdir </> bn <> "_chunks_of" <> show chunkSize
-                            chunkOutputFilename = bn <> "_chunk" <> show i <> "of" <> show numberOfChunks <.> ext
-                        createDirectoryIfMissing True chunkOutputDir
-                        stackImpl'' sem opts chunkOutputFilename chunkOutputDir imgs
-                    )
-                    (zip [1 ..] chunks)
-
-                case foldl foldResults (Right []) chunkImgs of
-                  Right chunkImgs' -> stackImpl'' sem opts outFile workdir chunkImgs'
-                  err -> return err
-              _ -> do
-                avaial <- MS.peekAvail sem
-                putStrLn ("#### use " ++ show (length imgs) ++ " images to calculate " ++ outFile ++ " (available threads: " ++ show avaial ++ ")")
-                (MS.with sem . runEnblendEnfuseWithRetries 2 (eeOptions opts) outFile workdir) imgs
-
-      stackImpl' :: MS.MSem Int -> EnblendEnfuseActionOptions -> [FilePath] -> IO (Either String [FilePath])
+  let stackImpl' :: MS.MSem Int -> EnblendEnfuseActionOptions -> [FilePath] -> IO (Either String [Img])
       stackImpl' sem opts imgs = do
-        let outFile = getStackedFilename opts imgs
+        let outFile' = getStackedFilename opts imgs
+        outFile <- makeAbsolute outFile'
 
         outFileExists <- doesFileExist outFile
         if outFileExists
@@ -183,8 +85,30 @@ enfuseStackImgs =
             putStrLn ("#### " ++ outFile ++ " already exists, skipping")
             return (Right [outFile])
           else do
-            let workdir = "."
-            stackImpl'' sem opts outFile workdir imgs
+            putStrLn ("#### calculate " ++ outFile ++ "...")
+
+            let workdir = outFile <.> "workdir"
+            createDirectoryIfMissing True workdir
+
+            putStrLn ("##### compute Chunks ...")
+            let chunks = mkChunks (eeaChunk opts) imgs
+            putStrLn ("##### chunks: " ++ showChunkTree chunks)
+
+            putStrLn ("##### resolve Chunks ...")
+            let (bn, ext) = splitExtensions (takeBaseName outFile)
+            let bnInWorkdir = workdir </> bn
+            result <- resolveChunks sem (\bn imgs -> do
+              let outFile = bn <.> ext
+              runEnblendEnfuseWithRetries 2 (eeOptions opts) outFile workdir imgs
+              ) bnInWorkdir chunks
+
+            case result of
+              Right generatedInWorkdir -> do
+                renameFile generatedInWorkdir outFile
+                return (Right [outFile])
+              Left err -> do
+                return (Left err)
+
    in \opts imgs -> do
         print opts
         numCapabilities <- getNumCapabilities

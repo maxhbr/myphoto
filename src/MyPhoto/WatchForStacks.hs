@@ -151,7 +151,7 @@ handleFinishedClusters oldState@(WatchForStacksState {wfsInFileClusters = oldClu
                         optRemoveOutliers = False,
                         optBreaking = Nothing,
                         optFocusStack = True,
-                        optEnfuse = False
+                        optEnfuse = True
                       }
               let expectedWD = computeRawImportDirInWorkdir outdir imgs
               expectedWDExists <- MTL.liftIO $ doesDirectoryExist expectedWD

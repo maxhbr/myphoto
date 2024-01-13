@@ -151,6 +151,16 @@ options =
           "PARAMETER"
       )
       "Parameters for PetteriAimonen/focus-stack",
+    -- Option
+    --   ""
+    --   ["focus-stack-batch-size"]
+    --   ( ReqArg
+    --       (\arg opt -> return opt {optFocusStackBatchSize = case read arg :: Int of
+    --                                                           0 -> NoChunks
+    --                                                           1 -> NoChunks
+    --                                                           n -> ChunkSize n})
+    --       "N"
+    --   ),
     -- enfuse
     Option
       ""
@@ -166,6 +176,17 @@ options =
           (\opt -> return opt {optEnfuse = True})
       )
       "Run enfuse (default)",
+    Option
+      ""
+      ["enfuse-chunk-size"]
+      ( ReqArg
+          (\arg opt -> return opt {optEnfuseChunkSettings = case read arg :: Int of
+                                                              0 -> NoChunks
+                                                              1 -> NoChunks
+                                                              n -> ChunkSize n})
+          "N"
+      )
+      "Chunk size for enfuse",
     Option
       ""
       ["enfuse-all-variants"]
@@ -411,7 +432,8 @@ runMyPhotoStack'' startOpts actions startImgs = do
             enfuseStackImgs
               ( def
                   { eeOptions = def {eeVerbose = optVerbose opts},
-                    eeaOutputBN = Just outputBn
+                    eeaOutputBN = Just outputBn,
+                    eeaChunk = optEnfuseChunkSettings opts
                   }
               )
               aligned
