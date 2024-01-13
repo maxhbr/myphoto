@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 module MyPhoto.Actions.EnblendEnfuse
   ( EnblendEnfuseOptions (..),
     EnblendEnfuseActionOptions (..),
@@ -14,11 +15,44 @@ import Data.List.Split (chunksOf)
 import Data.Maybe (fromMaybe)
 import MyPhoto.Model hiding (Options (..))
 import MyPhoto.Wrapper.EnblendEnfuseWrapper
+-- import MyPhoto.Utils.Chunking
 import System.Console.GetOpt
 import System.Directory
 import System.Exit
 import System.FilePath
 import System.Process
+
+data Chunk
+  = ChunkImgs Imgs
+  | Chunks [Chunk]
+  deriving (Show, Eq)
+
+resolveChunks :: (FilePath -> Imgs -> IO (Either String Img)) -> FilePath -> Chunk -> IO (Either String Img)
+resolveChunks f bn (ChunkImgs imgs) = f bn imgs
+resolveChunks f bn (Chunks chunks) = do
+  let chunkSize = length chunks
+  let chunkBn = \i -> bn ++ "_chunk" ++ show i ++ "of" ++ show chunkSize
+  results <- mapM (\(i,c) -> resolveChunks f (chunkBn i) c) (zip [1 ..] chunks)
+  let foldResults :: Either String [FilePath] -> Either String FilePath -> Either String [FilePath]
+      foldResults (Left err1) (Left err2) = Left (unlines [err1, err2])
+      foldResults r1@(Left _) _ = r1
+      foldResults (Right imgs1) (Right img) = Right (imgs1 ++ [img])
+      foldResults _ r2@(Left e) = Left e
+  let result = foldl foldResults (Right []) results
+  case result of
+    Right imgs -> f bn imgs
+    Left err -> return (Left err)
+  -- let chunkSize = length chunks
+  -- let chunkBn = \i -> bn ++ "_chunk" ++ show i ++ "of" ++ show chunkSize
+  -- results <- mapM (\(i,c) -> resolveChunks f (chunkBn i) c) (zip [1 ..] chunks)
+  -- let foldResults :: Either String [FilePath] -> Either String FilePath -> Either String [FilePath]
+  --     foldResults (Left err1) (Left err2) = Left (unlines [err1, err2])
+  --     foldResults r1@(Left _) _ = r1
+  --     foldResults (Right imgs1) (Right img) = Right (imgs1 ++ [img])
+  --     foldResults _ r2@(Left e) = Left e
+  -- case foldl foldResults (Right []) results of
+  --   Right imgs -> f bn imgs
+  --   err -> return err
 
 data ChunkSettings
   = ChunkParameters Int Int Int

@@ -23,7 +23,9 @@ library
     import:           warnings
     exposed-modules:
         MyPhoto.Stack,
-        MyPhoto.WatchForStacks
+        MyPhoto.WatchForStacks,
+        MyPhoto.Model,
+        MyPhoto.Utils.Chunking
     other-modules:
         MyPhoto.Actions.Align,
         MyPhoto.Actions.EnblendEnfuse,
@@ -37,7 +39,6 @@ library
         MyPhoto.Wrapper.DcrawWrapper,
         MyPhoto.Wrapper.EnblendEnfuseWrapper,
         MyPhoto.Wrapper.FocusStackWrapper,
-        MyPhoto.Model,
         MyPhoto.Video,
         MyPhoto.Monad
 
@@ -87,3 +88,13 @@ executable myphoto-watch
                       myphoto
     hs-source-dirs:   app-watch
     default-language: Haskell2010
+
+test-suite test-myphoto
+  type:               exitcode-stdio-1.0
+  main-is:            Main.hs
+  hs-source-dirs:     test
+  build-depends:      base ^>=4.17.2.1,
+                      myphoto,
+                      test-framework,
+                      test-framework-hunit,
+                      HUnit

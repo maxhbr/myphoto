@@ -9,6 +9,7 @@ entr_task() (
   cabal build
   cabal run myphoto-watch -- --help
   cabal run myphoto-stack -- --help
+  cabal test
 )
 export -f entr_task
 
