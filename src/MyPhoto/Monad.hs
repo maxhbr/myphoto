@@ -29,8 +29,10 @@ instance Default Options where
         optRemoveOutliers = False,
         optBreaking = Nothing,
         optUntiff = False,
-        optEnfuse = True,
         optFocusStack = True,
+        optFocusStackBatchSize = def,
+        optEnfuse = True,
+        optEnfuseChunkSettings = def,
         optParameters = mempty
       }
 
