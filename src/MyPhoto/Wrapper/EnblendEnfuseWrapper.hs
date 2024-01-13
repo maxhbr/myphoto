@@ -65,7 +65,7 @@ instance Default EnblendEnfuseOptions where
 runEnblendEnfuse :: EnblendEnfuseOptions -> FilePath -> FilePath -> [FilePath] -> IO (Either ExitCode FilePath)
 runEnblendEnfuse _ _ _ [img] = return (Right img)
 runEnblendEnfuse opts@(EnblendEnfuseOptions {eeSaveMasks = saveMasks}) outFile workdir imgs = do
-  logDebugIO (">>>>>>>>>>>>>>>>>>>>>>>> start >> " ++ outFile)
+  logDebugIO (">>>>>>>>>>>>>>>>>>>>>>>> start >> " ++ (takeFilename outFile))
   let outMasksFolder = inWorkdir workdir (outFile ++ "-masks")
   when saveMasks $
     createDirectoryIfMissing True outMasksFolder
@@ -75,7 +75,7 @@ runEnblendEnfuse opts@(EnblendEnfuseOptions {eeSaveMasks = saveMasks}) outFile w
       hardMaskArgs = ["--hard-mask"]
       verbosityArgs = ["-v" | eeVerbose opts]
       additionalArgs = eeAdditionalArgs opts
-      args = verbosityArgs ++ focusStackArgs ++ hardMaskArgs ++ projectionToArgs (eeProjection opts) ++ optsToArgs (eeOpts opts) ++ additionalArgs
+      args = concat [verbosityArgs, focusStackArgs, hardMaskArgs, projectionToArgs (eeProjection opts), optsToArgs (eeOpts opts), maskArgs, outputArgs, additionalArgs]
   logDebugIO (unwords ["$ enfuse", unwords args, "[img [img [...]]]"])
   (_, _, _, pHandle) <-
     createProcess
@@ -83,7 +83,7 @@ runEnblendEnfuse opts@(EnblendEnfuseOptions {eeSaveMasks = saveMasks}) outFile w
   exitCode <- waitForProcess pHandle
   case exitCode of
     ExitSuccess -> do
-      logDebugIO ("<<<<<<<<<<<<<<<<<<<<<<<<< done << " ++ outFile)
+      logDebugIO ("<<<<<<<<<<<<<<<<<<<<<<<<< done << " ++ (takeFilename outFile))
       return (Right outFile)
     _ -> return (Left exitCode)
 
@@ -95,7 +95,7 @@ runEnblendEnfuseWithRetries retriesLeft opts outFile workdir imgs = do
     Right outs -> do
       return (Right outs)
     Left exitCode -> do
-      let msg = "Stack of " ++ outFile ++ " failed with " ++ show exitCode
+      let msg = "Stack of " ++ (takeFilename outFile) ++ " failed with " ++ show exitCode
       if retriesLeft > 0
         then do
           logWarnIO ("### " ++ msg ++ " (retrying)")
