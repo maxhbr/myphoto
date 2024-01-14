@@ -17,7 +17,7 @@ jpgExtensions = [".jpg", ".JPG"]
 
 clusterDistanceInSeconds = 6
 
-loopIntervalInSeconds = 120
+loopIntervalInSeconds = 40
 
 data WatchForStacksFile = WatchForStacksFile
   { wfsfPath :: Img,
