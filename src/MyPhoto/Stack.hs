@@ -513,7 +513,7 @@ runMyPhotoStackForVideo vid args = do
     IO.hPutStrLn IO.stderr ("video not found: " ++ vid)
     exitWith (ExitFailure 1)
   imgs <- extractFrames vid
-  let args' = args ++ ["--workdir", takeDirectory vid, "--no-remove-outliers", "--no-breaking"] ++ imgs
+  let args' = args ++ ["--workdir", takeDirectory vid, "--no-remove-outliers", "--no-breaking", "--no-sort"] ++ imgs
   runMyPhotoStack' args'
 
 runMyPhotoStackForDirs :: [FilePath] -> [String] -> IO ()
