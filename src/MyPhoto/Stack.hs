@@ -138,7 +138,7 @@ options =
       "Do not run untiff (default)",
     -- untiff
     Option
-     V""
+      ""
       ["unheif"]
       ( NoArg
           (\opt -> return opt {optUnHeif = True})
@@ -384,6 +384,10 @@ runMyPhotoStack'' startOpts actions startImgs = do
         guardByExtensions untiffExtensions $ do
           logInfo "run untiff"
           withImgsIO $ unTiff False
+      applyUnHeif = do
+        guardByExtensions unHeifExtensions $ do
+          logInfo "run unHeif"
+          withImgsIO $ unHeif False
       applyRemoveOutliers :: MyPhotoM ()
       applyRemoveOutliers = do
         logInfo "removing outliers"
