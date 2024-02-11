@@ -15,14 +15,14 @@ import System.FilePath
 import System.Process
 
 unHeifExtensions :: [String]
-unHeifExtensions = [".heif", ".heic"]
+unHeifExtensions = [".heif", ".heic", ".HIF", ".HEIF", ".HEIC"]
 
 calculateUnHeifedName :: Img -> Img
 calculateUnHeifedName = (`replaceExtension` "png")
 
 unHeifImpl1 :: Bool -> Img -> IO Img
 unHeifImpl1 removeHeif img =
-  let args = ["-q", "100"]
+  let args = ["--quality", "100"]
       png = calculateUnHeifedName img
    in do
         putStrLn (img ++ " --> " ++ png)
