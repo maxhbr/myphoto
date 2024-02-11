@@ -8,6 +8,7 @@ module MyPhoto.Model
     module List,
     module Default,
     module Char,
+    module X,
     Img,
     Imgs,
     WorkdirStrategy (..),
@@ -36,6 +37,7 @@ import System.Exit as Exit (ExitCode (..), exitWith)
 import System.FilePath as FilePath (makeRelative, splitExtensions, splitFileName, takeBaseName, takeDirectory, takeExtension, takeFileName, (-<.>), (<.>), (</>))
 import qualified System.IO as IO
 import System.Posix.LoadAvg (LoadAvg (..), getLoadAvgSafe)
+import MyPhoto.Utils.Samples as X
 
 logDebugIO :: String -> IO ()
 logDebugIO msg = IO.hPutStrLn IO.stderr ("DEBUG: " ++ msg)

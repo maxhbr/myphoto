@@ -30,32 +30,3 @@ focusStackImgs verbose additionalParameters imgs = do
             _workdir = focusStackWorkdir,
             _output = output
           }
-
---       createDirectoryIfMissing True focusStackWorkdir
---       putStrLn (unwords ["$ focus-stack", unwords parameters, "[img [img [...]]]"])
---       (_, _, _, ph) <-
---         createProcess
---           ( proc
---               "focus-stack"
---               (parameters ++ imgs)
---           )
---             { cwd = Just focusStackWorkdir
---             }
---       exitcode <- waitForProcess ph
---       if exitcode /= ExitSuccess
---         then do
---           fail $ "ERR: focus-stack exited with " ++ (show exitcode)
---         else do
---           return ()
---       exists <- doesFileExist outputName
---       unless exists $ do
---         fail $ "image not found: " ++ outputName
---   mapM_
---     ( \img -> do
---         exists <- doesFileExist img
---         unless exists $ do
---           fail $ "image not found: " ++ img
---     )
---     alignedImgs
-
---   return (outputName, alignedImgs)

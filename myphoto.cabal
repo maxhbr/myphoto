@@ -27,6 +27,7 @@ library
         MyPhoto.Model,
         MyPhoto.Utils.Chunking
     other-modules:
+        MyPhoto.Utils.Samples,
         MyPhoto.Actions.Align,
         MyPhoto.Actions.EnblendEnfuse,
         MyPhoto.Actions.Metadata,

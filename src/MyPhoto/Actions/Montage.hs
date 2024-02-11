@@ -1,5 +1,6 @@
 module MyPhoto.Actions.Montage
   ( montage,
+    montageSample 
   )
 where
 
@@ -34,3 +35,8 @@ montage xySize outputFileBN imgs =
             unless (exitCode == ExitSuccess) $
               fail ("Resize failed with " ++ show exitCode)
         return outputFile
+
+montageSample :: Int -> Int -> FilePath -> Imgs -> IO FilePath
+montageSample sampleSize xySize outputFileBN imgs =
+  let imgs' = sampleOfM sampleSize imgs
+   in montage xySize outputFileBN imgs'
