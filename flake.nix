@@ -22,6 +22,7 @@
       exiftool # for extracting metadata
       ffmpeg-headless # for extracting imgs from video
       libraw # for converting raw files like ARW to tiff, provides dcraw_emu
+      libheif # for converting heif files
     ];
     project = devTools:
       let addBuildTools = (t.flip hl.addBuildTools) devTools;

@@ -82,6 +82,7 @@ data Options = Options
     optRemoveOutliers :: Bool,
     optBreaking :: Maybe Int,
     optUntiff :: Bool,
+    optUnHeif :: Bool,
     optFocusStack :: Bool,
     optFocusStackBatchSize :: ChunkSettings,
     optEnfuse :: Bool,

@@ -22,6 +22,7 @@ import MyPhoto.Actions.Montage
 import MyPhoto.Actions.Outliers
 import MyPhoto.Actions.UnRAW
 import MyPhoto.Actions.UnTiff
+import MyPhoto.Actions.UnHeif
 import MyPhoto.Model
 import MyPhoto.Monad
 import MyPhoto.Video
@@ -135,6 +136,21 @@ options =
           (\opt -> return opt {optUntiff = False})
       )
       "Do not run untiff (default)",
+    -- untiff
+    Option
+     V""
+      ["unheif"]
+      ( NoArg
+          (\opt -> return opt {optUnHeif = True})
+      )
+      "Run unheif, to convert HEIF to png",
+    Option
+      ""
+      ["no-unheif"]
+      ( NoArg
+          (\opt -> return opt {optUnHeif = False})
+      )
+      "Do not run unheif (default)",
     -- focus stack
     Option
       ""
@@ -464,6 +480,7 @@ runMyPhotoStack'' startOpts actions startImgs = do
             )
             applyBreaking
           applyUnRAW
+          guardWithOpts optUnHeif applyUnHeif
           guardWithOpts optUntiff applyUnTiff
           guardWithOpts optRemoveOutliers applyRemoveOutliers
           createMontage
