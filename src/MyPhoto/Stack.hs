@@ -529,5 +529,5 @@ runMyPhotoStack = do
             _ -> error "invalid args"
       runMyPhotoStackForDirs dirs args''
     "--high-mpx" : args' -> do
-      runMyPhotoStack' (["--focus-stack-parameter=--batchsize=6" "--focus-stack-parameter=--threads=14"]++args')
+      runMyPhotoStack' (["--focus-stack-parameter=--batchsize=6", "--focus-stack-parameter=--threads=14"]++args')
     _ -> runMyPhotoStack' args
