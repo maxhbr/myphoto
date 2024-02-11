@@ -37,6 +37,7 @@ library
         MyPhoto.Actions.Outliers,
         MyPhoto.Actions.UnRAW,
         MyPhoto.Actions.UnTiff,
+        MyPhoto.Actions.UnHeif,
         MyPhoto.Wrapper.DcrawWrapper,
         MyPhoto.Wrapper.EnblendEnfuseWrapper,
         MyPhoto.Wrapper.FocusStackWrapper,
