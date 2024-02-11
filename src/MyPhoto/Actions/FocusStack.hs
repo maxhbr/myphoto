@@ -24,7 +24,8 @@ focusStackImgs verbose additionalParameters imgs = do
       runFocusStack
         FocusStackOptions
           { _verbose = verbose,
-            _cropping = FocusStackNoCrop,
+            -- _cropping = FocusStackNoCrop,
+            _cropping = FocusStackCroppingDefault,
             _additionalParameters = additionalParameters,
             _imgs = imgs,
             _workdir = focusStackWorkdir,
