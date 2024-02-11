@@ -243,6 +243,7 @@ options =
               IO.hPutStrLn IO.stderr "  IMG0 [IMG1]..."
 
               IO.hPutStrLn IO.stderr "  --dirs [ARG1[,ARG2[,...]] --] DIR1[,DIR2[,...]]"
+              IO.hPutStrLn IO.stderr "  --import-dir DIR [ARG1[,ARG2[,...]]]"
               IO.hPutStrLn IO.stderr "  --video VID [ARG1[,ARG2[,...]]]"
               IO.hPutStrLn IO.stderr "  --high-mpx [ARG1[,ARG2[,...]]]"
 
@@ -549,6 +550,12 @@ runMyPhotoStack = do
             [dirs] -> ([], dirs)
             _ -> error "invalid args"
       runMyPhotoStackForDirs dirs args''
+    "--import-dir" : dir: args' -> do
+      let basename = takeBaseName dir
+      exists <- doesFileExist dir
+      if exists
+        then runMyPhotoStack' (("--import=./0_raw_" ++ basename):args'++[dir])
+        else undefined
     "--high-mpx" : args' -> do
       runMyPhotoStack' (["--focus-stack-parameter=--batchsize=6", "--focus-stack-parameter=--threads=14"]++args')
     _ -> runMyPhotoStack' args
