@@ -20,9 +20,9 @@ import MyPhoto.Actions.FocusStack
 import MyPhoto.Actions.Metadata
 import MyPhoto.Actions.Montage
 import MyPhoto.Actions.Outliers
+import MyPhoto.Actions.UnHeif
 import MyPhoto.Actions.UnRAW
 import MyPhoto.Actions.UnTiff
-import MyPhoto.Actions.UnHeif
 import MyPhoto.Model
 import MyPhoto.Monad
 import MyPhoto.Video
@@ -196,10 +196,15 @@ options =
       ""
       ["enfuse-chunk-size"]
       ( ReqArg
-          (\arg opt -> return opt {optEnfuseChunkSettings = case read arg :: Int of
-                                                              0 -> NoChunks
-                                                              1 -> NoChunks
-                                                              n -> ChunkSize n})
+          ( \arg opt ->
+              return
+                opt
+                  { optEnfuseChunkSettings = case read arg :: Int of
+                      0 -> NoChunks
+                      1 -> NoChunks
+                      n -> ChunkSize n
+                  }
+          )
           "N"
       )
       "Chunk size for enfuse",
@@ -308,13 +313,12 @@ getWdAndMaybeMoveImgs = do
 getOutputBN :: MyPhotoM FilePath
 getOutputBN = computeStackOutputBN <$> getImgs
 
-
 failIfDirDoesNotExist :: FilePath -> IO ()
 failIfDirDoesNotExist dir = do
-        isExistingDirectory <- doesDirectoryExist dir
-        unless isExistingDirectory $ do
-          IO.hPutStrLn IO.stderr ("ERR: directory not found: " ++ dir)
-          exitWith (ExitFailure 1)
+  isExistingDirectory <- doesDirectoryExist dir
+  unless isExistingDirectory $ do
+    IO.hPutStrLn IO.stderr ("ERR: directory not found: " ++ dir)
+    exitWith (ExitFailure 1)
 
 runMyPhotoStack'' :: Options -> [Options -> IO Options] -> [String] -> IO FilePath
 runMyPhotoStack'' startOpts actions startImgs = do
@@ -330,14 +334,17 @@ runMyPhotoStack'' startOpts actions startImgs = do
               logInfo ("#images: " ++ show (length imgs'))
               putImgs imgs'
           _ -> return ()
+
       readActionsIntoOpts :: [Options -> IO Options] -> MyPhotoM ()
       readActionsIntoOpts actions = withOptsIO $ \opts -> foldl (>>=) (return opts) actions
+
       failIfNoImagesWereSpecified :: MyPhotoM ()
       failIfNoImagesWereSpecified = do
         imgs <- getImgs
         when (null imgs) $ MTL.liftIO $ do
           IO.hPutStrLn IO.stderr "no image specified"
           exitWith (ExitFailure 1)
+
       applyEveryNth :: MyPhotoM ()
       applyEveryNth = do
         opts <- getOpts
@@ -347,6 +354,7 @@ runMyPhotoStack'' startOpts actions startImgs = do
             imgs <- getImgs
             putImgs (everyNth n imgs)
           _ -> return ()
+
       makeImgsPathsAbsoluteAndCheckExistence :: MyPhotoM ()
       makeImgsPathsAbsoluteAndCheckExistence = do
         logDebug "makeImgsPathsAbsoluteAndCheckExistence"
@@ -360,6 +368,7 @@ runMyPhotoStack'' startOpts actions startImgs = do
                 makeAbsolute img
             )
             imgs
+
       sortOnCreateDate :: MyPhotoM ()
       sortOnCreateDate = do
         opts <- getOpts
@@ -370,6 +379,7 @@ runMyPhotoStack'' startOpts actions startImgs = do
             when (imgs /= imgs') $ do
               logWarnIO "WARN: sorting on date changed order"
             return imgs'
+
       applyBreaking :: MyPhotoM ()
       applyBreaking = do
         opts <- getOpts
@@ -385,23 +395,28 @@ runMyPhotoStack'' startOpts actions startImgs = do
                 imgs <- getImgs
                 broken <- MTL.liftIO $ breaking (optVerbose opts) gapInSeconds imgs
                 putImgs broken
+
       applyUnRAW = do
         guardByExtensions unrawExtensions $ do
           logInfo "run unraw"
           withImgsIO $ unRAW def
+
       applyUnTiff = do
         guardByExtensions untiffExtensions $ do
           logInfo "run untiff"
           withImgsIO $ unTiff False
+
       applyUnHeif = do
         guardByExtensions unHeifExtensions $ do
           logInfo "run unHeif"
           withImgsIO $ unHeif False
+
       applyRemoveOutliers :: MyPhotoM ()
       applyRemoveOutliers = do
         logInfo "removing outliers"
         wd <- getWdAndMaybeMoveImgs
         withImgsIO $ rmOutliers wd
+
       createMontage :: MyPhotoM ()
       createMontage = do
         logInfo "create montage"
@@ -415,6 +430,7 @@ runMyPhotoStack'' startOpts actions startImgs = do
         when (optWorkdirStrategy opts == MoveExistingImgsToSubfolder) $ do
           _ <- MTL.liftIO $ reverseLink (wd </> "..") [montageOut]
           return ()
+
       runFoucsStack :: MyPhotoM [FilePath]
       runFoucsStack = do
         logInfo "focus stacking (and aligning) with PetteriAimonen/focus-stack"
@@ -467,6 +483,7 @@ runMyPhotoStack'' startOpts actions startImgs = do
                 makeAbsolute out
             )
             outs
+
       maybeRedirectLogToLogFile :: MyPhotoM a -> MyPhotoM a
       maybeRedirectLogToLogFile action = do
         opts <- getOpts
@@ -555,10 +572,10 @@ runMyPhotoStack = do
             [dirs] -> ([], dirs)
             _ -> error "invalid args"
       runMyPhotoStackForDirs dirs args''
-    "--import-dir" : dir: args' -> do
+    "--import-dir" : dir : args' -> do
       failIfDirDoesNotExist dir
       let basename = takeFileName (dropTrailingPathSeparator dir)
-      runMyPhotoStack' (("--import=./0_raw_" ++ basename):args'++[dir])
+      runMyPhotoStack' (("--import=./0_raw_" ++ basename) : args' ++ [dir])
     "--high-mpx" : args' -> do
-      runMyPhotoStack' (["--focus-stack-parameter=--batchsize=6", "--focus-stack-parameter=--threads=14"]++args')
+      runMyPhotoStack' (["--focus-stack-parameter=--batchsize=6", "--focus-stack-parameter=--threads=14"] ++ args')
     _ -> runMyPhotoStack' args

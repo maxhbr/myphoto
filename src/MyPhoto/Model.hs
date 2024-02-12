@@ -32,12 +32,12 @@ import Data.Default as Default
 import Data.List as List (partition, sortOn)
 import Data.Map as Map (Map (..))
 import qualified Data.Maybe as Maybe (fromJust, isJust, mapMaybe, maybe)
+import MyPhoto.Utils.Samples as X
 import System.Directory as Directory (createDirectoryIfMissing, doesDirectoryExist, doesFileExist, listDirectory, makeAbsolute, setCurrentDirectory)
 import System.Exit as Exit (ExitCode (..), exitWith)
-import System.FilePath as FilePath (makeRelative, splitExtensions, splitFileName, takeBaseName, takeDirectory, takeExtension, takeFileName, dropTrailingPathSeparator, (-<.>), (<.>), (</>))
+import System.FilePath as FilePath (dropTrailingPathSeparator, makeRelative, splitExtensions, splitFileName, takeBaseName, takeDirectory, takeExtension, takeFileName, (-<.>), (<.>), (</>))
 import qualified System.IO as IO
 import System.Posix.LoadAvg (LoadAvg (..), getLoadAvgSafe)
-import MyPhoto.Utils.Samples as X
 
 logDebugIO :: String -> IO ()
 logDebugIO msg = IO.hPutStrLn IO.stderr ("DEBUG: " ++ msg)
@@ -71,7 +71,6 @@ data ChunkSettings
 
 instance Default ChunkSettings where
   def = ChunkSize 8
-
 
 data Options = Options
   { optVerbose :: Bool,

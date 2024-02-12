@@ -156,7 +156,7 @@ handleFinishedClusters oldState@(WatchForStacksState {wfsInFileClusters = oldClu
               let expectedWD = computeRawImportDirInWorkdir outdir imgs
               expectedWDExists <- MTL.liftIO $ doesDirectoryExist expectedWD
               if expectedWDExists
-                then do 
+                then do
                   MTL.liftIO . putStrLn $ "INFO: img already exists: " ++ expectedWD
                   return (expectedWD, cluster)
                 else do
@@ -176,8 +176,6 @@ handleFinishedClusters oldState@(WatchForStacksState {wfsInFileClusters = oldClu
               return (outdir, cluster)
       )
       unchanged
-
-
 
   let newFinishedClusters = unionWith (++) finishedClusters (fromListWith (++) newlyFinished)
   MTL.put $ wfss {wfsInFileClusters = changed, wfsFinishedClusters = newFinishedClusters}

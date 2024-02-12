@@ -1,4 +1,5 @@
 {-# LANGUAGE LambdaCase #-}
+
 module MyPhoto.Actions.EnblendEnfuse
   ( EnblendEnfuseOptions (..),
     EnblendEnfuseActionOptions (..),
@@ -13,16 +14,15 @@ import Control.Monad
 import Data.Char (toLower)
 import Data.List.Split (chunksOf)
 import Data.Maybe (fromMaybe)
-import MyPhoto.Model hiding (Options (..))
-import MyPhoto.Wrapper.EnblendEnfuseWrapper
-import MyPhoto.Utils.Chunking
 import MyPhoto.Actions.FileSystem (move)
+import MyPhoto.Model hiding (Options (..))
+import MyPhoto.Utils.Chunking
+import MyPhoto.Wrapper.EnblendEnfuseWrapper
 import System.Console.GetOpt
 import System.Directory
 import System.Exit
 import System.FilePath
 import System.Process
-
 
 data EnblendEnfuseActionOptions = EnblendEnfuseActionOptions
   { eeOptions :: EnblendEnfuseOptions,
@@ -97,10 +97,15 @@ enfuseStackImgs =
             putStrLn ("##### resolve Chunks ...")
             let (bn, ext) = splitExtensions (takeFileName outFile)
             let bnInWorkdir = workdir </> bn
-            result <- resolveChunks sem (\bn imgs -> do
-              let outFile = bn <.> ext
-              runEnblendEnfuseWithRetries 2 (eeOptions opts) outFile workdir imgs
-              ) bnInWorkdir chunks
+            result <-
+              resolveChunks
+                sem
+                ( \bn imgs -> do
+                    let outFile = bn <.> ext
+                    runEnblendEnfuseWithRetries 2 (eeOptions opts) outFile workdir imgs
+                )
+                bnInWorkdir
+                chunks
 
             case result of
               Right generatedInWorkdir -> do
@@ -108,7 +113,6 @@ enfuseStackImgs =
                 return (Right [outFile])
               Left err -> do
                 return (Left err)
-
    in \opts imgs -> do
         print opts
         numCapabilities <- getNumCapabilities

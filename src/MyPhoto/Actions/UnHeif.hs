@@ -40,4 +40,3 @@ unHeif :: Bool -> Imgs -> IO Imgs
 unHeif removeHeif imgs = do
   sem <- MS.new numCapabilities
   mapConcurrently (MS.with sem . unHeifImpl1 removeHeif) imgs
-

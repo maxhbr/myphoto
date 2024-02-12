@@ -1,6 +1,6 @@
 module MyPhoto.Actions.Montage
   ( montage,
-    montageSample 
+    montageSample,
   )
 where
 

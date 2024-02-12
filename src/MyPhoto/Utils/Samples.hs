@@ -1,6 +1,6 @@
 module MyPhoto.Utils.Samples
   ( everyNth,
-    sampleOfM
+    sampleOfM,
   )
 where
 
@@ -12,7 +12,7 @@ everyNth n (x : xs) =
         (y : ys) -> y : everyNth n ys
         [] -> [last xs | not (null xs)]
    in x : everyNth' n xs
-  
+
 sampleOfM :: Int -> [a] -> [a]
 sampleOfM _ [] = []
 sampleOfM m xs =
@@ -21,4 +21,3 @@ sampleOfM m xs =
    in if len <= m
         then xs
         else everyNth n xs
-
