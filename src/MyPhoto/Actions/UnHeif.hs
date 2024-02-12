@@ -25,13 +25,15 @@ unHeifImpl1 removeHeif img =
   let args = ["--quality", "100"]
       outImg = calculateUnHeifedName img
    in do
-        putStrLn (img ++ " --> " ++ outImg)
-        (_, _, _, pHandle) <- createProcess (proc "heif-convert" (args ++ [img, outImg]))
-        exitCode <- waitForProcess pHandle
-        unless (exitCode == ExitSuccess) $
-          fail ("UnHeif failed with " ++ show exitCode)
-        when removeHeif $
-          removeFile img
+        exists <- doesFileExist outImg
+        unless exists $ do
+          putStrLn (img ++ " --> " ++ outImg)
+          (_, _, _, pHandle) <- createProcess (proc "heif-convert" (args ++ [img, outImg]))
+          exitCode <- waitForProcess pHandle
+          unless (exitCode == ExitSuccess) $
+            fail ("UnHeif failed with " ++ show exitCode)
+          when removeHeif $
+            removeFile img
         return outImg
 
 unHeif :: Bool -> Imgs -> IO Imgs

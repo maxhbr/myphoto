@@ -34,13 +34,15 @@ unTiffImpl1 removeTiff img =
         ]
       png = calculateUntiffedName img
    in do
-        putStrLn (img ++ " --> " ++ png)
-        (_, _, _, pHandle) <- createProcess (proc "convert" (args ++ [img, png]))
-        exitCode <- waitForProcess pHandle
-        unless (exitCode == ExitSuccess) $
-          fail ("UnTiff failed with " ++ show exitCode)
-        when removeTiff $
-          removeFile img
+        exists <- doesFileExist png
+        unless exists $ do
+          putStrLn (img ++ " --> " ++ png)
+          (_, _, _, pHandle) <- createProcess (proc "convert" (args ++ [img, png]))
+          exitCode <- waitForProcess pHandle
+          unless (exitCode == ExitSuccess) $
+            fail ("UnTiff failed with " ++ show exitCode)
+          when removeTiff $
+            removeFile img
         return png
 
 unTiff :: Bool -> Imgs -> IO Imgs
