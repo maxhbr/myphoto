@@ -18,21 +18,21 @@ unHeifExtensions :: [String]
 unHeifExtensions = [".heif", ".heic", ".HIF", ".HEIF", ".HEIC"]
 
 calculateUnHeifedName :: Img -> Img
-calculateUnHeifedName = (`replaceExtension` "png")
+calculateUnHeifedName = (`replaceExtension` "jpg") -- jpgs are way faster then pngs ?!?
 
 unHeifImpl1 :: Bool -> Img -> IO Img
 unHeifImpl1 removeHeif img =
   let args = ["--quality", "100"]
-      png = calculateUnHeifedName img
+      outImg = calculateUnHeifedName img
    in do
-        putStrLn (img ++ " --> " ++ png)
-        (_, _, _, pHandle) <- createProcess (proc "heif-convert" (args ++ [img, png]))
+        putStrLn (img ++ " --> " ++ outImg)
+        (_, _, _, pHandle) <- createProcess (proc "heif-convert" (args ++ [img, outImg]))
         exitCode <- waitForProcess pHandle
         unless (exitCode == ExitSuccess) $
           fail ("UnHeif failed with " ++ show exitCode)
         when removeHeif $
           removeFile img
-        return png
+        return outImg
 
 unHeif :: Bool -> Imgs -> IO Imgs
 unHeif removeHeif imgs = do

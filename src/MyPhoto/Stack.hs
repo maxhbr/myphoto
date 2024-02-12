@@ -308,6 +308,14 @@ getWdAndMaybeMoveImgs = do
 getOutputBN :: MyPhotoM FilePath
 getOutputBN = computeStackOutputBN <$> getImgs
 
+
+failIfDirDoesNotExist :: FilePath -> IO ()
+failIfDirDoesNotExist dir = do
+        isExistingDirectory <- doesDirectoryExist dir
+        unless isExistingDirectory $ do
+          IO.hPutStrLn IO.stderr ("ERR: directory not found: " ++ dir)
+          exitWith (ExitFailure 1)
+
 runMyPhotoStack'' :: Options -> [Options -> IO Options] -> [String] -> IO FilePath
 runMyPhotoStack'' startOpts actions startImgs = do
   let readDirectoryIfOnlyOneWasSpecified :: MyPhotoM ()
@@ -526,10 +534,7 @@ runMyPhotoStackForDirs :: [FilePath] -> [String] -> IO ()
 runMyPhotoStackForDirs dirs args = do
   mapM_
     ( \dir -> do
-        isExistingDirectory <- doesDirectoryExist dir
-        unless isExistingDirectory $ do
-          IO.hPutStrLn IO.stderr ("directory not found: " ++ dir)
-          exitWith (ExitFailure 1)
+        failIfDirDoesNotExist dir
         runMyPhotoStack' (args ++ [dir])
     )
     dirs
@@ -551,11 +556,9 @@ runMyPhotoStack = do
             _ -> error "invalid args"
       runMyPhotoStackForDirs dirs args''
     "--import-dir" : dir: args' -> do
-      let basename = takeBaseName dir
-      exists <- doesFileExist dir
-      if exists
-        then runMyPhotoStack' (("--import=./0_raw_" ++ basename):args'++[dir])
-        else undefined
+      failIfDirDoesNotExist dir
+      let basename = takeFileName (dropTrailingPathSeparator dir)
+      runMyPhotoStack' (("--import=./0_raw_" ++ basename):args'++[dir])
     "--high-mpx" : args' -> do
       runMyPhotoStack' (["--focus-stack-parameter=--batchsize=6", "--focus-stack-parameter=--threads=14"]++args')
     _ -> runMyPhotoStack' args
