@@ -439,7 +439,7 @@ runMyPhotoStack'' startOpts actions startImgs = do
         let additionalParameters = Map.findWithDefault [] "focus-stack" (optParameters opts)
         (focusStacked, aligned) <- MTL.liftIO $ focusStackImgs (optVerbose opts) additionalParameters imgs
         addOut focusStacked
-        focusStackedAlignedOut <- MTL.liftIO $ montageSample 25 200 (focusStacked -<.> ".aligned") aligned
+        -- focusStackedAlignedOut <- MTL.liftIO $ montageSample 25 200 (focusStacked -<.> ".aligned") aligned
         return aligned
 
       runHuginAlign :: MyPhotoM [FilePath]
@@ -513,7 +513,7 @@ runMyPhotoStack'' startOpts actions startImgs = do
           guardWithOpts optUnHeif applyUnHeif
           guardWithOpts optUntiff applyUnTiff
           guardWithOpts optRemoveOutliers applyRemoveOutliers
-          createMontage
+          -- createMontage
           aligned <- do
             opts <- getOpts
             if optFocusStack opts
