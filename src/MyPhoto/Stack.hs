@@ -417,6 +417,7 @@ runMyPhotoStack'' startOpts actions startImgs = do
         wd <- getWdAndMaybeMoveImgs
         withImgsIO $ rmOutliers wd
 
+#if 0
       createMontage :: MyPhotoM ()
       createMontage = do
         logInfo "create montage"
@@ -430,6 +431,7 @@ runMyPhotoStack'' startOpts actions startImgs = do
         when (optWorkdirStrategy opts == MoveExistingImgsToSubfolder) $ do
           _ <- MTL.liftIO $ reverseLink (wd </> "..") [montageOut]
           return ()
+#endif
 
       runFoucsStack :: MyPhotoM [FilePath]
       runFoucsStack = do
@@ -439,7 +441,9 @@ runMyPhotoStack'' startOpts actions startImgs = do
         let additionalParameters = Map.findWithDefault [] "focus-stack" (optParameters opts)
         (focusStacked, aligned) <- MTL.liftIO $ focusStackImgs (optVerbose opts) additionalParameters imgs
         addOut focusStacked
-        -- focusStackedAlignedOut <- MTL.liftIO $ montageSample 25 200 (focusStacked -<.> ".aligned") aligned
+#if 0
+        focusStackedAlignedOut <- MTL.liftIO $ montageSample 25 200 (focusStacked -<.> ".aligned") aligned
+#endif
         return aligned
 
       runHuginAlign :: MyPhotoM [FilePath]
@@ -513,7 +517,9 @@ runMyPhotoStack'' startOpts actions startImgs = do
           guardWithOpts optUnHeif applyUnHeif
           guardWithOpts optUntiff applyUnTiff
           guardWithOpts optRemoveOutliers applyRemoveOutliers
-          -- createMontage
+#if 0
+          createMontage
+#endif
           aligned <- do
             opts <- getOpts
             if optFocusStack opts
