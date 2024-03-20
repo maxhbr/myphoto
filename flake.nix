@@ -85,6 +85,7 @@
               --set PATH ${pkgs.lib.makeBinPath extraLibraries}
           '';
         };
+        default = self.packages.${system}.myphoto;
     };
 
     apps.${system} = {
