@@ -220,11 +220,33 @@ watchForStacks useRaw offset indir outdir = do
 
   MTL.evalStateT watchForStacksLoop (WatchForStacksState extensions indir outdir minimalTime [] [] [] mempty)
 
+importStacksOnce :: Bool -> Int -> FilePath -> FilePath -> IO ()
+importStacksOnce useRaw offset indir outdir = do
+  putStrLn "importStacksOnce"
+  indirExists <- doesDirectoryExist indir
+  unless indirExists $ do
+    putStrLn $ "ERROR: indir does not exist: " ++ indir
+    exitWith (ExitFailure 1)
+  putStrLn $ "indir: " ++ indir
+  putStrLn $ "outdir: " ++ outdir
+
+  currentTime <- getCurrentTime
+  let currentSeconds = round (utcTimeToPOSIXSeconds currentTime)
+  let minimalTime = currentSeconds - offset
+  let extensions = if useRaw then unrawExtensions else jpgExtensions
+
+  MTL.evalStateT (do
+                    peekFiles
+                    state <- MTL.get
+                    handleFinishedClusters state ) (WatchForStacksState extensions indir outdir minimalTime [] [] [] mempty)
+
 runMyPhotoWatchForStacks :: IO ()
 runMyPhotoWatchForStacks = do
   let help = do
-        putStrLn "Usage: myphoto-watch <indir>"
-        putStrLn "Usage: myphoto-watch <indir> <outdir>"
+        putStrLn "Usage: myphoto-watch [--once|--raw] <indir>"
+        putStrLn "Usage: myphoto-watch [--once|--raw] <indir> <outdir>"
+        putStrLn "Usage: myphoto-watch -h"
+        putStrLn "Usage: myphoto-watch --help"
   args <- getArgs
   let hAgo = 60 * 60 -- 1 h ago
   let h12Ago = hAgo * 12 -- 12 h ago
@@ -237,6 +259,8 @@ runMyPhotoWatchForStacks = do
       exitWith ExitSuccess
     ["--raw", indir] -> watchForStacks True h12Ago indir "."
     ["--raw", indir, outdir] -> watchForStacks True h12Ago indir outdir
+    ["--once", indir] -> importStacksOnce False h12Ago indir "."
+    ["--once", indir, outdir] -> importStacksOnce False h12Ago indir outdir
     [indir] -> watchForStacks False h12Ago indir "."
     [indir, outdir] -> watchForStacks False h12Ago indir outdir
     _ -> do
