@@ -66,6 +66,20 @@ options =
       "import to work directory",
     Option
       ""
+      ["export"]
+      ( NoArg
+          (\opt -> return opt {optExport = Export})
+      )
+      "export to new work directory next to input directory",
+    Option
+      ""
+      ["export-and-clean"]
+      ( NoArg
+          (\opt -> return opt {optExport = ExportAndClean})
+      )
+      "export to new work directory next to input directory",
+    Option
+      ""
       ["every-nth", "sparse"]
       ( ReqArg
           (\arg opt -> return opt {optEveryNth = Just (read arg :: Int)})
@@ -230,7 +244,7 @@ options =
       ( NoArg
           (\opt -> return opt {optRedirectLog = True})
       )
-      "Enable verbose messages",
+      "Redirect log to log file in work directory",
     Option
       "v"
       ["verbose"]
@@ -474,6 +488,22 @@ runMyPhotoStack'' startOpts actions startImgs = do
           Left err -> fail err
           Right enfuseOuts -> addOuts enfuseOuts
 
+      maybeExport :: MyPhotoM ()
+      maybeExport = do
+        opts <- getOpts
+        let exportStrategy = optExport opts
+        when (exportStrategy /= NoExport) $ do
+          logInfo "exporting images"
+          imgs <- getImgs
+          let outputDir = "../0_stacked"
+          case exportStrategy of
+            Export -> do
+              MTL.liftIO $ reverseLink outputDir imgs
+              logDebug ("exported to " ++ outputDir)
+            ExportAndClean -> do
+              MTL.liftIO $ move outputDir imgs
+              logError "cleaned original images after export not yet implemented"
+
       makeOutsPathsAbsolute :: MyPhotoM ()
       makeOutsPathsAbsolute = do
         logDebug "makeOutsPathsAbsolute"
@@ -526,12 +556,15 @@ runMyPhotoStack'' startOpts actions startImgs = do
               then runFoucsStack
               else runHuginAlign
           guardWithOpts optEnfuse $ runEnfuse aligned
+          maybeExport
           makeOutsPathsAbsolute
+          logInfo "finished stateFun"
 
         getWdAndMaybeMoveImgs
 
   (wd, endState) <- MTL.runStateT stateFun (startMyPhotoState startOpts startImgs)
   print endState
+  appendFile (wd </> "myphoto.states") (show endState)
   return wd
 
 runMyPhotoStack' :: [String] -> IO ()

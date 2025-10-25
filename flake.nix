@@ -74,9 +74,17 @@
             makeWrapper ${self.packages.${system}.myphoto-unwrapped}/bin/myphoto-stack $out/bin/myphoto-stack-inplace \
               --set PATH ${pkgs.lib.makeBinPath extraLibraries} \
               --add-flags "--inplace"
+            makeWrapper ${self.packages.${system}.myphoto-unwrapped}/bin/myphoto-stack $out/bin/myphoto-stack-inplace-0 \
+              --set PATH ${pkgs.lib.makeBinPath extraLibraries} \
+              --add-flags "--inplace" \
+              --add-flags "--export"
             makeWrapper ${self.packages.${system}.myphoto-unwrapped}/bin/myphoto-stack $out/bin/myphoto-stack-replace \
               --set PATH ${pkgs.lib.makeBinPath extraLibraries} \
               --add-flags "--replace"
+            makeWrapper ${self.packages.${system}.myphoto-unwrapped}/bin/myphoto-stack $out/bin/myphoto-stack-replace-0 \
+              --set PATH ${pkgs.lib.makeBinPath extraLibraries} \
+              --add-flags "--replace" \
+              --add-flags "--export"
             makeWrapper ${self.packages.${system}.myphoto-unwrapped}/bin/myphoto-stack $out/bin/myphoto-stack-dirs \
               --set PATH ${pkgs.lib.makeBinPath extraLibraries} \
               --add-flags "--dirs"

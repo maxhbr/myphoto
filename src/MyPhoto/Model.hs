@@ -12,6 +12,7 @@ module MyPhoto.Model
     Img,
     Imgs,
     WorkdirStrategy (..),
+    ExportStrategy (..),
     ChunkSettings (..),
     Options (..),
     computeStackOutputBN,
@@ -64,6 +65,12 @@ data WorkdirStrategy
     WorkdirStrategyOverwrite FilePath
   deriving (Show, Eq)
 
+data ExportStrategy
+  = NoExport
+  | Export
+  | ExportAndClean
+  deriving (Show, Eq)
+
 data ChunkSettings
   = ChunkSize Int
   | NoChunks
@@ -76,6 +83,7 @@ data Options = Options
   { optVerbose :: Bool,
     optRedirectLog :: Bool,
     optWorkdirStrategy :: WorkdirStrategy,
+    optExport :: ExportStrategy,
     optEveryNth :: Maybe Int,
     optSortOnCreateDate :: Bool,
     optRemoveOutliers :: Bool,
