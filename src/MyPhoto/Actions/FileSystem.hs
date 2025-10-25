@@ -3,11 +3,12 @@ module MyPhoto.Actions.FileSystem
     move,
     link,
     reverseLink,
+    removeRecursive,
   )
 where
 
 import MyPhoto.Model
-import System.Directory (copyFile, createDirectoryIfMissing, createFileLink, renameFile)
+import System.Directory (copyFile, createDirectoryIfMissing, createFileLink, renameFile, removeDirectoryRecursive)
 import System.FilePath (replaceDirectory)
 
 getPathInTargetFolder :: FilePath -> FilePath -> IO FilePath
@@ -57,3 +58,7 @@ reverseLink =
         createFileLinkRelative img' img
         return img'
     )
+
+removeRecursive :: FilePath -> IO ()
+removeRecursive path = do
+  removeDirectoryRecursive path

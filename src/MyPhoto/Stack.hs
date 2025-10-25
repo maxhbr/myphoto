@@ -275,6 +275,13 @@ options =
 computeRawImportDirInWorkdir :: FilePath -> Imgs -> FilePath
 computeRawImportDirInWorkdir wd imgs = wd </> computeStackOutputBN imgs <.> "raw"
 
+getWdOrFail :: MyPhotoM FilePath
+getWdOrFail = do
+  wd <- MTL.gets myPhotoStateWd
+  case wd of
+    Just wd -> return wd
+    Nothing -> error "working directory not yet set"
+
 getWdAndMaybeMoveImgs :: MyPhotoM FilePath
 getWdAndMaybeMoveImgs = do
   wd <- MTL.gets myPhotoStateWd
@@ -313,7 +320,7 @@ getWdAndMaybeMoveImgs = do
           Options {optEveryNth = everyNth} <- getOpts
           when (isJust everyNth) $ do
             fail "cannot import images to subfolder when --every-nth is specified"
-          MTL.liftIO $ createDirectoryIfMissing True wd
+          MTL.lremoveRecursiveiftIO $ createDirectoryIfMissing True wd
           absWd <- MTL.liftIO $ makeAbsolute wd
           imgs <- getImgs
           let indir = computeRawImportDirInWorkdir absWd imgs
@@ -488,9 +495,10 @@ runMyPhotoStack'' startOpts actions startImgs = do
           Left err -> fail err
           Right enfuseOuts -> addOuts enfuseOuts
 
-      maybeExport :: MyPhotoM ()
-      maybeExport = do
+      maybeExport :: FilePath -> MyPhotoM ()
+      maybeExport wd = do
         opts <- getOpts
+        wd <- getWdOrFail
         let exportStrategy = optExport opts
         when (exportStrategy /= NoExport) $ do
           logInfo "exporting images"
@@ -501,7 +509,9 @@ runMyPhotoStack'' startOpts actions startImgs = do
               MTL.liftIO $ reverseLink outputDir imgs
               logDebug ("exported to " ++ outputDir)
             ExportAndClean -> do
-              MTL.liftIO $ move outputDir imgs
+              MTL.liftIO $ do
+                move outputDir imgs
+                removeRecursive wd
               logError "cleaned original images after export not yet implemented"
 
       makeOutsPathsAbsolute :: MyPhotoM ()
