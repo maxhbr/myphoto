@@ -166,8 +166,10 @@ handleFinishedClusters oldState@(WatchForStacksState {wfsInFileClusters = oldClu
                       catch
                         (runMyPhotoStack'' opts [] (map wfsfPath cluster))
                         ( \e -> do
+                            let output = outdir </> (computeStackOutputBN imgs)
                             putStrLn $ "ERROR: " ++ show (e :: SomeException)
-                            return (outdir </> (computeStackOutputBN imgs))
+                            appendFile (output ++ ".exceptions") (show e ++ "\n")
+                            return output
                         )
                   return (wd, cluster)
             else do
