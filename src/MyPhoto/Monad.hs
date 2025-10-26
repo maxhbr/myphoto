@@ -23,7 +23,8 @@ instance Default Options where
     Options
       { optVerbose = False,
         optRedirectLog = False,
-        optWorkdirStrategy = CreateNextToImgDir,
+        optWorkdirStrategy = def,
+        optExport = def,
         optEveryNth = Nothing,
         optSortOnCreateDate = True,
         optRemoveOutliers = False,

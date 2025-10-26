@@ -64,12 +64,16 @@ data WorkdirStrategy
   | -- | ParentOfImgFiles
     WorkdirStrategyOverwrite FilePath
   deriving (Show, Eq)
+instance Default WorkdirStrategy where
+  def = CreateNextToImgDir
 
 data ExportStrategy
   = NoExport
   | Export
   | ExportAndClean
   deriving (Show, Eq)
+instance Default ExportStrategy where
+  def = NoExport
 
 data ChunkSettings
   = ChunkSize Int

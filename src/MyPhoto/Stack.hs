@@ -320,7 +320,7 @@ getWdAndMaybeMoveImgs = do
           Options {optEveryNth = everyNth} <- getOpts
           when (isJust everyNth) $ do
             fail "cannot import images to subfolder when --every-nth is specified"
-          MTL.lremoveRecursiveiftIO $ createDirectoryIfMissing True wd
+          MTL.liftIO $ createDirectoryIfMissing True wd
           absWd <- MTL.liftIO $ makeAbsolute wd
           imgs <- getImgs
           let indir = computeRawImportDirInWorkdir absWd imgs
@@ -495,8 +495,8 @@ runMyPhotoStack'' startOpts actions startImgs = do
           Left err -> fail err
           Right enfuseOuts -> addOuts enfuseOuts
 
-      maybeExport :: FilePath -> MyPhotoM ()
-      maybeExport wd = do
+      maybeExport :: MyPhotoM ()
+      maybeExport = do
         opts <- getOpts
         wd <- getWdOrFail
         let exportStrategy = optExport opts
@@ -506,13 +506,18 @@ runMyPhotoStack'' startOpts actions startImgs = do
           let outputDir = "../0_stacked"
           case exportStrategy of
             Export -> do
-              MTL.liftIO $ reverseLink outputDir imgs
-              logDebug ("exported to " ++ outputDir)
+              logInfo $ "Export to " ++ outputDir
+              _ <- MTL.liftIO $ reverseLink outputDir imgs
+              return ()
             ExportAndClean -> do
+              logInfo $ "Export to " ++ outputDir ++ " and clean workdir"
               MTL.liftIO $ do
                 move outputDir imgs
                 removeRecursive wd
               logError "cleaned original images after export not yet implemented"
+              return ()
+          return ()
+        return ()
 
       makeOutsPathsAbsolute :: MyPhotoM ()
       makeOutsPathsAbsolute = do

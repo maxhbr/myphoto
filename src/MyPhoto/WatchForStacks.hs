@@ -146,6 +146,7 @@ handleFinishedClusters oldState@(WatchForStacksState {wfsInFileClusters = oldClu
                       { optVerbose = False,
                         optRedirectLog = False,
                         optWorkdirStrategy = ImportToWorkdir outdir,
+                        optExport = def,
                         optEveryNth = Nothing,
                         optSortOnCreateDate = True,
                         optRemoveOutliers = False,
@@ -243,8 +244,7 @@ importStacksOnce useRaw offset indir outdir = do
 runMyPhotoWatchForStacks :: IO ()
 runMyPhotoWatchForStacks = do
   let help = do
-        putStrLn "Usage: myphoto-watch [--once|--raw] <indir>"
-        putStrLn "Usage: myphoto-watch [--once|--raw] <indir> <outdir>"
+        putStrLn "Usage: myphoto-watch [--once|--raw] <indir> [<outdir>]"
         putStrLn "Usage: myphoto-watch -h"
         putStrLn "Usage: myphoto-watch --help"
   args <- getArgs
