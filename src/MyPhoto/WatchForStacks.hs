@@ -143,16 +143,8 @@ handleFinishedClusters oldState@(WatchForStacksState {wfsInFileClusters = oldClu
               let imgs = map wfsfPath cluster
               let opts =
                     def
-                      { optVerbose = False,
-                        optRedirectLog = False,
-                        optWorkdirStrategy = ImportToWorkdir outdir,
-                        optExport = def,
-                        optEveryNth = Nothing,
-                        optSortOnCreateDate = True,
-                        optRemoveOutliers = False,
-                        optBreaking = Nothing,
-                        optFocusStack = True,
-                        optEnfuse = True
+                      { optWorkdirStrategy = ImportToWorkdir outdir,
+                        optRedirectLog = False 
                       }
               let expectedWD = computeRawImportDirInWorkdir outdir imgs
               expectedWDExists <- MTL.liftIO $ doesDirectoryExist expectedWD

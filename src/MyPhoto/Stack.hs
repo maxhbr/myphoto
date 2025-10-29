@@ -442,7 +442,7 @@ runMyPhotoStack'' startOpts actions startImgs = do
       createShellScript = do
         wd <- getWdAndMaybeMoveImgs
         imgs <- getImgs
-        script <- MTL.liftIO $ makeAbsolute (computeStackOutputBN imgs)
+        script <- MTL.liftIO $ makeAbsolute (computeStackOutputBN imgs ++ ".sh")
         logInfo ("creating shell script at " ++ script)
         MTL.liftIO $ do
           exe <- getExecutablePath
@@ -452,25 +452,23 @@ runMyPhotoStack'' startOpts actions startImgs = do
                     "set -euo pipefail",
                     "imgs=(" ++ (unwords (map (\img -> "\"" ++ img ++ "\"") imgs)) ++ ")",
                     "cd \"$(dirname \"$0\")\"",
-                    "exec " ++ exe ++ " --workdir \"$(pwd)\" \"$@\" \"${imgs[@]}\""
+                    "exec " ++ exe ++ " --workdir \"$(pwd)\" --no-remove-outliers --no-breaking --no-sort \"$@\" \"${imgs[@]}\""
                   ]
           IO.writeFile script scriptContent
 
-      -- #if 0
-      --       createMontage :: MyPhotoM ()
-      --       createMontage = do
-      --         logInfo "create montage"
-      --         outputBN <- getOutputBN
-      --         imgs <- getImgs
-      --         wd <- getWdAndMaybeMoveImgs
-      --         montageOut <- MTL.liftIO $ montageSample 25 200 (inWorkdir wd (outputBN <.> "all")) imgs
-      --         logInfo ("wrote " ++ montageOut)
+      createMontage :: MyPhotoM ()
+      createMontage = do
+        logInfo "create montage"
+        outputBN <- getOutputBN
+        imgs <- getImgs
+        wd <- getWdAndMaybeMoveImgs
+        montageOut <- MTL.liftIO $ montageSample 25 200 (inWorkdir wd (outputBN <.> "all")) imgs
+        logInfo ("wrote " ++ montageOut)
 
-      --         opts <- getOpts
-      --         when (optWorkdirStrategy opts == MoveExistingImgsToSubfolder) $ do
-      --           _ <- MTL.liftIO $ reverseLink (wd </> "..") [montageOut]
-      --           return ()
-      -- #endif
+        opts <- getOpts
+        when (optWorkdirStrategy opts == MoveExistingImgsToSubfolder) $ do
+          _ <- MTL.liftIO $ reverseLink (wd </> "..") [montageOut]
+          return ()
 
       runFoucsStack :: MyPhotoM [FilePath]
       runFoucsStack = do
@@ -581,9 +579,7 @@ runMyPhotoStack'' startOpts actions startImgs = do
           guardWithOpts optUntiff applyUnTiff
           guardWithOpts optRemoveOutliers applyRemoveOutliers
           createShellScript
-          -- #if 0
-          --           createMontage
-          -- #endif
+          createMontage
           aligned <- do
             opts <- getOpts
             if optFocusStack opts

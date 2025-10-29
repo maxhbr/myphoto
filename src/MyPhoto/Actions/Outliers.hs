@@ -25,7 +25,7 @@ computImgVec :: Int -> FilePath -> Img -> IO (Img, [Int])
 computImgVec size tmpdir img = do
   let ppmFile = tmpdir </> (takeFileName img ++ ".ppm")
 
-  (_, _, _, pHandle) <- createProcess (proc "convert" [img, "-resize", show size ++ "x" ++ show size ++ "!", ppmFile])
+  (_, _, _, pHandle) <- createProcess (proc "magick" [img, "-resize", show size ++ "x" ++ show size ++ "!", ppmFile])
   exitCode <- waitForProcess pHandle
   unless (exitCode == ExitSuccess) $
     fail ("Resize failed with " ++ show exitCode)

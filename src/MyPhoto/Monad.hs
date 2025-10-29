@@ -27,7 +27,7 @@ instance Default Options where
         optExport = def,
         optEveryNth = Nothing,
         optSortOnCreateDate = True,
-        optRemoveOutliers = False,
+        optRemoveOutliers = True,
         optBreaking = Nothing,
         optUntiff = False,
         optUnHeif = True,
