@@ -238,10 +238,13 @@ importStacksOnce useRaw offset indir outdir = do
   let minimalTime = currentSeconds - offset
   let extensions = if useRaw then unrawExtensions else jpgExtensions
 
-  MTL.evalStateT (do
-                    peekFiles
-                    state <- MTL.get
-                    handleFinishedClusters state ) (WatchForStacksState extensions indir outdir minimalTime [] [] [] mempty)
+  MTL.evalStateT
+    ( do
+        peekFiles
+        state <- MTL.get
+        handleFinishedClusters state
+    )
+    (WatchForStacksState extensions indir outdir minimalTime [] [] [] mempty)
 
 runMyPhotoWatchForStacks :: IO ()
 runMyPhotoWatchForStacks = do

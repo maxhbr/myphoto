@@ -64,6 +64,7 @@ data WorkdirStrategy
   | -- | ParentOfImgFiles
     WorkdirStrategyOverwrite FilePath
   deriving (Show, Eq)
+
 instance Default WorkdirStrategy where
   def = CreateNextToImgDir
 
@@ -72,6 +73,7 @@ data ExportStrategy
   | Export
   | ExportAndClean
   deriving (Show, Eq)
+
 instance Default ExportStrategy where
   def = NoExport
 

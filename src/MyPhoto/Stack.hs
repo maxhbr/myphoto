@@ -27,7 +27,7 @@ import MyPhoto.Model
 import MyPhoto.Monad
 import MyPhoto.Video
 import System.Console.GetOpt
-import System.Environment (getArgs, getProgName, withArgs)
+import System.Environment (getArgs, getExecutablePath, getProgName, withArgs)
 import qualified System.IO as IO
 
 options :: [OptDescr (Options -> IO Options)]
@@ -397,7 +397,7 @@ runMyPhotoStack'' startOpts actions startImgs = do
           logDebug "sorting on create date"
           withImgsIO $ \imgs -> do
             imgs' <- sortByCreateDate (optVerbose opts) imgs
-            when (imgs /= imgs') $ do
+            when (imgs /= imgs' && imgs /= reverse imgs') $ do
               logWarnIO "WARN: sorting on date changed order"
             return imgs'
 
@@ -438,21 +438,39 @@ runMyPhotoStack'' startOpts actions startImgs = do
         wd <- getWdAndMaybeMoveImgs
         withImgsIO $ rmOutliers wd
 
-#if 0
-      createMontage :: MyPhotoM ()
-      createMontage = do
-        logInfo "create montage"
-        outputBN <- getOutputBN
-        imgs <- getImgs
+      createShellScript :: MyPhotoM ()
+      createShellScript = do
         wd <- getWdAndMaybeMoveImgs
-        montageOut <- MTL.liftIO $ montageSample 25 200 (inWorkdir wd (outputBN <.> "all")) imgs
-        logInfo ("wrote " ++ montageOut)
+        imgs <- getImgs
+        script <- MTL.liftIO $ makeAbsolute (computeStackOutputBN imgs)
+        logInfo ("creating shell script at " ++ script)
+        MTL.liftIO $ do
+          exe <- getExecutablePath
+          let scriptContent =
+                unlines $
+                  [ "#!/usr/bin/env bash",
+                    "set -euo pipefail",
+                    "imgs=(" ++ (unwords (map (\img -> "\"" ++ img ++ "\"") imgs)) ++ ")",
+                    "cd \"$(dirname \"$0\")\"",
+                    "exec " ++ exe ++ " --workdir \"$(pwd)\" \"$@\" \"${imgs[@]}\""
+                  ]
+          IO.writeFile script scriptContent
 
-        opts <- getOpts
-        when (optWorkdirStrategy opts == MoveExistingImgsToSubfolder) $ do
-          _ <- MTL.liftIO $ reverseLink (wd </> "..") [montageOut]
-          return ()
-#endif
+      -- #if 0
+      --       createMontage :: MyPhotoM ()
+      --       createMontage = do
+      --         logInfo "create montage"
+      --         outputBN <- getOutputBN
+      --         imgs <- getImgs
+      --         wd <- getWdAndMaybeMoveImgs
+      --         montageOut <- MTL.liftIO $ montageSample 25 200 (inWorkdir wd (outputBN <.> "all")) imgs
+      --         logInfo ("wrote " ++ montageOut)
+
+      --         opts <- getOpts
+      --         when (optWorkdirStrategy opts == MoveExistingImgsToSubfolder) $ do
+      --           _ <- MTL.liftIO $ reverseLink (wd </> "..") [montageOut]
+      --           return ()
+      -- #endif
 
       runFoucsStack :: MyPhotoM [FilePath]
       runFoucsStack = do
@@ -462,9 +480,9 @@ runMyPhotoStack'' startOpts actions startImgs = do
         let additionalParameters = Map.findWithDefault [] "focus-stack" (optParameters opts)
         (focusStacked, aligned) <- MTL.liftIO $ focusStackImgs (optVerbose opts) additionalParameters imgs
         addOut focusStacked
-#if 0
-        focusStackedAlignedOut <- MTL.liftIO $ montageSample 25 200 (focusStacked -<.> ".aligned") aligned
-#endif
+        -- #if 0
+        --         focusStackedAlignedOut <- MTL.liftIO $ montageSample 25 200 (focusStacked -<.> ".aligned") aligned
+        -- #endif
         return aligned
 
       runHuginAlign :: MyPhotoM [FilePath]
@@ -562,9 +580,10 @@ runMyPhotoStack'' startOpts actions startImgs = do
           guardWithOpts optUnHeif applyUnHeif
           guardWithOpts optUntiff applyUnTiff
           guardWithOpts optRemoveOutliers applyRemoveOutliers
-#if 0
-          createMontage
-#endif
+          createShellScript
+          -- #if 0
+          --           createMontage
+          -- #endif
           aligned <- do
             opts <- getOpts
             if optFocusStack opts
