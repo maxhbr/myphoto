@@ -17,6 +17,7 @@ import MyPhoto.Video
 import System.Console.GetOpt
 import System.Environment (getArgs, getProgName, withArgs)
 import qualified System.IO as IO
+import Data.Time.Clock (UTCTime, getCurrentTime, diffUTCTime)
 
 instance Default Options where
   def =
@@ -42,7 +43,9 @@ data MyPhotoState = MyPhotoState
   { myPhotoStateOpts :: Options,
     myPhotoStateImgs :: Imgs,
     myPhotoStateOuts :: Imgs,
-    myPhotoStateWd :: Maybe FilePath
+    myPhotoStateWd :: Maybe FilePath,
+    myPhotoStartTime :: UTCTime,
+    myPhotoLastLogTime :: UTCTime
   }
 
 instance Show MyPhotoState where
@@ -57,13 +60,16 @@ instance Show MyPhotoState where
       ++ show (myPhotoStateWd s)
       ++ "\n}"
 
-startMyPhotoState :: Options -> Imgs -> MyPhotoState
-startMyPhotoState startOptions' imgs =
-  MyPhotoState
+startMyPhotoState :: Options -> Imgs -> IO MyPhotoState
+startMyPhotoState startOptions' imgs = do
+  startTime <- getCurrentTime
+  return $ MyPhotoState
     { myPhotoStateOpts = startOptions',
       myPhotoStateImgs = imgs,
       myPhotoStateOuts = [],
-      myPhotoStateWd = Nothing
+      myPhotoStateWd = Nothing,
+      myPhotoStartTime = startTime,
+      myPhotoLastLogTime = startTime
     }
 
 type MyPhotoM = MTL.StateT MyPhotoState IO
@@ -145,6 +151,16 @@ withOutsIO f = do
 
 setWd :: FilePath -> MyPhotoM ()
 setWd wd = MTL.modify (\s -> s {myPhotoStateWd = Just wd})
+
+logTimeSinceStart :: String -> MyPhotoM ()
+logTimeSinceStart msg = do
+  startTime <- MTL.gets myPhotoStartTime
+  lastLogTime <- MTL.gets myPhotoLastLogTime
+  currentTime <- MTL.liftIO getCurrentTime
+  let diff = diffUTCTime currentTime startTime
+  let diffSinceLastLog = diffUTCTime currentTime lastLogTime
+  logInfo $ msg ++ " (elapsed time: " ++ show diff ++ ", elapsed since last log: " ++ show diffSinceLastLog ++ ")"
+  MTL.modify (\s -> s {myPhotoLastLogTime = currentTime})
 
 redirectLogToLogFile :: MyPhotoM a -> MyPhotoM a
 redirectLogToLogFile action = do

@@ -417,27 +417,32 @@ runMyPhotoStack'' startOpts actions startImgs = do
                 imgs <- getImgs
                 broken <- MTL.liftIO $ breaking (optVerbose opts) gapInSeconds imgs
                 putImgs broken
+                logTimeSinceStart "after applyBreaking"
 
       applyUnRAW = do
         guardByExtensions unrawExtensions $ do
           logInfo "run unraw"
           withImgsIO $ unRAW def
+          logTimeSinceStart "after runUnraw"
 
       applyUnTiff = do
         guardByExtensions untiffExtensions $ do
           logInfo "run untiff"
           withImgsIO $ unTiff False
+          logTimeSinceStart "after runUntiff"
 
       applyUnHeif = do
         guardByExtensions unHeifExtensions $ do
           logInfo "run unHeif"
           withImgsIO $ unHeif False
+          logTimeSinceStart "after runUnHeif"
 
       applyRemoveOutliers :: MyPhotoM ()
       applyRemoveOutliers = do
         logInfo "removing outliers"
         wd <- getWdAndMaybeMoveImgs
         withImgsIO $ rmOutliers wd
+        logTimeSinceStart "after applyRemoveOutliers"
 
       createShellScript :: MyPhotoM ()
       createShellScript = do
@@ -471,9 +476,10 @@ runMyPhotoStack'' startOpts actions startImgs = do
         when (optWorkdirStrategy opts == MoveExistingImgsToSubfolder) $ do
           _ <- MTL.liftIO $ reverseLink (wd </> "..") [montageOut]
           return ()
+        logTimeSinceStart "after createMontage"
 
-      runFoucsStack :: MyPhotoM [FilePath]
-      runFoucsStack = do
+      runFocusStack :: MyPhotoM [FilePath]
+      runFocusStack = do
         logInfo "focus stacking (and aligning) with PetteriAimonen/focus-stack"
         imgs <- getImgs
         opts <- getOpts
@@ -483,6 +489,7 @@ runMyPhotoStack'' startOpts actions startImgs = do
         -- #if 0
         --         focusStackedAlignedOut <- MTL.liftIO $ montageSample 25 200 (focusStacked -<.> ".aligned") aligned
         -- #endif
+        logTimeSinceStart "after runFocusStack"
         return aligned
 
       runHuginAlign :: MyPhotoM [FilePath]
@@ -492,6 +499,7 @@ runMyPhotoStack'' startOpts actions startImgs = do
         opts <- getOpts
         wd <- getWdAndMaybeMoveImgs
         aligned <- MTL.liftIO $ align (optVerbose opts) wd imgs
+        logTimeSinceStart "after runHuginAlign"
         return aligned
 
       runEnfuse :: [FilePath] -> MyPhotoM ()
@@ -512,6 +520,7 @@ runMyPhotoStack'' startOpts actions startImgs = do
         case enfuseResult of
           Left err -> fail err
           Right enfuseOuts -> addOuts enfuseOuts
+        logTimeSinceStart "after runEnfuse"
 
       maybeExport :: MyPhotoM ()
       maybeExport = do
@@ -585,16 +594,17 @@ runMyPhotoStack'' startOpts actions startImgs = do
           aligned <- do
             opts <- getOpts
             if optFocusStack opts
-              then runFoucsStack
+              then runFocusStack
               else runHuginAlign
           guardWithOpts optEnfuse $ runEnfuse aligned
           maybeExport
           makeOutsPathsAbsolute
-          logInfo "finished stateFun"
+          logTimeSinceStart "finished stateFun"
 
         getWdAndMaybeMoveImgs
 
-  (wd, endState) <- MTL.runStateT stateFun (startMyPhotoState startOpts startImgs)
+  startState <- MTL.liftIO $ startMyPhotoState startOpts startImgs
+  (wd, endState) <- MTL.runStateT stateFun startState
   print endState
   appendFile (wd </> "myphoto.states") (show endState)
   return wd
