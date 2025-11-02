@@ -4,7 +4,8 @@ import Control.Concurrent as Thread
 import Control.Exception (SomeException, catch)
 import qualified Control.Monad.State.Lazy as MTL
 import Data.Map (Map, fromList, fromListWith, toList, union, unionWith)
-import Data.Time.Clock.POSIX (getCurrentTime, utcTimeToPOSIXSeconds, posixSecondsToUTCTime)
+import qualified Data.Map as Map
+import Data.Time.Clock.POSIX (getCurrentTime, posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
 import MyPhoto.Actions.FileSystem (copy)
 import MyPhoto.Actions.Metadata
 import MyPhoto.Actions.UnRAW (unrawExtensions)
@@ -58,7 +59,7 @@ analyzeFile :: FilePath -> IO WatchForStacksFile
 analyzeFile p = do
   Metadata _ exifTimeSeconds <- getMetadaFromImg False p
   let isoDate = posixSecondsToUTCTime (fromIntegral exifTimeSeconds)
-  putStrLn $ "analyzeFile: " ++ p ++ " ("  ++ show exifTimeSeconds ++ ")"
+  putStrLn $ "analyzeFile: " ++ p ++ " (" ++ show exifTimeSeconds ++ ")"
   return $ WatchForStacksFile p exifTimeSeconds
 
 findCloseClusters :: Int -> [[WatchForStacksFile]] -> ([[WatchForStacksFile]], [[WatchForStacksFile]])
@@ -142,10 +143,18 @@ handleFinishedClusters oldState@(WatchForStacksState {wfsInFileClusters = oldClu
             then do
               MTL.liftIO . putStrLn $ "INFO: work on " ++ bn ++ " of size " ++ show (length cluster)
               let imgs = map wfsfPath cluster
+              -- for now always assume high mpx, TODO: should be flag or detected
+              let highMpxParameters =
+                    Map.fromList
+                      [ ( "focus-stack",
+                          ["--batchsize=6", "--threads=14"]
+                        )
+                      ]
               let opts =
                     def
                       { optWorkdirStrategy = ImportToWorkdir outdir,
-                        optRedirectLog = False 
+                        optRedirectLog = False,
+                        optParameters = highMpxParameters
                       }
               let expectedWD = computeRawImportDirInWorkdir outdir imgs
               expectedWDExists <- MTL.liftIO $ doesDirectoryExist expectedWD

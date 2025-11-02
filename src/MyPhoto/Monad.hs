@@ -4,6 +4,7 @@ import Control.Concurrent (getNumCapabilities)
 import qualified Control.Monad.State.Lazy as MTL
 import Data.List.Split (splitOn)
 import qualified Data.Map as Map
+import Data.Time.Clock (UTCTime, diffUTCTime, getCurrentTime)
 import qualified GHC.IO.Handle as IO
 import MyPhoto.Actions.Align
 import MyPhoto.Actions.EnblendEnfuse
@@ -17,7 +18,6 @@ import MyPhoto.Video
 import System.Console.GetOpt
 import System.Environment (getArgs, getProgName, withArgs)
 import qualified System.IO as IO
-import Data.Time.Clock (UTCTime, getCurrentTime, diffUTCTime)
 
 instance Default Options where
   def =
@@ -63,14 +63,15 @@ instance Show MyPhotoState where
 startMyPhotoState :: Options -> Imgs -> IO MyPhotoState
 startMyPhotoState startOptions' imgs = do
   startTime <- getCurrentTime
-  return $ MyPhotoState
-    { myPhotoStateOpts = startOptions',
-      myPhotoStateImgs = imgs,
-      myPhotoStateOuts = [],
-      myPhotoStateWd = Nothing,
-      myPhotoStartTime = startTime,
-      myPhotoLastLogTime = startTime
-    }
+  return $
+    MyPhotoState
+      { myPhotoStateOpts = startOptions',
+        myPhotoStateImgs = imgs,
+        myPhotoStateOuts = [],
+        myPhotoStateWd = Nothing,
+        myPhotoStartTime = startTime,
+        myPhotoLastLogTime = startTime
+      }
 
 type MyPhotoM = MTL.StateT MyPhotoState IO
 

@@ -10,9 +10,9 @@ where
 
 import Control.Concurrent (getNumCapabilities)
 import qualified Control.Monad.State.Lazy as MTL
+import Data.List (isInfixOf)
 import Data.List.Split (splitOn)
 import qualified Data.Map as Map
-import Data.List (isInfixOf)
 import Data.Maybe (isJust)
 import MyPhoto.Actions.Align
 import MyPhoto.Actions.EnblendEnfuse
