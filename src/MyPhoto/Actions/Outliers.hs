@@ -41,7 +41,9 @@ computImgVec size tmpdir img = do
 computImgsVecs :: Int -> FilePath -> [Img] -> IO [(Img, [Int])]
 computImgsVecs size tmpdir imgs = do
   capabilities <- getNumCapabilities
-  sem <- MS.new capabilities
+  let actualCapabilities = if capabilities > 4 then capabilities - 4 else capabilities
+  putStrLn $ "Using " ++ show actualCapabilities ++ " (of " ++ show capabilities ++ ") concurrent threads for outlier detection"
+  sem <- MS.new actualCapabilities
   mapConcurrently (MS.with sem . computImgVec size tmpdir) imgs
 
 rmOutliers :: FilePath -> Imgs -> IO Imgs

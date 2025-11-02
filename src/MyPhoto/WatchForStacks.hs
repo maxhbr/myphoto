@@ -4,7 +4,7 @@ import Control.Concurrent as Thread
 import Control.Exception (SomeException, catch)
 import qualified Control.Monad.State.Lazy as MTL
 import Data.Map (Map, fromList, fromListWith, toList, union, unionWith)
-import Data.Time.Clock.POSIX (getCurrentTime, utcTimeToPOSIXSeconds)
+import Data.Time.Clock.POSIX (getCurrentTime, utcTimeToPOSIXSeconds, posixSecondsToUTCTime)
 import MyPhoto.Actions.FileSystem (copy)
 import MyPhoto.Actions.Metadata
 import MyPhoto.Actions.UnRAW (unrawExtensions)
@@ -56,8 +56,9 @@ knowsFile img = do
 
 analyzeFile :: FilePath -> IO WatchForStacksFile
 analyzeFile p = do
-  putStrLn $ "analyzeFile: " ++ p
   Metadata _ exifTimeSeconds <- getMetadaFromImg False p
+  let isoDate = posixSecondsToUTCTime (fromIntegral exifTimeSeconds)
+  putStrLn $ "analyzeFile: " ++ p ++ " ("  ++ show exifTimeSeconds ++ ")"
   return $ WatchForStacksFile p exifTimeSeconds
 
 findCloseClusters :: Int -> [[WatchForStacksFile]] -> ([[WatchForStacksFile]], [[WatchForStacksFile]])

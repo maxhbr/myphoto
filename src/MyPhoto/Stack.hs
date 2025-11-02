@@ -12,6 +12,7 @@ import Control.Concurrent (getNumCapabilities)
 import qualified Control.Monad.State.Lazy as MTL
 import Data.List.Split (splitOn)
 import qualified Data.Map as Map
+import Data.List (isInfixOf)
 import Data.Maybe (isJust)
 import MyPhoto.Actions.Align
 import MyPhoto.Actions.EnblendEnfuse
@@ -446,13 +447,14 @@ runMyPhotoStack'' startOpts actions startImgs = do
         logInfo ("creating shell script at " ++ script)
         MTL.liftIO $ do
           exe <- getExecutablePath
+          let cmd = if "-stack" `isInfixOf` exe then exe else "myphoto-stack"
           let scriptContent =
                 unlines $
                   [ "#!/usr/bin/env bash",
                     "set -euo pipefail",
                     "imgs=(" ++ (unwords (map (\img -> "\"" ++ img ++ "\"") imgs)) ++ ")",
                     "cd \"$(dirname \"$0\")\"",
-                    "exec " ++ exe ++ " --workdir \"$(pwd)\" --no-remove-outliers --no-breaking --no-sort \"$@\" \"${imgs[@]}\""
+                    "exec " ++ cmd ++ " --workdir \"$(pwd)\" --no-remove-outliers --no-breaking --no-sort \"$@\" \"${imgs[@]}\""
                   ]
           IO.writeFile script scriptContent
 

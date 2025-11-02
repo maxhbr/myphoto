@@ -83,9 +83,10 @@ align verbose wd imgs = do
       mkOutImgName i = inWorkdir alignWD (printf (prefix ++ "_ALIGN-%04d-%04d.tif") i (length imgs))
 
   withTempDirectory
-    wd
+    alignWD
     ("_align_" ++ show (length imgs) ++ ".tmp")
     ( \tmpdir -> do
+        createDirectoryIfMissing True tmpdir
         imgsInTmp <- callAlignImageStackByHalves alignArgs tmpdir imgs
 
         imgsInTmp' <-
