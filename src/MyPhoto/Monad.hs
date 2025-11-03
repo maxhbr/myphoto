@@ -4,6 +4,7 @@ import Control.Concurrent (getNumCapabilities)
 import qualified Control.Monad.State.Lazy as MTL
 import Data.List.Split (splitOn)
 import qualified Data.Map as Map
+import Data.List (nub)
 import Data.Time.Clock (UTCTime, diffUTCTime, getCurrentTime)
 import qualified GHC.IO.Handle as IO
 import MyPhoto.Actions.Align
@@ -139,16 +140,25 @@ getOuts :: MyPhotoM Imgs
 getOuts = MTL.gets myPhotoStateOuts
 
 addOut :: FilePath -> MyPhotoM ()
-addOut out = MTL.modify (\s -> s {myPhotoStateOuts = myPhotoStateOuts s ++ [out]})
+addOut out = MTL.modify (\s -> s {myPhotoStateOuts = nub (myPhotoStateOuts s ++ [out])})
 
 addOuts :: [FilePath] -> MyPhotoM ()
-addOuts outs = MTL.modify (\s -> s {myPhotoStateOuts = myPhotoStateOuts s ++ outs})
+addOuts outs = MTL.modify (\s -> s {myPhotoStateOuts = nub (myPhotoStateOuts s ++ outs)})
+
+replaceOuts :: Imgs -> MyPhotoM ()
+replaceOuts outs = MTL.modify (\s -> s {myPhotoStateOuts = outs})
 
 withOutsIO :: (Imgs -> IO Imgs) -> MyPhotoM ()
 withOutsIO f = do
   outs <- getOuts
   outs' <- MTL.liftIO $ f outs
   addOuts outs'
+
+withOutsReplaceIO :: (Imgs -> IO Imgs) -> MyPhotoM ()
+withOutsReplaceIO f = do
+  outs <- getOuts
+  outs' <- MTL.liftIO $ f outs
+  replaceOuts outs'
 
 setWd :: FilePath -> MyPhotoM ()
 setWd wd = MTL.modify (\s -> s {myPhotoStateWd = Just wd})

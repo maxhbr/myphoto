@@ -13,7 +13,7 @@ import System.Process
 
 montage :: Int -> FilePath -> Imgs -> IO FilePath
 montage xySize outputFileBN imgs =
-  let (bn, ext) = splitExtensions outputFileBN
+  let (bn, _) = splitExtensions outputFileBN
       outputFile = outputFileBN ++ "_MONTAGE.png"
    in do
         alreadyExists <- doesFileExist outputFile

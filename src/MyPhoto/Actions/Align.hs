@@ -15,6 +15,8 @@ import System.IO.Temp
 import System.Process
 import Text.Printf
 
+import MyPhoto.Actions.Metadata (getMetadataFromImgs, Metadata (..))
+
 callAlignImageStack :: [String] -> String -> [Img] -> IO [Img]
 callAlignImageStack alignArgs prefix imgs =
   let args = alignArgs ++ ["-a", prefix]
@@ -57,6 +59,49 @@ copyAndRenameImages renamer imgs =
     )
     (zip imgs [1 ..])
 
+growImage :: (Int,Int) -> FilePath -> Img -> IO Img
+growImage (targetW, targetH) wd img = do
+  let (bn, ext) = splitExtensions (takeBaseName img)
+      outImg = inWorkdir wd (bn ++ "_GROWN" ++ ext)
+      geometryStr = printf "%dx%d" targetW targetH
+  putStrLn ("growing " ++ img ++ " to " ++ geometryStr ++ " into " ++ outImg)
+  (_, _, _, pHandle) <-
+    createProcess
+      ( proc
+          "convert"
+          [ img,
+            "-background",
+            "black",
+            "-gravity",
+            "center",
+            "-extent",
+            geometryStr,
+            outImg
+          ]
+      )
+  exitCode <- waitForProcess pHandle
+  unless (exitCode == ExitSuccess) $
+    fail ("growing image failed with " ++ show exitCode)
+  return outImg
+
+makeAllImagesTheSameSize :: FilePath -> Imgs -> IO Imgs
+makeAllImagesTheSameSize wd imgs =
+  do
+    metadatas <- getMetadataFromImgs False imgs
+    let sizes = map (\(Metadata { _imageSize = size }) -> size) metadatas
+        maxWidth = maximum (map fst sizes)
+        maxHeight = maximum (map snd sizes)
+    if all (\(w, h) -> w == maxWidth && h == maxHeight) sizes
+      then return imgs
+      else 
+        mapM
+          ( \Metadata { _img = img, _imageSize = (w, h) } -> do
+              if w == maxWidth && h == maxHeight
+                then return img
+                else growImage (maxWidth, maxHeight) wd img
+          )
+          metadatas
+
 align :: Bool -> FilePath -> Imgs -> IO Imgs
 align _ _ [] = return []
 align verbose wd imgs = do
@@ -87,7 +132,8 @@ align verbose wd imgs = do
     ("_align_" ++ show (length imgs) ++ ".tmp")
     ( \tmpdir -> do
         createDirectoryIfMissing True tmpdir
-        imgsInTmp <- callAlignImageStackByHalves alignArgs tmpdir imgs
+        grownImgs <- makeAllImagesTheSameSize tmpdir imgs
+        imgsInTmp <- callAlignImageStackByHalves alignArgs tmpdir grownImgs
 
         imgsInTmp' <-
           concat

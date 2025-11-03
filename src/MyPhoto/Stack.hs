@@ -441,13 +441,22 @@ runMyPhotoStack'' startOpts actions startImgs = do
       applyRemoveOutliers = do
         logInfo "removing outliers"
         wd <- getWdAndMaybeMoveImgs
-        withImgsIO $ rmOutliers wd
-        logTimeSinceStart "after applyRemoveOutliers"
+        imgs <- getImgs
+        metadatas <- MTL.liftIO $ getMetadataFromImgs False imgs
+        let anyFlashWasFired = any (\(Metadata { _flashFired = flashFired }) -> flashFired) metadatas
+        if anyFlashWasFired
+          then do
+            withImgsIO $ rmOutliers wd
+            logTimeSinceStart "after applyRemoveOutliers"
+          else do
+            logInfo "skipping outlier removal because no flash was fired in any image"
+            return ()
 
       createShellScript :: MyPhotoM ()
       createShellScript = do
         wd <- getWdAndMaybeMoveImgs
         imgs <- getImgs
+        imgsRelativeToWd <- MTL.liftIO $ mapM (makeRelativeTo wd) imgs
         script <- MTL.liftIO $ makeAbsolute (computeStackOutputBN imgs ++ ".sh")
         logInfo ("creating shell script at " ++ script)
         MTL.liftIO $ do
@@ -457,7 +466,7 @@ runMyPhotoStack'' startOpts actions startImgs = do
                 unlines $
                   [ "#!/usr/bin/env bash",
                     "set -euo pipefail",
-                    "imgs=(" ++ (unwords (map (\img -> "\"" ++ img ++ "\"") imgs)) ++ ")",
+                    "imgs=(" ++ (unwords (map (\img -> "\"" ++ img ++ "\"") imgsRelativeToWd)) ++ ")",
                     "cd \"$(dirname \"$0\")\"",
                     "exec " ++ cmd ++ " --workdir \"$(pwd)\" --no-remove-outliers --no-breaking --no-sort \"$@\" \"${imgs[@]}\""
                   ]
@@ -546,10 +555,18 @@ runMyPhotoStack'' startOpts actions startImgs = do
           return ()
         return ()
 
+      alignOuts :: MyPhotoM ()
+      alignOuts = do
+        logInfo "align outputs"
+        opts <- getOpts
+        wd <- getWdOrFail
+        withOutsReplaceIO $ \outs -> do
+          align (optVerbose opts) wd outs
+
       makeOutsPathsAbsolute :: MyPhotoM ()
       makeOutsPathsAbsolute = do
         logDebug "makeOutsPathsAbsolute"
-        withOutsIO $ \outs -> do
+        withOutsReplaceIO $ \outs -> do
           mapM
             ( \out -> do
                 exists <- doesFileExist out
@@ -598,6 +615,7 @@ runMyPhotoStack'' startOpts actions startImgs = do
               else runHuginAlign
           guardWithOpts optEnfuse $ runEnfuse aligned
           maybeExport
+          alignOuts
           makeOutsPathsAbsolute
           logTimeSinceStart "finished stateFun"
 

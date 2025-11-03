@@ -7,18 +7,8 @@ module MyPhoto.Wrapper.EnblendEnfuseWrapper
   )
 where
 
-import Control.Concurrent (getNumCapabilities)
-import Control.Concurrent.Async (mapConcurrently)
-import Control.Concurrent.MSem as MS
 import Control.Monad
-import Data.Char (toLower)
-import Data.List.Split (chunksOf)
-import Data.Maybe (fromMaybe)
 import MyPhoto.Model hiding (Options (..))
-import System.Console.GetOpt
-import System.Directory
-import System.Exit
-import System.FilePath
 import System.Process
 
 data Projection

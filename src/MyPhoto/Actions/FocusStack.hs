@@ -3,11 +3,9 @@ module MyPhoto.Actions.FocusStack
   )
 where
 
-import qualified Data.Map as Map
 import MyPhoto.Model
 import MyPhoto.Wrapper.FocusStackWrapper
 import qualified System.IO as IO
-import System.Process
 
 focusStackImgs :: Bool -> [String] -> [FilePath] -> IO (FilePath, [FilePath])
 focusStackImgs verbose additionalParameters imgs = do
@@ -25,6 +23,8 @@ focusStackImgs verbose additionalParameters imgs = do
         FocusStackOptions
           { _verbose = verbose,
             -- _cropping = FocusStackNoCrop,
+            _3DView = True,
+            _depthMap = True,
             _cropping = FocusStackCroppingDefault,
             _additionalParameters = additionalParameters,
             _imgs = imgs,

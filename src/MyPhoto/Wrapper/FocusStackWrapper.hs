@@ -6,9 +6,7 @@ module MyPhoto.Wrapper.FocusStackWrapper
   )
 where
 
-import qualified Data.Map as Map
 import MyPhoto.Model
-import qualified System.IO as IO
 import System.Process
 
 data FocusStackCropping
@@ -19,6 +17,8 @@ data FocusStackCropping
 
 data FocusStackOptions = FocusStackOptions
   { _verbose :: Bool,
+    _depthMap :: Bool,
+    _3DView :: Bool,
     _cropping :: FocusStackCropping,
     _additionalParameters :: [String],
     _imgs :: Imgs,
@@ -31,6 +31,8 @@ focusStackOptionsToArgs :: FocusStackOptions -> [String]
 focusStackOptionsToArgs
   FocusStackOptions
     { _verbose = verbose,
+      _depthMap = depthMap,
+      _3DView = d3DView,
       _cropping = cropping,
       _additionalParameters = additionalParameters,
       _output = output
@@ -40,10 +42,11 @@ focusStackOptionsToArgs
           FocusStackCroppingDefault -> []
           FocusStackAlignKeepSize -> ["--align-keep-size"]
           FocusStackNoCrop -> ["--nocrop"]
-        outputOpt = ["--output=" ++ output, "--save-steps", "--jpgquality=100"]
-     in -- ("--depthmap=" ++ output ++ ".depthmap.png"),
-        -- ("--3dview=" ++ output ++ ".3dviewpt.png"),
-        verbosityOpt ++ croppingOpt ++ outputOpt ++ additionalParameters
+        outputOpt = ["--output=" ++ output] ++
+                     (if depthMap then ["--depthmap=" ++ output ++ ".depthmap.png"] else []) ++
+                     (if d3DView then ["--3dview=" ++ output ++ ".3dviewpt.png"] else []) ++
+                     ["--save-steps", "--jpgquality=100"]
+     in verbosityOpt ++ croppingOpt ++ outputOpt ++ additionalParameters
 
 computeAlignedImgs :: FilePath -> Imgs -> [FilePath]
 computeAlignedImgs workdir = map (\img -> workdir </> "aligned_" ++ takeFileName img)
@@ -51,10 +54,7 @@ computeAlignedImgs workdir = map (\img -> workdir </> "aligned_" ++ takeFileName
 runFocusStack :: FocusStackOptions -> IO (FilePath, [FilePath])
 runFocusStack
   opts@FocusStackOptions
-    { _verbose = verbose,
-      _cropping = cropping,
-      _additionalParameters = additionalParameters,
-      _imgs = imgs,
+    { _imgs = imgs,
       _workdir = workdir,
       _output = output
     } = do
@@ -72,15 +72,15 @@ runFocusStack
     exitcode <- waitForProcess ph
     when (exitcode /= ExitSuccess) $ do
       fail $ "ERR: focus-stack exited with " ++ (show exitcode)
-    exists <- doesFileExist output
-    unless exists $ do
+    outputExists <- doesFileExist output
+    unless outputExists $ do
       fail $ "image not found: " ++ output
 
     let alignedImgs = computeAlignedImgs workdir imgs
     mapM_
       ( \img -> do
-          exists <- doesFileExist img
-          unless exists $ do
+          imgExists <- doesFileExist img
+          unless imgExists $ do
             fail $ "image not found: " ++ img
       )
       alignedImgs

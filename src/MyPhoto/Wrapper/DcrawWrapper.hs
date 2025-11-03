@@ -25,7 +25,7 @@ getImageSize img =
   let imageSizePrefix = "Image size:  "
    in do
         putStrLn ("calculate image size from " ++ img)
-        (exitCode, out, err) <- runDcraw ["-v", "-i", img]
+        (exitCode, out, _) <- runDcraw ["-v", "-i", img]
         case exitCode of
           ExitSuccess -> case find (imageSizePrefix `isPrefixOf`) (lines out) of
             Just l ->

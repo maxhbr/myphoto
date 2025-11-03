@@ -5,12 +5,8 @@ module MyPhoto.Actions.UnRAW
 where
 
 import Control.Monad
-import Data.Maybe (maybe)
 import MyPhoto.Model
 import MyPhoto.Wrapper.DcrawWrapper
-import System.Exit
-import System.FilePath
-import System.Process
 
 unrawExtensions :: [String]
 unrawExtensions = [".arw", ".raw", ".nef"]

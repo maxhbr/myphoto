@@ -8,7 +8,7 @@ module MyPhoto.Actions.FileSystem
 where
 
 import MyPhoto.Model
-import System.Directory (copyFile, createDirectoryIfMissing, createFileLink, removeDirectoryRecursive, renameFile)
+import System.Directory (copyFile, createFileLink, removeDirectoryRecursive, renameFile)
 import System.FilePath (replaceDirectory)
 
 getPathInTargetFolder :: FilePath -> FilePath -> IO FilePath
