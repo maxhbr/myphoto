@@ -23,8 +23,8 @@ focusStackImgs verbose additionalParameters imgs = do
         FocusStackOptions
           { _verbose = verbose,
             -- _cropping = FocusStackNoCrop,
-            _3DView = True,
-            _depthMap = True,
+            _3DView = False,
+            _depthMap = False,
             _cropping = FocusStackCroppingDefault,
             _additionalParameters = additionalParameters,
             _imgs = imgs,

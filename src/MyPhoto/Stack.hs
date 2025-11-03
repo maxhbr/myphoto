@@ -614,8 +614,8 @@ runMyPhotoStack'' startOpts actions startImgs = do
               then runFocusStack
               else runHuginAlign
           guardWithOpts optEnfuse $ runEnfuse aligned
-          maybeExport
           alignOuts
+          maybeExport
           makeOutsPathsAbsolute
           logTimeSinceStart "finished stateFun"
 
