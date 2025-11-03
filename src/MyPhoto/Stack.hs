@@ -456,7 +456,7 @@ runMyPhotoStack'' startOpts actions startImgs = do
       createShellScript = do
         wd <- getWdAndMaybeMoveImgs
         imgs <- getImgs
-        imgsRelativeToWd <- MTL.liftIO $ mapM (makeRelativeTo wd) imgs
+        let imgsRelativeToWd = map (makeRelative wd) imgs
         script <- MTL.liftIO $ makeAbsolute (computeStackOutputBN imgs ++ ".sh")
         logInfo ("creating shell script at " ++ script)
         MTL.liftIO $ do
@@ -507,7 +507,7 @@ runMyPhotoStack'' startOpts actions startImgs = do
         imgs <- getImgs
         opts <- getOpts
         wd <- getWdAndMaybeMoveImgs
-        aligned <- MTL.liftIO $ align (optVerbose opts) wd imgs
+        aligned <- MTL.liftIO $ align (AlignOptions (optVerbose opts) AlignNamingStrategySequential) wd imgs
         logTimeSinceStart "after runHuginAlign"
         return aligned
 
@@ -561,7 +561,7 @@ runMyPhotoStack'' startOpts actions startImgs = do
         opts <- getOpts
         wd <- getWdOrFail
         withOutsReplaceIO $ \outs -> do
-          align (optVerbose opts) wd outs
+          align (AlignOptions (optVerbose opts) AlignNamingStrategyOriginal) wd outs
 
       makeOutsPathsAbsolute :: MyPhotoM ()
       makeOutsPathsAbsolute = do

@@ -26,14 +26,13 @@ data Metadata
   = Metadata
   { _img :: Img,
     _createDate :: Int,
-    _imageSize :: (Int, Int),
     _flashFired :: Bool
   }
   deriving (Show)
 
 instance A.FromJSON Metadata where
   parseJSON = A.withObject "Reslt" $ \v ->
-    Metadata <$> v A..: "SourceFile" <*> v A..: "CreateDate" <*> v A..: "ImageSize" <*> v A..: "FlashFired"
+    Metadata <$> v A..: "SourceFile" <*> v A..: "CreateDate" <*> v A..: "FlashFired"
 
 getMetadataFromImg :: Bool -> Img -> IO Metadata
 getMetadataFromImg verbose img = do
@@ -47,12 +46,10 @@ getMetadataFromImg verbose img = do
           maybeValueToInt :: Maybe ExifValue -> Int
           maybeValueToInt (Just (ExifNumber i)) = i
           maybeValueToInt _                     = 0
-          width = maybeValueToInt (Map.lookup exifImageWidth exif)
-          height = maybeValueToInt (Map.lookup exifImageHeight exif)
           flashFired = case wasFlashFired exif of
                          Just True -> True
                          _         -> False
-      return (Metadata img createDate (width, height) flashFired)
+      return (Metadata img createDate flashFired)
     Left errorMessage -> fail $ "Error reading EXIF data: " ++ errorMessage
 
 getMetadataFromImgs :: Bool -> [Img] -> IO [Metadata]

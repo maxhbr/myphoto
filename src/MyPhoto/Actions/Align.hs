@@ -1,5 +1,7 @@
 module MyPhoto.Actions.Align
   ( align,
+    AlignOptions (..),
+    AlignNamingStrategy (..)
   )
 where
 
@@ -16,6 +18,16 @@ import System.Process
 import Text.Printf
 
 import MyPhoto.Actions.Metadata (getMetadataFromImgs, Metadata (..))
+
+data AlignNamingStrategy
+  = AlignNamingStrategyOriginal
+  | AlignNamingStrategySequential
+  deriving (Eq, Show)
+
+data AlignOptions = AlignOptions
+  { alignOptVerbose :: Bool
+  , alignOptNamingStrategy :: AlignNamingStrategy
+  }
 
 callAlignImageStack :: [String] -> String -> [Img] -> IO [Img]
 callAlignImageStack alignArgs prefix imgs =
@@ -59,9 +71,19 @@ copyAndRenameImages renamer imgs =
     )
     (zip imgs [1 ..])
 
+getImageSize :: IO Img -> IO (Int, Int)
+getImageSize ioImg = do
+  img <- ioImg
+  output <- readProcess "identify" ["-ping", "-format", "%w %h", img] ""
+  let [width, height] = words output
+  return (read width, read height)
+
+getImagesSize :: Imgs -> IO [(Img, (Int, Int))]
+getImagesSize imgs = mapM (\img -> do size <- getImageSize (return img); return (img, size)) imgs
+
 growImage :: (Int,Int) -> FilePath -> Img -> IO Img
 growImage (targetW, targetH) wd img = do
-  let (bn, ext) = splitExtensions (takeBaseName img)
+  let (bn, ext) = splitExtensions img
       outImg = inWorkdir wd (bn ++ "_GROWN" ++ ext)
       geometryStr = printf "%dx%d" targetW targetH
   putStrLn ("growing " ++ img ++ " to " ++ geometryStr ++ " into " ++ outImg)
@@ -71,7 +93,7 @@ growImage (targetW, targetH) wd img = do
           "convert"
           [ img,
             "-background",
-            "black",
+            "transparent",
             "-gravity",
             "center",
             "-extent",
@@ -87,31 +109,31 @@ growImage (targetW, targetH) wd img = do
 makeAllImagesTheSameSize :: FilePath -> Imgs -> IO Imgs
 makeAllImagesTheSameSize wd imgs =
   do
-    metadatas <- getMetadataFromImgs False imgs
-    let sizes = map (\(Metadata { _imageSize = size }) -> size) metadatas
+    imgsWithSize <- getImagesSize imgs
+    let sizes = map snd imgsWithSize
         maxWidth = maximum (map fst sizes)
         maxHeight = maximum (map snd sizes)
     if all (\(w, h) -> w == maxWidth && h == maxHeight) sizes
       then return imgs
       else 
         mapM
-          ( \Metadata { _img = img, _imageSize = (w, h) } -> do
+          ( \(img, (w, h)) -> do
               if w == maxWidth && h == maxHeight
                 then return img
                 else growImage (maxWidth, maxHeight) wd img
           )
-          metadatas
+          imgsWithSize
 
-align :: Bool -> FilePath -> Imgs -> IO Imgs
+align :: AlignOptions -> FilePath -> Imgs -> IO Imgs
 align _ _ [] = return []
-align verbose wd imgs = do
+align opts wd imgs = do
   let imgBN = computeStackOutputBN imgs
   let alignWD = wd </> imgBN <.> "align"
   createDirectoryIfMissing True alignWD
 
   -- TODO: look at: https://photo.stackexchange.com/a/83179
   let alignArgs =
-        ["-v" | verbose]
+        ["-v" | alignOptVerbose opts]
           ++ [ "--use-given-order",
                "-l", -- Assume linear input files
                "-c",
@@ -125,7 +147,11 @@ align verbose wd imgs = do
 
   let prefix = dropExtension (head imgs)
       mkOutImgName :: Int -> String
-      mkOutImgName i = inWorkdir alignWD (printf (prefix ++ "_ALIGN-%04d-%04d.tif") i (length imgs))
+      mkOutImgName i = case alignOptNamingStrategy opts of
+        AlignNamingStrategyOriginal -> let
+            (bn, ext) = splitExtensions (imgs !! (i - 1))
+          in inWorkdir wd (bn ++ "_ALIGNED" ++ ext)
+        AlignNamingStrategySequential -> inWorkdir alignWD (printf (prefix ++ "_ALIGN-%04d-%04d.tif") i (length imgs))
 
   withTempDirectory
     alignWD
