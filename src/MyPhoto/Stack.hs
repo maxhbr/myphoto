@@ -562,7 +562,12 @@ runMyPhotoStack'' startOpts actions startImgs = do
         opts <- getOpts
         wd <- getWdOrFail
         withOutsReplaceIO $ \outs -> do
-          align (AlignOptions (optVerbose opts) AlignNamingStrategyOriginal True) wd outs
+          if null outs
+            then do
+              logInfoIO "no outputs to align"
+              return outs
+            else
+              align (AlignOptions (optVerbose opts) AlignNamingStrategyOriginal True) wd outs
 
       makeOutsPathsAbsolute :: MyPhotoM ()
       makeOutsPathsAbsolute = do
@@ -609,15 +614,20 @@ runMyPhotoStack'' startOpts actions startImgs = do
           guardWithOpts optRemoveOutliers applyRemoveOutliers
           createShellScript
           createMontage
-          aligned <- do
-            opts <- getOpts
-            if optFocusStack opts
-              then runFocusStack
-              else runHuginAlign
-          guardWithOpts optEnfuse $ runEnfuse aligned
-          alignOuts
-          maybeExport
-          makeOutsPathsAbsolute
+          guardWithOpts
+            ( \opts ->
+                (optFocusStack opts || optEnfuse opts)
+            )
+            $ do
+              opts <- getOpts
+              aligned <- do
+                if optFocusStack opts
+                  then runFocusStack
+                  else runHuginAlign
+              guardWithOpts optEnfuse $ runEnfuse aligned
+              alignOuts
+              maybeExport
+              makeOutsPathsAbsolute
           logTimeSinceStart "finished stateFun"
 
         getWdAndMaybeMoveImgs
