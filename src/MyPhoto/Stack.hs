@@ -266,6 +266,7 @@ options =
               IO.hPutStrLn IO.stderr "  --import-dir DIR [ARG1[,ARG2[,...]]]"
               IO.hPutStrLn IO.stderr "  --video VID [ARG1[,ARG2[,...]]]"
               IO.hPutStrLn IO.stderr "  --high-mpx [ARG1[,ARG2[,...]]]"
+              IO.hPutStrLn IO.stderr "  --only-stack [ARG1[,ARG2[,...]]]"
 
               exitWith ExitSuccess
           )
@@ -507,7 +508,7 @@ runMyPhotoStack'' startOpts actions startImgs = do
         imgs <- getImgs
         opts <- getOpts
         wd <- getWdAndMaybeMoveImgs
-        aligned <- MTL.liftIO $ align (AlignOptions (optVerbose opts) AlignNamingStrategySequential) wd imgs
+        aligned <- MTL.liftIO $ align (AlignOptions (optVerbose opts) AlignNamingStrategySequential False) wd imgs
         logTimeSinceStart "after runHuginAlign"
         return aligned
 
@@ -561,7 +562,7 @@ runMyPhotoStack'' startOpts actions startImgs = do
         opts <- getOpts
         wd <- getWdOrFail
         withOutsReplaceIO $ \outs -> do
-          align (AlignOptions (optVerbose opts) AlignNamingStrategyOriginal) wd outs
+          align (AlignOptions (optVerbose opts) AlignNamingStrategyOriginal True) wd outs
 
       makeOutsPathsAbsolute :: MyPhotoM ()
       makeOutsPathsAbsolute = do
@@ -677,4 +678,7 @@ runMyPhotoStack = do
       runMyPhotoStack' (("--import=./0_raw_" ++ basename) : args' ++ [dir])
     "--high-mpx" : args' -> do
       runMyPhotoStack' (["--focus-stack-parameter=--batchsize=6", "--focus-stack-parameter=--threads=14"] ++ args')
+    "--only-align" : imgs -> do
+      aligned <- align (AlignOptions True AlignNamingStrategyOriginal True) "." imgs
+      mapM_ (IO.putStrLn . ("aligned: " ++)) aligned
     _ -> runMyPhotoStack' args

@@ -8,6 +8,7 @@ where
 import Control.Concurrent.Async (concurrently)
 import Control.Monad
 import Data.Maybe (fromMaybe)
+import Data.List (sortBy)
 import MyPhoto.Model
 import System.Console.GetOpt
 import System.Directory
@@ -27,7 +28,10 @@ data AlignNamingStrategy
 data AlignOptions = AlignOptions
   { alignOptVerbose :: Bool
   , alignOptNamingStrategy :: AlignNamingStrategy
-  }
+  , sortBySize :: Bool
+  } deriving (Eq, Show)
+instance Default AlignOptions where
+  def = AlignOptions False AlignNamingStrategySequential False
 
 callAlignImageStack :: [String] -> String -> [Img] -> IO [Img]
 callAlignImageStack alignArgs prefix imgs =
@@ -106,13 +110,16 @@ growImage (targetW, targetH) wd img = do
     fail ("growing image failed with " ++ show exitCode)
   return outImg
 
-makeAllImagesTheSameSize :: FilePath -> Imgs -> IO Imgs
-makeAllImagesTheSameSize wd imgs =
+makeAllImagesTheSameSize :: AlignOptions -> FilePath -> Imgs -> IO Imgs
+makeAllImagesTheSameSize opts wd imgs =
   do
     imgsWithSize <- getImagesSize imgs
     let sizes = map snd imgsWithSize
         maxWidth = maximum (map fst sizes)
         maxHeight = maximum (map snd sizes)
+        sorter = if sortBySize opts
+                   then sortBy (\(_, (w1, h1)) (_, (w2, h2)) -> compare (w2 * h2) (w1 * h1))
+                   else id
     if all (\(w, h) -> w == maxWidth && h == maxHeight) sizes
       then return imgs
       else 
@@ -122,7 +129,7 @@ makeAllImagesTheSameSize wd imgs =
                 then return img
                 else growImage (maxWidth, maxHeight) wd img
           )
-          imgsWithSize
+          (sorter imgsWithSize)
 
 align :: AlignOptions -> FilePath -> Imgs -> IO Imgs
 align _ _ [] = return []
@@ -150,7 +157,7 @@ align opts wd imgs = do
       mkOutImgName i = case alignOptNamingStrategy opts of
         AlignNamingStrategyOriginal -> let
             (bn, ext) = splitExtensions (imgs !! (i - 1))
-          in inWorkdir wd (bn ++ "_ALIGNED" ++ ext)
+          in inWorkdir wd (bn ++ "_ALIGNED.tif")
         AlignNamingStrategySequential -> inWorkdir alignWD (printf (prefix ++ "_ALIGN-%04d-%04d.tif") i (length imgs))
 
   withTempDirectory
@@ -158,7 +165,7 @@ align opts wd imgs = do
     ("_align_" ++ show (length imgs) ++ ".tmp")
     ( \tmpdir -> do
         createDirectoryIfMissing True tmpdir
-        grownImgs <- makeAllImagesTheSameSize tmpdir imgs
+        grownImgs <- makeAllImagesTheSameSize opts tmpdir imgs
         imgsInTmp <- callAlignImageStackByHalves alignArgs tmpdir grownImgs
 
         imgsInTmp' <-
