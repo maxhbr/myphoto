@@ -125,6 +125,63 @@
               --set PATH ${pkgs.lib.makeBinPath extraLibraries}
           '';
         };
+        zerene-stacker = pkgs.stdenv.mkDerivation rec {
+          pname = "zerene-stacker";
+          version = "2024-11-18-1210";
+
+          src = pkgs.fetchurl {
+            url = "https://zerenesystems.com/stacker/downloads/ZS-Linux-Intel-64bit-T2024-11-18-1210.zip";
+            sha256 = "0biwhmy1h09n1mply30dbqg7nyykq9m1xd50ylck9rghl8rl3jww";
+          };
+
+          nativeBuildInputs = with pkgs; [
+            unzip
+            makeWrapper
+            autoPatchelfHook
+          ];
+
+          buildInputs = with pkgs; [
+            xorg.libX11
+            xorg.libXext
+            xorg.libXi
+            xorg.libXrender
+            xorg.libXtst
+            xorg.libXxf86vm
+            freetype
+            fontconfig
+            alsa-lib
+            stdenv.cc.cc.lib
+          ];
+
+          unpackPhase = ''
+            unzip $src
+          '';
+
+          installPhase = ''
+            mkdir -p $out/opt/zerene-stacker
+            cp -r ZereneStacker/* $out/opt/zerene-stacker/
+
+            # Patch the bundled JRE binaries
+            find $out/opt/zerene-stacker/jre -type f -executable -exec chmod +x {} \;
+
+            # Make scripts executable
+            chmod +x $out/opt/zerene-stacker/ZereneStacker.bsh
+            chmod +x $out/opt/zerene-stacker/*.zslinux 2>/dev/null || true
+
+            mkdir -p $out/bin
+            # Create a wrapper that uses the bundled JRE
+            makeWrapper $out/opt/zerene-stacker/ZereneStacker.bsh $out/bin/zerene-stacker \
+              --prefix LD_LIBRARY_PATH : ${pkgs.lib.makeLibraryPath buildInputs} \
+              --chdir $out/opt/zerene-stacker
+          '';
+
+          meta = with pkgs.lib; {
+            description = "Focus stacking software for photography";
+            homepage = "https://www.zerenesystems.com/";
+            # license = pkgs.lib.licenses.unfree;
+            platforms = pkgs.lib.platforms.linux;
+          };
+        };
         default = self.packages.${system}.myphoto;
       };
 
@@ -136,6 +193,10 @@
         myphoto-watch = {
           type = "app";
           program = "${self.packages.${system}.myphoto}/bin/myphoto-watch";
+        };
+        zerene-stacker = {
+          type = "app";
+          program = "${self.packages.${system}.zerene-stacker}/bin/zerene-stacker";
         };
       };
 
