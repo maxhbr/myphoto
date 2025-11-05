@@ -115,6 +115,12 @@
               --set PATH ${pkgs.lib.makeBinPath extraLibraries} \
               --add-flags "--dirs"
 
+            makeWrapper ${
+              self.packages.${system}.myphoto-unwrapped
+            }/bin/myphoto-stack $out/bin/myphoto-align \
+              --set PATH ${pkgs.lib.makeBinPath extraLibraries} \
+              --add-flags "--only-align"
+
             makeWrapper ${self.packages.${system}.myphoto-unwrapped}/bin/myphoto-watch $out/bin/myphoto-watch \
               --set PATH ${pkgs.lib.makeBinPath extraLibraries}
           '';
