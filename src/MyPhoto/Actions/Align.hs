@@ -1,14 +1,15 @@
 module MyPhoto.Actions.Align
   ( align,
     AlignOptions (..),
-    AlignNamingStrategy (..)
+    AlignNamingStrategy (..),
   )
 where
 
 import Control.Concurrent.Async (concurrently)
 import Control.Monad
-import Data.Maybe (fromMaybe)
 import Data.List (sortBy)
+import Data.Maybe (fromMaybe)
+import MyPhoto.Actions.Metadata (Metadata (..), getMetadataFromImgs)
 import MyPhoto.Model
 import System.Console.GetOpt
 import System.Directory
@@ -18,18 +19,18 @@ import System.IO.Temp
 import System.Process
 import Text.Printf
 
-import MyPhoto.Actions.Metadata (getMetadataFromImgs, Metadata (..))
-
 data AlignNamingStrategy
   = AlignNamingStrategyOriginal
   | AlignNamingStrategySequential
   deriving (Eq, Show)
 
 data AlignOptions = AlignOptions
-  { alignOptVerbose :: Bool
-  , alignOptNamingStrategy :: AlignNamingStrategy
-  , sortBySize :: Bool
-  } deriving (Eq, Show)
+  { alignOptVerbose :: Bool,
+    alignOptNamingStrategy :: AlignNamingStrategy,
+    sortBySize :: Bool
+  }
+  deriving (Eq, Show)
+
 instance Default AlignOptions where
   def = AlignOptions False AlignNamingStrategySequential False
 
@@ -85,7 +86,7 @@ getImageSize ioImg = do
 getImagesSize :: Imgs -> IO [(Img, (Int, Int))]
 getImagesSize imgs = mapM (\img -> do size <- getImageSize (return img); return (img, size)) imgs
 
-growImage :: (Int,Int) -> FilePath -> Img -> IO Img
+growImage :: (Int, Int) -> FilePath -> Img -> IO Img
 growImage (targetW, targetH) wd img = do
   let (bn, ext) = splitExtensions img
       outImg = inWorkdir wd (bn ++ "_GROWN" ++ ext)
@@ -117,12 +118,13 @@ makeAllImagesTheSameSize opts wd imgs =
     let sizes = map snd imgsWithSize
         maxWidth = maximum (map fst sizes)
         maxHeight = maximum (map snd sizes)
-        sorter = if sortBySize opts
-                   then sortBy (\(_, (w1, h1)) (_, (w2, h2)) -> compare (w2 * h2) (w1 * h1))
-                   else id
+        sorter =
+          if sortBySize opts
+            then sortBy (\(_, (w1, h1)) (_, (w2, h2)) -> compare (w2 * h2) (w1 * h1))
+            else id
     if all (\(w, h) -> w == maxWidth && h == maxHeight) sizes
       then return imgs
-      else 
+      else
         mapM
           ( \(img, (w, h)) -> do
               if w == maxWidth && h == maxHeight
@@ -155,9 +157,9 @@ align opts wd imgs = do
   let prefix = dropExtension (head imgs)
       mkOutImgName :: Int -> String
       mkOutImgName i = case alignOptNamingStrategy opts of
-        AlignNamingStrategyOriginal -> let
-            (bn, ext) = splitExtensions (imgs !! (i - 1))
-          in inWorkdir wd (bn ++ "_ALIGNED.tif")
+        AlignNamingStrategyOriginal ->
+          let (bn, ext) = splitExtensions (imgs !! (i - 1))
+           in inWorkdir wd (bn ++ "_ALIGNED.tif")
         AlignNamingStrategySequential -> inWorkdir alignWD (printf (prefix ++ "_ALIGN-%04d-%04d.tif") i (length imgs))
 
   withTempDirectory

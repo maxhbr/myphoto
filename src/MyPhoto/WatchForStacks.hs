@@ -57,7 +57,7 @@ knowsFile img = do
 
 analyzeFile :: FilePath -> IO WatchForStacksFile
 analyzeFile p = do
-  Metadata { _createDate = exifTimeSeconds } <- getMetadataFromImg False p
+  Metadata {_createDate = exifTimeSeconds} <- getMetadataFromImg False p
   let isoDate = posixSecondsToUTCTime (fromIntegral exifTimeSeconds)
   putStrLn $ "analyzeFile: " ++ p ++ " (" ++ show exifTimeSeconds ++ ")"
   return $ WatchForStacksFile p exifTimeSeconds

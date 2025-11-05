@@ -2,9 +2,9 @@ module MyPhoto.Monad where
 
 import Control.Concurrent (getNumCapabilities)
 import qualified Control.Monad.State.Lazy as MTL
+import Data.List (nub)
 import Data.List.Split (splitOn)
 import qualified Data.Map as Map
-import Data.List (nub)
 import Data.Time.Clock (UTCTime, diffUTCTime, getCurrentTime)
 import qualified GHC.IO.Handle as IO
 import MyPhoto.Actions.Align

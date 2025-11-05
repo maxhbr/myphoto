@@ -42,10 +42,11 @@ focusStackOptionsToArgs
           FocusStackCroppingDefault -> []
           FocusStackAlignKeepSize -> ["--align-keep-size"]
           FocusStackNoCrop -> ["--nocrop"]
-        outputOpt = ["--output=" ++ output] ++
-                     (if depthMap then ["--depthmap=" ++ output ++ ".depthmap.png"] else []) ++
-                     (if d3DView then ["--3dview=" ++ output ++ ".3dviewpt.png"] else []) ++
-                     ["--save-steps", "--jpgquality=100"]
+        outputOpt =
+          ["--output=" ++ output]
+            ++ (if depthMap then ["--depthmap=" ++ output ++ ".depthmap.png"] else [])
+            ++ (if d3DView then ["--3dview=" ++ output ++ ".3dviewpt.png"] else [])
+            ++ ["--save-steps", "--jpgquality=100"]
      in verbosityOpt ++ croppingOpt ++ outputOpt ++ additionalParameters
 
 computeAlignedImgs :: FilePath -> Imgs -> [FilePath]

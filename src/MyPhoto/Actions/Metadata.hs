@@ -41,14 +41,14 @@ getMetadataFromImg verbose img = do
   case exifData of
     Right exif -> do
       let createDate = case getDateTimeOriginal exif of
-                          Just localTime -> round (utcTimeToPOSIXSeconds (localTimeToUTC utc localTime))
-                          Nothing -> 0
+            Just localTime -> round (utcTimeToPOSIXSeconds (localTimeToUTC utc localTime))
+            Nothing -> 0
           maybeValueToInt :: Maybe ExifValue -> Int
           maybeValueToInt (Just (ExifNumber i)) = i
-          maybeValueToInt _                     = 0
+          maybeValueToInt _ = 0
           flashFired = case wasFlashFired exif of
-                         Just True -> True
-                         _         -> False
+            Just True -> True
+            _ -> False
       return (Metadata img createDate flashFired)
     Left errorMessage -> fail $ "Error reading EXIF data: " ++ errorMessage
 
@@ -59,7 +59,7 @@ breakingOnMetadatas :: Int -> [Metadata] -> Imgs
 breakingOnMetadatas _ [] = []
 breakingOnMetadatas gapInSeconds ((r@(Metadata {_img = img})) : rs) =
   let breakingOnMetadatas' imgs' _ [] = imgs'
-      breakingOnMetadatas' imgs' ((Metadata { _createDate = time1 })) ((r2'@(Metadata { _img = img', _createDate = time2 })) : rs') =
+      breakingOnMetadatas' imgs' ((Metadata {_createDate = time1})) ((r2'@(Metadata {_img = img', _createDate = time2})) : rs') =
         if abs (time1 - time2) > gapInSeconds
           then imgs'
           else breakingOnMetadatas' (imgs' ++ [img']) r2' rs'
@@ -73,4 +73,4 @@ breaking verbose gapInSeconds imgs = do
 sortByCreateDate :: Bool -> Imgs -> IO Imgs
 sortByCreateDate verbose imgs = do
   metadatas <- getMetadataFromImgs verbose imgs
-  return (map (\(Metadata { _img = img }) -> img) (sortOn (\(Metadata { _createDate = time }) -> time) metadatas))
+  return (map (\(Metadata {_img = img}) -> img) (sortOn (\(Metadata {_createDate = time}) -> time) metadatas))

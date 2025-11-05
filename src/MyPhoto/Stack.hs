@@ -444,7 +444,7 @@ runMyPhotoStack'' startOpts actions startImgs = do
         wd <- getWdAndMaybeMoveImgs
         imgs <- getImgs
         metadatas <- MTL.liftIO $ getMetadataFromImgs False imgs
-        let anyFlashWasFired = any (\(Metadata { _flashFired = flashFired }) -> flashFired) metadatas
+        let anyFlashWasFired = any (\(Metadata {_flashFired = flashFired}) -> flashFired) metadatas
         if anyFlashWasFired
           then do
             withImgsIO $ rmOutliers wd
