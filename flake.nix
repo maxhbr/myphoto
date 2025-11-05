@@ -151,6 +151,8 @@
             fontconfig
             alsa-lib
             stdenv.cc.cc.lib
+            dejavu_fonts
+            liberation_ttf
           ];
 
           unpackPhase = ''
@@ -168,11 +170,55 @@
             chmod +x $out/opt/zerene-stacker/ZereneStacker.bsh
             chmod +x $out/opt/zerene-stacker/*.zslinux 2>/dev/null || true
 
+            # Create a custom fontconfig that includes system fonts
+            mkdir -p $out/etc/fonts
+            cat > $out/etc/fonts/fonts.conf << 'EOF'
+            <?xml version="1.0"?>
+            <!DOCTYPE fontconfig SYSTEM "fonts.dtd">
+            <fontconfig>
+              <dir>${pkgs.dejavu_fonts}/share/fonts</dir>
+              <dir>${pkgs.liberation_ttf}/share/fonts</dir>
+              <cachedir>~/.cache/fontconfig</cachedir>
+              <include ignore_missing="yes">${pkgs.fontconfig.out}/etc/fonts/fonts.conf</include>
+            </fontconfig>
+            EOF
+
             mkdir -p $out/bin
-            # Create a wrapper that uses the bundled JRE
-            makeWrapper $out/opt/zerene-stacker/ZereneStacker.bsh $out/bin/zerene-stacker \
-              --prefix LD_LIBRARY_PATH : ${pkgs.lib.makeLibraryPath buildInputs} \
-              --chdir $out/opt/zerene-stacker
+            
+            # Create a wrapper script that properly launches Zerene Stacker
+            cat > $out/bin/zerene-stacker << 'EOF'
+            #!/bin/sh
+            set -e
+            
+            # Zerene Stacker installation directory (will be substituted)
+            ZS_DIR="@out@/opt/zerene-stacker"
+            
+            # Setup environment
+            export LD_LIBRARY_PATH="@libPath@:$LD_LIBRARY_PATH"
+            export FONTCONFIG_FILE="@out@/etc/fonts/fonts.conf"
+            export FONTCONFIG_PATH="@out@/etc/fonts"
+            
+            # Zerene Stacker config directory
+            ZS_CONFIG_DIR="$HOME/.ZereneStacker"
+            mkdir -p "$ZS_CONFIG_DIR"
+            
+            # Direct Java invocation (following SampleLaunchProgram.java approach)
+            cd "$ZS_DIR"
+            exec "$ZS_DIR/jre/bin/java" \
+              -Xmx4000m \
+              -DjavaBits=64bitJava \
+              -Dlaunchcmddir="$ZS_CONFIG_DIR" \
+              -classpath "$ZS_DIR/ZereneStacker.jar:$ZS_DIR/JREextensions/*" \
+              com.zerenesystems.stacker.gui.MainFrame \
+              "$@"
+            EOF
+            
+            chmod +x $out/bin/zerene-stacker
+            
+            # Substitute the nix store paths in the wrapper
+            substituteInPlace $out/bin/zerene-stacker \
+              --replace '@out@' "$out" \
+              --replace '@libPath@' '${pkgs.lib.makeLibraryPath buildInputs}'
           '';
 
           meta = with pkgs.lib; {
@@ -182,6 +228,144 @@
             platforms = pkgs.lib.platforms.linux;
           };
         };
+        zerene-batch = pkgs.writeShellScriptBin "zerene-batch" ''
+          set -euo pipefail
+          
+          # Check if we have input files
+          if [ $# -eq 0 ]; then
+            echo "Usage: zerene-batch [OPTIONS] <image1> <image2> [image3...]"
+            echo "Stacks the provided images using Zerene Stacker"
+            echo ""
+            echo "Options:"
+            echo "  --method=DMAP|PMAX    Stacking method (default: DMAP)"
+            echo "  --output=FILE         Output file path (default: first-input-stacked.tif)"
+            echo "  --align=AUTO|NONE     Alignment method (default: AUTO)"
+            exit 1
+          fi
+          
+          # Parse options
+          METHOD="DMAP"
+          OUTPUT_FILE=""
+          ALIGN="AUTO"
+          FILES=()
+          
+          for arg in "$@"; do
+            case $arg in
+              --method=*)
+                METHOD="''${arg#*=}"
+                ;;
+              --output=*)
+                OUTPUT_FILE="''${arg#*=}"
+                ;;
+              --align=*)
+                ALIGN="''${arg#*=}"
+                ;;
+              *)
+                FILES+=("$arg")
+                ;;
+            esac
+          done
+          
+          if [ ''${#FILES[@]} -eq 0 ]; then
+            echo "Error: No input files provided"
+            exit 1
+          fi
+          
+          
+          # Determine output file
+          if [ -z "$OUTPUT_FILE" ]; then
+            FIRST_FILE="''${FILES[0]}"
+            OUTPUT_DIR=$(dirname "$FIRST_FILE")
+            OUTPUT_NAME=$(basename "$FIRST_FILE" | sed 's/\.[^.]*$//')
+            OUTPUT_FILE="$OUTPUT_DIR/$OUTPUT_NAME-stacked.tif"
+          fi
+
+          # Create temporary directory for batch processing
+          TEMP_DIR="''${OUTPUT_FILE}.zerene_batch"
+          mkdir -p "$TEMP_DIR"
+          TEMP_DIR=$(readlink -f "$TEMP_DIR")
+
+          # Make output path absolute
+          OUTPUT_FILE=$(realpath -m "$OUTPUT_FILE")
+          OUTPUT_DIR=$(dirname "$OUTPUT_FILE")
+          
+          # Determine task indicator code based on method and alignment
+          if [ "$ALIGN" = "NONE" ]; then
+            if [ "$METHOD" = "PMAX" ]; then
+              TASK_CODE="3"  # Stack Only (PMax)
+            else
+              TASK_CODE="4"  # Stack Only (DMap)
+            fi
+          else
+            if [ "$METHOD" = "PMAX" ]; then
+              TASK_CODE="1"  # Align and Stack (PMax)
+            else
+              TASK_CODE="2"  # Align and Stack (DMap)
+            fi
+          fi
+          
+          # Build XML batch script following the official format
+          cat > "$TEMP_DIR/batch.xml" << 'XMLEOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<ZereneStackerBatchScript>
+  <BatchQueue>
+    <Batches length="1">
+      <Batch>
+        <Sources length="1">
+          <Source value="%CurrentProject%" />
+        </Sources>
+        <ProjectDispositionCode value="101" />
+        <Tasks length="1">
+          <Task>
+            <OutputImageDispositionCode value="3" />
+XMLEOF
+          
+          echo "            <OutputImageFileName value=\"$OUTPUT_FILE\" />" >> "$TEMP_DIR/batch.xml"
+          
+          cat >> "$TEMP_DIR/batch.xml" << XMLEOF
+            <TaskIndicatorCode value="$TASK_CODE" />
+          </Task>
+        </Tasks>
+      </Batch>
+    </Batches>
+  </BatchQueue>
+  <ProjectSpecifications length="1">
+    <ProjectSpecification>
+XMLEOF
+          
+          # Add each input file to the XML
+          echo "      <SourceFiles length=\"''${#FILES[@]}\">" >> "$TEMP_DIR/batch.xml"
+          for img in "''${FILES[@]}"; do
+            ABS_PATH=$(realpath "$img")
+            echo "        <SourceFile value=\"$ABS_PATH\" />" >> "$TEMP_DIR/batch.xml"
+          done
+          
+          cat >> "$TEMP_DIR/batch.xml" << 'XMLEOF'
+      </SourceFiles>
+    </ProjectSpecification>
+  </ProjectSpecifications>
+</ZereneStackerBatchScript>
+XMLEOF
+          
+          echo "Running Zerene Stacker batch process..."
+          echo "  Input files: ''${#FILES[@]}"
+          echo "  Method: $METHOD"
+          echo "  Alignment: $ALIGN"
+          echo "  Output: $OUTPUT_FILE"
+          echo "  Batch script: $TEMP_DIR/batch.xml"
+          
+          # Run Zerene Stacker in batch mode
+          ${self.packages.${system}.zerene-stacker}/bin/zerene-stacker \
+            -batchScript "$TEMP_DIR/batch.xml"
+          
+          if [ -f "$OUTPUT_FILE" ]; then
+            echo "Stacking complete: $OUTPUT_FILE"
+          else
+            echo "Error: Output file was not created"
+            echo "Check $TEMP_DIR/batch.xml for the batch script"
+            exit 1
+          fi
+        '';
         default = self.packages.${system}.myphoto;
       };
 
@@ -197,6 +381,10 @@
         zerene-stacker = {
           type = "app";
           program = "${self.packages.${system}.zerene-stacker}/bin/zerene-stacker";
+        };
+        zerene-batch = {
+          type = "app";
+          program = "${self.packages.${system}.zerene-batch}/bin/zerene-batch";
         };
       };
 
