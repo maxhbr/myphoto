@@ -97,6 +97,7 @@ data Options = Options
     optUntiff :: Bool,
     optUnHeif :: Bool,
     optFocusStack :: Bool,
+    optFocusStackToHuginFallback :: Bool,
     optFocusStackBatchSize :: ChunkSettings,
     optEnfuse :: Bool,
     optEnfuseChunkSettings :: ChunkSettings,

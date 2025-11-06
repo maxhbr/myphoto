@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module MyPhoto.Stack
   ( runMyPhotoStack,
@@ -9,6 +10,7 @@ module MyPhoto.Stack
 where
 
 import Control.Concurrent (getNumCapabilities)
+import qualified Control.Exception as Ex
 import qualified Control.Monad.State.Lazy as MTL
 import Data.List (isInfixOf)
 import Data.List.Split (splitOn)
@@ -28,7 +30,7 @@ import MyPhoto.Model
 import MyPhoto.Monad
 import MyPhoto.Video
 import System.Console.GetOpt
-import System.Environment (getArgs, getExecutablePath, getProgName, withArgs)
+import System.Environment (getArgs, getProgName, withArgs)
 import qualified System.IO as IO
 
 options :: [OptDescr (Options -> IO Options)]
@@ -461,8 +463,7 @@ runMyPhotoStack'' startOpts actions startImgs = do
         script <- MTL.liftIO $ makeAbsolute (computeStackOutputBN imgs ++ ".sh")
         logInfo ("creating shell script at " ++ script)
         MTL.liftIO $ do
-          exe <- getExecutablePath
-          let cmd = if "-stack" `isInfixOf` exe then exe else "myphoto-stack"
+          let cmd = "myphoto-stack"
           let scriptContent =
                 unlines $
                   [ "#!/usr/bin/env bash",
@@ -622,7 +623,20 @@ runMyPhotoStack'' startOpts actions startImgs = do
               opts <- getOpts
               aligned <- do
                 if optFocusStack opts
-                  then runFocusStack
+                  then do
+                    if optFocusStackToHuginFallback opts
+                      then do
+                        currentState <- MTL.get
+                        result <- MTL.liftIO $ Ex.try $ MTL.runStateT runFocusStack currentState
+                        case result of
+                          Right (aligned, newState) -> do
+                            MTL.put newState
+                            return aligned
+                          Left (ex :: Ex.SomeException) -> do
+                            logWarn $ "focus-stack failed with exception: " ++ show ex
+                            logWarn "falling back to hugin alignment"
+                            runHuginAlign
+                      else runFocusStack
                   else runHuginAlign
               guardWithOpts optEnfuse $ runEnfuse aligned
               alignOuts
@@ -691,4 +705,6 @@ runMyPhotoStack = do
     "--only-align" : imgs -> do
       aligned <- align (AlignOptions True AlignNamingStrategyOriginal True) "." imgs
       mapM_ (IO.putStrLn . ("aligned: " ++)) aligned
+    "--only-import" : args' -> do
+      runMyPhotoStack' (["--no-focus-stack", "--no-enfuse"] ++ args')
     _ -> runMyPhotoStack' args

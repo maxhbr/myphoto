@@ -34,6 +34,7 @@ instance Default Options where
         optUntiff = False,
         optUnHeif = True,
         optFocusStack = True,
+        optFocusStackToHuginFallback = True,
         optFocusStackBatchSize = def,
         optEnfuse = True,
         optEnfuseChunkSettings = def,
