@@ -27,7 +27,7 @@ data AlignNamingStrategy
 data AlignOptions = AlignOptions
   { alignOptVerbose :: Bool,
     alignOptNamingStrategy :: AlignNamingStrategy,
-    sortBySize :: Bool
+    alignOptSortBySize :: Bool
   }
   deriving (Eq, Show)
 
@@ -86,7 +86,7 @@ getImageSize ioImg = do
 getImagesSize :: Imgs -> IO [(Img, (Int, Int))]
 getImagesSize imgs = mapM (\img -> do size <- getImageSize (return img); return (img, size)) imgs
 
-growImage :: (Int, Int) -> FilePath -> Img -> IO Img
+growImage :: (Int, Int) -> FilePath -> Img -> IO (Img, Img)
 growImage (targetW, targetH) wd img = do
   let (bn, ext) = splitExtensions img
       outImg = inWorkdir wd (bn ++ "_GROWN" ++ ext)
@@ -95,7 +95,7 @@ growImage (targetW, targetH) wd img = do
   (_, _, _, pHandle) <-
     createProcess
       ( proc
-          "convert"
+          "magick"
           [ img,
             "-background",
             "transparent",
@@ -109,9 +109,9 @@ growImage (targetW, targetH) wd img = do
   exitCode <- waitForProcess pHandle
   unless (exitCode == ExitSuccess) $
     fail ("growing image failed with " ++ show exitCode)
-  return outImg
+  return (img, outImg)
 
-makeAllImagesTheSameSize :: AlignOptions -> FilePath -> Imgs -> IO Imgs
+makeAllImagesTheSameSize :: AlignOptions -> FilePath -> Imgs -> IO [(Img,Img)]
 makeAllImagesTheSameSize opts wd imgs =
   do
     imgsWithSize <- getImagesSize imgs
@@ -119,16 +119,16 @@ makeAllImagesTheSameSize opts wd imgs =
         maxWidth = maximum (map fst sizes)
         maxHeight = maximum (map snd sizes)
         sorter =
-          if sortBySize opts
+          if alignOptSortBySize opts
             then sortBy (\(_, (w1, h1)) (_, (w2, h2)) -> compare (w2 * h2) (w1 * h1))
             else id
     if all (\(w, h) -> w == maxWidth && h == maxHeight) sizes
-      then return imgs
+      then return (map (\img -> (img, img)) imgs)
       else
         mapM
           ( \(img, (w, h)) -> do
               if w == maxWidth && h == maxHeight
-                then return img
+                then return (img, img)
                 else growImage (maxWidth, maxHeight) wd img
           )
           (sorter imgsWithSize)
@@ -154,13 +154,12 @@ align opts wd imgs = do
                "--gpu" -- Use GPU for remapping
              ]
 
-  let prefix = dropExtension (head imgs)
-      mkOutImgName :: Int -> String
-      mkOutImgName i = case alignOptNamingStrategy opts of
-        AlignNamingStrategyOriginal ->
-          let (bn, ext) = splitExtensions (imgs !! (i - 1))
-           in inWorkdir wd (bn ++ "_ALIGNED.tif")
-        AlignNamingStrategySequential -> inWorkdir alignWD (printf (prefix ++ "_ALIGN-%04d-%04d.tif") i (length imgs))
+  when (alignOptVerbose opts) $
+    putStrLn $
+      "aligning "
+        ++ show (length imgs)
+        ++ " images into working directory "
+        ++ alignWD
 
   withTempDirectory
     alignWD
@@ -168,7 +167,9 @@ align opts wd imgs = do
     ( \tmpdir -> do
         createDirectoryIfMissing True tmpdir
         grownImgs <- makeAllImagesTheSameSize opts tmpdir imgs
-        imgsInTmp <- callAlignImageStackByHalves alignArgs tmpdir grownImgs
+        imgsInTmp <- if not (alignOptSortBySize opts)
+                        then callAlignImageStackByHalves alignArgs tmpdir (map snd grownImgs)
+                        else callAlignImageStack alignArgs (tmpdir </> "fwd_") (map snd grownImgs)
 
         imgsInTmp' <-
           concat
@@ -184,6 +185,12 @@ align opts wd imgs = do
                             return []
               )
               imgsInTmp
+
+        let bnAtIdx i = (dropExtension . fst) (grownImgs !! i)
+            mkOutImgName :: Int -> String
+            mkOutImgName i = case alignOptNamingStrategy opts of
+              AlignNamingStrategyOriginal -> inWorkdir wd (bnAtIdx (i - 1) ++ "_ALIGNED.tif")
+              AlignNamingStrategySequential -> inWorkdir alignWD (printf (bnAtIdx 0 ++ "_ALIGN-%04d-%04d.tif") i (length imgs))
 
         outs <- copyAndRenameImages mkOutImgName imgsInTmp'
         return outs

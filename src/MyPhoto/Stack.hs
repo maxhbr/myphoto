@@ -1,5 +1,6 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE LambdaCase #-}
 
 module MyPhoto.Stack
   ( runMyPhotoStack,
@@ -294,6 +295,19 @@ getWdAndMaybeMoveImgs = do
     Nothing -> do
       logDebug ("determine working directory")
       Options {optWorkdirStrategy = workdirStrategy} <- getOpts
+      let implForImportToWorkdir wd = do
+                                          Options {optEveryNth = everyNth} <- getOpts
+                                          when (isJust everyNth) $ do
+                                            fail "cannot import images to subfolder when --every-nth is specified"
+                                          MTL.liftIO $ createDirectoryIfMissing True wd
+                                          absWd <- MTL.liftIO $ makeAbsolute wd
+                                          imgs <- getImgs
+                                          let indir = computeRawImportDirInWorkdir absWd imgs
+                                          logInfo ("copy images to " ++ indir)
+                                          imgs' <- MTL.liftIO $ copy indir imgs
+                                          putImgs imgs'
+                                          return absWd
+
       wd <- case workdirStrategy of
         CreateNextToImgDir -> do
           imgs@(img0 : _) <- getImgs
@@ -320,18 +334,11 @@ getWdAndMaybeMoveImgs = do
         WorkdirStrategyOverwrite wd -> do
           MTL.liftIO $ createDirectoryIfMissing True wd
           MTL.liftIO $ makeAbsolute wd
-        ImportToWorkdir wd -> do
-          Options {optEveryNth = everyNth} <- getOpts
-          when (isJust everyNth) $ do
-            fail "cannot import images to subfolder when --every-nth is specified"
-          MTL.liftIO $ createDirectoryIfMissing True wd
-          absWd <- MTL.liftIO $ makeAbsolute wd
+        ImportToWorkdir wd -> implForImportToWorkdir wd
+        ImportToWorkdirWithSubdir wd -> do
           imgs <- getImgs
-          let indir = computeRawImportDirInWorkdir absWd imgs
-          logInfo ("copy images to " ++ indir)
-          imgs' <- MTL.liftIO $ copy indir imgs
-          putImgs imgs'
-          return absWd
+          let wdWithSubdir = wd </> computeStackOutputBN imgs <.> "myphoto"
+          implForImportToWorkdir wdWithSubdir
       setWd wd
       return wd
 
@@ -540,20 +547,31 @@ runMyPhotoStack'' startOpts actions startImgs = do
         let exportStrategy = optExport opts
         when (exportStrategy /= NoExport) $ do
           logInfo "exporting images"
-          imgs <- getImgs
-          let outputDir = "../0_stacked"
-          case exportStrategy of
-            Export -> do
-              logInfo $ "Export to " ++ outputDir
-              _ <- MTL.liftIO $ reverseLink outputDir imgs
+          outs <- getOuts
+          if (null outs)
+            then do
+              logWarn "no outputs to export"
               return ()
-            ExportAndClean -> do
-              logInfo $ "Export to " ++ outputDir ++ " and clean workdir"
-              MTL.liftIO $ do
-                move outputDir imgs
-                removeRecursive wd
-              logError "cleaned original images after export not yet implemented"
-              return ()
+            else do
+              let outputDir = "../0_stacked"
+              case exportStrategy of
+                Export -> do
+                  logInfo $ "Export to " ++ outputDir
+                  _ <- MTL.liftIO $ reverseLink outputDir outs
+                  return ()
+                ExportToParent -> do
+                  logInfo $ "Export to parent directory of " ++ wd
+                  _ <- MTL.liftIO $ do
+                    let parentDir = takeDirectory wd
+                    MTL.liftIO $ reverseLink parentDir outs
+                  return ()
+                ExportAndClean -> do
+                  logInfo $ "Export to " ++ outputDir ++ " and clean workdir"
+                  MTL.liftIO $ do
+                    move outputDir outs
+                    removeRecursive wd
+                  logError "cleaned original images after export not yet implemented"
+                  return ()
           return ()
         return ()
 
@@ -639,6 +657,7 @@ runMyPhotoStack'' startOpts actions startImgs = do
                       else runFocusStack
                   else runHuginAlign
               guardWithOpts optEnfuse $ runEnfuse aligned
+              maybeExport
               alignOuts
               maybeExport
               makeOutsPathsAbsolute

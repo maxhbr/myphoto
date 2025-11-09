@@ -61,6 +61,7 @@ data WorkdirStrategy
   | MoveExistingImgsToSubfolder
   | NextToImgFiles
   | ImportToWorkdir FilePath
+  | ImportToWorkdirWithSubdir FilePath
   | -- | ParentOfImgFiles
     WorkdirStrategyOverwrite FilePath
   deriving (Show, Eq)
@@ -71,6 +72,7 @@ instance Default WorkdirStrategy where
 data ExportStrategy
   = NoExport
   | Export
+  | ExportToParent
   | ExportAndClean
   deriving (Show, Eq)
 
