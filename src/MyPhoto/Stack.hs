@@ -1,6 +1,6 @@
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module MyPhoto.Stack
   ( runMyPhotoStack,
@@ -31,8 +31,8 @@ import MyPhoto.Model
 import MyPhoto.Monad
 import MyPhoto.Video
 import System.Console.GetOpt
-import System.Environment (getArgs, getProgName, withArgs)
 import System.Directory (removeDirectoryRecursive)
+import System.Environment (getArgs, getProgName, withArgs)
 import qualified System.IO as IO
 
 options :: [OptDescr (Options -> IO Options)]
@@ -290,17 +290,17 @@ getWdAndMaybeMoveImgs = do
       logDebug ("determine working directory")
       Options {optWorkdirStrategy = workdirStrategy} <- getOpts
       let implForImportToWorkdir wd = do
-                                          Options {optEveryNth = everyNth} <- getOpts
-                                          when (isJust everyNth) $ do
-                                            fail "cannot import images to subfolder when --every-nth is specified"
-                                          MTL.liftIO $ createDirectoryIfMissing True wd
-                                          absWd <- MTL.liftIO $ makeAbsolute wd
-                                          imgs <- getImgs
-                                          let indir = computeRawImportDirInWorkdir absWd imgs
-                                          logInfo ("copy images to " ++ indir)
-                                          imgs' <- MTL.liftIO $ copy indir imgs
-                                          putImgs imgs'
-                                          return absWd
+            Options {optEveryNth = everyNth} <- getOpts
+            when (isJust everyNth) $ do
+              fail "cannot import images to subfolder when --every-nth is specified"
+            MTL.liftIO $ createDirectoryIfMissing True wd
+            absWd <- MTL.liftIO $ makeAbsolute wd
+            imgs <- getImgs
+            let indir = computeRawImportDirInWorkdir absWd imgs
+            logInfo ("copy images to " ++ indir)
+            imgs' <- MTL.liftIO $ copy indir imgs
+            putImgs imgs'
+            return absWd
 
       wd <- case workdirStrategy of
         CreateNextToImgDir -> do

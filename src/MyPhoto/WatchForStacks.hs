@@ -69,7 +69,13 @@ watchOptions =
       ""
       ["raw"]
       ( NoArg
-          (\opt -> return opt {optUseRaw = True})
+          ( \opt ->
+              return
+                opt
+                  { optUseRaw = True,
+                    optWatchStackOpts = (optWatchStackOpts opt) {optEnfuse = False}
+                  }
+          )
       )
       "Use RAW files instead of JPG",
     Option
@@ -85,8 +91,8 @@ watchOptions =
       ["help"]
       ( NoArg
           ( \_ -> do
-            printHelp
-            exitWith ExitSuccess
+              printHelp
+              exitWith ExitSuccess
           )
       )
       "Show help"
@@ -197,7 +203,7 @@ peekFile img = do
 
 peekFiles :: WatchForStacksM ()
 peekFiles = do
-  WatchForStacksState {wfsOpts = WatchOptions { optIndir = indir }} <- MTL.get
+  WatchForStacksState {wfsOpts = WatchOptions {optIndir = indir}} <- MTL.get
   filesInDir <- MTL.liftIO $ getFilesRecursive indir
   MTL.liftIO $ putStrLn $ "#filesInDir: " ++ show (length filesInDir)
   mapM_ peekFile filesInDir
@@ -205,7 +211,7 @@ peekFiles = do
 handleFinishedClusters :: WatchForStacksState -> WatchForStacksM ()
 handleFinishedClusters oldState@WatchForStacksState {wfsInFileClusters = oldClusters} = do
   MTL.liftIO $ putStrLn "handleFinishedClusters ..."
-  wfss@WatchForStacksState {wfsOpts = WatchOptions { optOutdir = outdir , optWatchStackOpts = opts}, wfsInFileClusters = newClusters, wfsFinishedClusters = finishedClusters} <- MTL.get
+  wfss@WatchForStacksState {wfsOpts = WatchOptions {optOutdir = outdir, optWatchStackOpts = opts}, wfsInFileClusters = newClusters, wfsFinishedClusters = finishedClusters} <- MTL.get
   let (unchanged, changed) = partition (\cluster -> cluster `elem` oldClusters) newClusters
 
   MTL.liftIO . putStrLn $ "#unchanged: " ++ show (length unchanged)
@@ -274,7 +280,7 @@ watchForStacksLoop = do
   watchForStacksLoop
 
 watchForStacks :: WatchOptions -> IO ()
-watchForStacks opts@WatchOptions{..} = do
+watchForStacks opts@WatchOptions {..} = do
   putStrLn "watchForStacks"
   indirExists <- doesDirectoryExist optIndir
   unless indirExists $ do
@@ -291,7 +297,7 @@ watchForStacks opts@WatchOptions{..} = do
   MTL.evalStateT watchForStacksLoop (WatchForStacksState opts extensions minimalTime [] [] [] mempty)
 
 importStacksOnce :: WatchOptions -> IO ()
-importStacksOnce opts@WatchOptions{..} = do
+importStacksOnce opts@WatchOptions {..} = do
   putStrLn "importStacksOnce"
   indirExists <- doesDirectoryExist optIndir
   unless indirExists $ do
@@ -315,13 +321,12 @@ importStacksOnce opts@WatchOptions{..} = do
 
 getDirs :: [String] -> IO (FilePath, FilePath, [String])
 getDirs [] = return (undefined, undefined, ["ERROR: No input directory specified"])
-getDirs [indir] = getDirs [indir,"."]
-getDirs [indir,outdir] = do
+getDirs [indir] = getDirs [indir, "."]
+getDirs [indir, outdir] = do
   absIndir <- makeAbsolute indir
   absOutdir <- makeAbsolute outdir
-  return (absIndir,absOutdir, [])
+  return (absIndir, absOutdir, [])
 getDirs _ = return (undefined, undefined, ["ERROR: Too many arguments specified"])
-
 
 runMyPhotoWatchForStacks :: IO ()
 runMyPhotoWatchForStacks = do
@@ -342,23 +347,25 @@ runMyPhotoWatchForStacks = do
               ["--batchsize=6", "--threads=14"]
             )
           ]
-      startOpts = 
+      startOpts =
         WatchOptions
           { optWatchVerbose = False,
-            optWatchStackOpts = def { optWorkdirStrategy = ImportToWorkdirWithSubdir outdir,
-                                       optExport = ExportToParent,
-                                       optRedirectLog = False,
-                                       optParameters = highMpxParameters
-                                     },
+            optWatchStackOpts =
+              def
+                { optWorkdirStrategy = ImportToWorkdirWithSubdir outdir,
+                  optExport = ExportToParent,
+                  optRedirectLog = False,
+                  optParameters = highMpxParameters
+                },
             optWatchOnce = False,
             optUseRaw = False,
             optOffset = 12 * 60 * 60, -- 12 hours ago
             optIndir = indir,
             optOutdir = outdir
           }
-  
+
   opts <- foldl (>>=) (return startOpts) actions
-  
+
   if optWatchOnce opts
     then importStacksOnce opts
     else watchForStacks opts

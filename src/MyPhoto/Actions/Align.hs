@@ -111,7 +111,7 @@ growImage (targetW, targetH) wd img = do
     fail ("growing image failed with " ++ show exitCode)
   return (img, outImg)
 
-makeAllImagesTheSameSize :: AlignOptions -> FilePath -> Imgs -> IO [(Img,Img)]
+makeAllImagesTheSameSize :: AlignOptions -> FilePath -> Imgs -> IO [(Img, Img)]
 makeAllImagesTheSameSize opts wd imgs =
   do
     imgsWithSize <- getImagesSize imgs
@@ -167,9 +167,10 @@ align opts wd imgs = do
     ( \tmpdir -> do
         createDirectoryIfMissing True tmpdir
         grownImgs <- makeAllImagesTheSameSize opts tmpdir imgs
-        imgsInTmp <- if not (alignOptSortBySize opts)
-                        then callAlignImageStackByHalves alignArgs tmpdir (map snd grownImgs)
-                        else callAlignImageStack alignArgs (tmpdir </> "fwd_") (map snd grownImgs)
+        imgsInTmp <-
+          if not (alignOptSortBySize opts)
+            then callAlignImageStackByHalves alignArgs tmpdir (map snd grownImgs)
+            else callAlignImageStack alignArgs (tmpdir </> "fwd_") (map snd grownImgs)
 
         imgsInTmp' <-
           concat
