@@ -13,6 +13,7 @@ module MyPhoto.Model
     Imgs,
     WorkdirStrategy (..),
     ExportStrategy (..),
+    CleanupStrategy (..),
     ChunkSettings (..),
     Options (..),
     computeStackOutputBN,
@@ -73,11 +74,18 @@ data ExportStrategy
   = NoExport
   | Export
   | ExportToParent
-  | ExportAndClean
   deriving (Show, Eq)
 
 instance Default ExportStrategy where
   def = NoExport
+
+data CleanupStrategy
+  = NoCleanup
+  | RemoveWorkdirRecursively
+  deriving (Show, Eq)
+
+instance Default CleanupStrategy where
+  def = NoCleanup
 
 data ChunkSettings
   = ChunkSize Int
@@ -92,6 +100,7 @@ data Options = Options
     optRedirectLog :: Bool,
     optWorkdirStrategy :: WorkdirStrategy,
     optExport :: ExportStrategy,
+    optClean :: CleanupStrategy,
     optEveryNth :: Maybe Int,
     optSortOnCreateDate :: Bool,
     optRemoveOutliers :: Bool,
@@ -105,7 +114,7 @@ data Options = Options
     optEnfuseChunkSettings :: ChunkSettings,
     optParameters :: Map String [String]
   }
-  deriving (Show)
+  deriving (Show, Eq)
 
 computeStackOutputBN :: [FilePath] -> FilePath
 computeStackOutputBN [] = undefined -- should not happen

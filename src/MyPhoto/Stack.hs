@@ -32,6 +32,7 @@ import MyPhoto.Monad
 import MyPhoto.Video
 import System.Console.GetOpt
 import System.Environment (getArgs, getProgName, withArgs)
+import System.Directory (removeDirectoryRecursive)
 import qualified System.IO as IO
 
 options :: [OptDescr (Options -> IO Options)]
@@ -73,13 +74,6 @@ options =
       ["export"]
       ( NoArg
           (\opt -> return opt {optExport = Export})
-      )
-      "export to new work directory next to input directory",
-    Option
-      ""
-      ["export-and-clean"]
-      ( NoArg
-          (\opt -> return opt {optExport = ExportAndClean})
       )
       "export to new work directory next to input directory",
     Option
@@ -565,15 +559,22 @@ runMyPhotoStack'' startOpts actions startImgs = do
                     let parentDir = takeDirectory wd
                     MTL.liftIO $ reverseLink parentDir outs
                   return ()
-                ExportAndClean -> do
-                  logInfo $ "Export to " ++ outputDir ++ " and clean workdir"
-                  MTL.liftIO $ do
-                    move outputDir outs
-                    removeRecursive wd
-                  logError "cleaned original images after export not yet implemented"
-                  return ()
           return ()
         return ()
+
+      maybeClean :: MyPhotoM ()
+      maybeClean = do
+        opts <- getOpts
+        wd <- getWdOrFail
+        let cleanupStrategy = optClean opts
+        case cleanupStrategy of
+          NoCleanup -> return ()
+          RemoveWorkdirRecursively -> do
+            let exportStrategy = optExport opts
+            when (exportStrategy == NoExport) $ do
+              fail "cannot clean workdir when not exporting"
+            logInfo $ "cleaning up work directory " ++ wd
+            MTL.liftIO $ removeDirectoryRecursive wd
 
       alignOuts :: MyPhotoM ()
       alignOuts = do
@@ -659,8 +660,9 @@ runMyPhotoStack'' startOpts actions startImgs = do
               guardWithOpts optEnfuse $ runEnfuse aligned
               maybeExport
               alignOuts
-              maybeExport
-              makeOutsPathsAbsolute
+          maybeExport
+          makeOutsPathsAbsolute
+          maybeClean
           logTimeSinceStart "finished stateFun"
 
         getWdAndMaybeMoveImgs

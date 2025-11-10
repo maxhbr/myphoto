@@ -1,3 +1,5 @@
+{-# LANGUAGE RecordWildCards #-}
+
 module MyPhoto.WatchForStacks where
 
 import Control.Concurrent as Thread
@@ -19,24 +21,26 @@ import qualified System.IO as IO
 
 data WatchOptions = WatchOptions
   { optWatchVerbose :: Bool,
+    optWatchStackOpts :: Options,
     optWatchOnce :: Bool,
     optUseRaw :: Bool,
     optOffset :: Int,
-    optIndir :: Maybe FilePath,
-    optOutdir :: Maybe FilePath
+    optIndir :: FilePath,
+    optOutdir :: FilePath
   }
-  deriving (Show)
+  deriving (Show, Eq)
 
-instance Default WatchOptions where
-  def =
-    WatchOptions
-      { optWatchVerbose = False,
-        optWatchOnce = False,
-        optUseRaw = False,
-        optOffset = 12 * 60 * 60, -- 12 hours ago
-        optIndir = Nothing,
-        optOutdir = Nothing
-      }
+printHelp :: IO ()
+printHelp = do
+  prg <- getProgName
+  IO.hPutStr IO.stderr (usageInfo prg watchOptions)
+  IO.hPutStrLn IO.stderr ""
+  IO.hPutStrLn IO.stderr "Arguments: [INDIR] [OUTDIR]"
+  IO.hPutStrLn IO.stderr ""
+  IO.hPutStrLn IO.stderr "Examples:"
+  IO.hPutStrLn IO.stderr "  myphoto-watch /path/to/input"
+  IO.hPutStrLn IO.stderr "  myphoto-watch --once /path/to/input /path/to/output"
+  IO.hPutStrLn IO.stderr "  myphoto-watch --raw --offset 12 /path/to/input"
 
 watchOptions :: [OptDescr (WatchOptions -> IO WatchOptions)]
 watchOptions =
@@ -47,6 +51,13 @@ watchOptions =
           (\opt -> return opt {optWatchVerbose = True})
       )
       "Enable verbose messages",
+    Option
+      ""
+      ["clean"]
+      ( NoArg
+          (\opt -> return opt {optWatchStackOpts = (optWatchStackOpts opt) {optClean = RemoveWorkdirRecursively}})
+      )
+      "Enable cleaning of the output directory",
     Option
       ""
       ["once"]
@@ -70,36 +81,12 @@ watchOptions =
       )
       "Time offset in hours (default: 12)",
     Option
-      ""
-      ["indir"]
-      ( ReqArg
-          (\arg opt -> return opt {optIndir = Just arg})
-          "DIR"
-      )
-      "Input directory to watch",
-    Option
-      ""
-      ["outdir"]
-      ( ReqArg
-          (\arg opt -> return opt {optOutdir = Just arg})
-          "DIR"
-      )
-      "Output directory for stacked images",
-    Option
       "h"
       ["help"]
       ( NoArg
           ( \_ -> do
-              prg <- getProgName
-              IO.hPutStr IO.stderr (usageInfo prg watchOptions)
-              IO.hPutStrLn IO.stderr ""
-              IO.hPutStrLn IO.stderr "Arguments: [INDIR] [OUTDIR]"
-              IO.hPutStrLn IO.stderr ""
-              IO.hPutStrLn IO.stderr "Examples:"
-              IO.hPutStrLn IO.stderr "  myphoto-watch /path/to/input"
-              IO.hPutStrLn IO.stderr "  myphoto-watch --once /path/to/input /path/to/output"
-              IO.hPutStrLn IO.stderr "  myphoto-watch --raw --offset 12 /path/to/input"
-              exitWith ExitSuccess
+            printHelp
+            exitWith ExitSuccess
           )
       )
       "Show help"
@@ -120,9 +107,8 @@ data WatchForStacksFile = WatchForStacksFile
   deriving (Show, Eq)
 
 data WatchForStacksState = WatchForStacksState
-  { wfsExtensions :: [String],
-    wfsIndir :: FilePath,
-    wfsOutdir :: FilePath,
+  { wfsOpts :: WatchOptions,
+    wfsExtensions :: [String],
     wfsMinimalTime :: Int,
     wfsOldInFiles :: [FilePath],
     wfsFailedInFiles :: [FilePath],
@@ -211,15 +197,15 @@ peekFile img = do
 
 peekFiles :: WatchForStacksM ()
 peekFiles = do
-  WatchForStacksState {wfsIndir = indir} <- MTL.get
+  WatchForStacksState {wfsOpts = WatchOptions { optIndir = indir }} <- MTL.get
   filesInDir <- MTL.liftIO $ getFilesRecursive indir
   MTL.liftIO $ putStrLn $ "#filesInDir: " ++ show (length filesInDir)
   mapM_ peekFile filesInDir
 
 handleFinishedClusters :: WatchForStacksState -> WatchForStacksM ()
-handleFinishedClusters oldState@(WatchForStacksState {wfsInFileClusters = oldClusters}) = do
+handleFinishedClusters oldState@WatchForStacksState {wfsInFileClusters = oldClusters} = do
   MTL.liftIO $ putStrLn "handleFinishedClusters ..."
-  wfss@WatchForStacksState {wfsOutdir = outdir, wfsInFileClusters = newClusters, wfsFinishedClusters = finishedClusters} <- MTL.get
+  wfss@WatchForStacksState {wfsOpts = WatchOptions { optOutdir = outdir , optWatchStackOpts = opts}, wfsInFileClusters = newClusters, wfsFinishedClusters = finishedClusters} <- MTL.get
   let (unchanged, changed) = partition (\cluster -> cluster `elem` oldClusters) newClusters
 
   MTL.liftIO . putStrLn $ "#unchanged: " ++ show (length unchanged)
@@ -234,20 +220,6 @@ handleFinishedClusters oldState@(WatchForStacksState {wfsInFileClusters = oldClu
             then do
               MTL.liftIO . putStrLn $ "INFO: work on " ++ bn ++ " of size " ++ show (length cluster)
               let imgs = map wfsfPath cluster
-              -- for now always assume high mpx, TODO: should be flag or detected
-              let highMpxParameters =
-                    Map.fromList
-                      [ ( "focus-stack",
-                          ["--batchsize=6", "--threads=14"]
-                        )
-                      ]
-              let opts =
-                    def
-                      { optWorkdirStrategy = ImportToWorkdirWithSubdir outdir,
-                        optExport = ExportToParent,
-                        optRedirectLog = False,
-                        optParameters = highMpxParameters
-                      }
               let expectedWD = computeRawImportDirInWorkdir outdir imgs
               expectedWDExists <- MTL.liftIO $ doesDirectoryExist expectedWD
               if expectedWDExists
@@ -301,37 +273,37 @@ watchForStacksLoop = do
   MTL.liftIO $ Thread.threadDelay (loopIntervalInSeconds * 1000000)
   watchForStacksLoop
 
-watchForStacks :: Bool -> Int -> FilePath -> FilePath -> IO ()
-watchForStacks useRaw offset indir outdir = do
+watchForStacks :: WatchOptions -> IO ()
+watchForStacks opts@WatchOptions{..} = do
   putStrLn "watchForStacks"
-  indirExists <- doesDirectoryExist indir
+  indirExists <- doesDirectoryExist optIndir
   unless indirExists $ do
-    putStrLn $ "ERROR: indir does not exist: " ++ indir
+    putStrLn $ "ERROR: indir does not exist: " ++ optIndir
     exitWith (ExitFailure 1)
-  putStrLn $ "indir: " ++ indir
-  putStrLn $ "outdir: " ++ outdir
+  putStrLn $ "indir: " ++ optIndir
+  putStrLn $ "outdir: " ++ optOutdir
 
   currentTime <- getCurrentTime
   let currentSeconds = round (utcTimeToPOSIXSeconds currentTime)
-  let minimalTime = currentSeconds - offset
-  let extensions = if useRaw then unrawExtensions else jpgExtensions
+  let minimalTime = currentSeconds - optOffset
+  let extensions = if optUseRaw then unrawExtensions else jpgExtensions
 
-  MTL.evalStateT watchForStacksLoop (WatchForStacksState extensions indir outdir minimalTime [] [] [] mempty)
+  MTL.evalStateT watchForStacksLoop (WatchForStacksState opts extensions minimalTime [] [] [] mempty)
 
-importStacksOnce :: Bool -> Int -> FilePath -> FilePath -> IO ()
-importStacksOnce useRaw offset indir outdir = do
+importStacksOnce :: WatchOptions -> IO ()
+importStacksOnce opts@WatchOptions{..} = do
   putStrLn "importStacksOnce"
-  indirExists <- doesDirectoryExist indir
+  indirExists <- doesDirectoryExist optIndir
   unless indirExists $ do
-    putStrLn $ "ERROR: indir does not exist: " ++ indir
+    putStrLn $ "ERROR: indir does not exist: " ++ optIndir
     exitWith (ExitFailure 1)
-  putStrLn $ "indir: " ++ indir
-  putStrLn $ "outdir: " ++ outdir
+  putStrLn $ "indir: " ++ optIndir
+  putStrLn $ "outdir: " ++ optOutdir
 
   currentTime <- getCurrentTime
   let currentSeconds = round (utcTimeToPOSIXSeconds currentTime)
-  let minimalTime = currentSeconds - offset
-  let extensions = if useRaw then unrawExtensions else jpgExtensions
+  let minimalTime = currentSeconds - optOffset
+  let extensions = if optUseRaw then unrawExtensions else jpgExtensions
 
   MTL.evalStateT
     ( do
@@ -339,54 +311,54 @@ importStacksOnce useRaw offset indir outdir = do
         state <- MTL.get
         handleFinishedClusters state
     )
-    (WatchForStacksState extensions indir outdir minimalTime [] [] [] mempty)
+    (WatchForStacksState opts extensions minimalTime [] [] [] mempty)
 
+getDirs :: [String] -> IO (FilePath, FilePath, [String])
+getDirs [] = return (undefined, undefined, ["ERROR: No input directory specified"])
+getDirs [indir] = getDirs [indir,"."]
+getDirs [indir,outdir] = do
+  absIndir <- makeAbsolute indir
+  absOutdir <- makeAbsolute outdir
+  return (absIndir,absOutdir, [])
+getDirs _ = return (undefined, undefined, ["ERROR: Too many arguments specified"])
 
-finalizeOpts :: [String] -> WatchOptions -> IO WatchOptions
-finalizeOpts nonOptions = let
-    parsePositionalDirs opts = case (optIndir opts, optOutdir opts, nonOptions) of
-          (Nothing, Nothing, []) -> return opts -- No directories specified, will fail later
-          (Nothing, Nothing, [indir]) -> return $ opts {optIndir = Just indir, optOutdir = Just "."}
-          (Nothing, Nothing, [indir, outdir]) -> return $ opts {optIndir = Just indir, optOutdir = Just outdir}
-          (Nothing, Nothing, _) -> return opts -- Too many arguments, will fail later
-          (Just _, Nothing, []) -> return $ opts {optOutdir = Just "."}
-          (Just _, Nothing, [outdir]) -> return $ opts {optOutdir = Just outdir}
-          (Just _, Just _, []) -> return opts -- Both already set via options
-          (Nothing, Just _, [indir]) -> return $ opts {optIndir = Just indir}
-          _ -> return opts -- Invalid combination
-    makeDirsAbsolute opts@WatchOptions{optIndir = indir, optOutdir = outdir} = do
-      absIndir <- traverse makeAbsolute indir
-      absOutdir <- traverse makeAbsolute outdir
-      return $ opts {optIndir = absIndir, optOutdir = absOutdir} 
-  in parsePositionalDirs >=> makeDirsAbsolute
 
 runMyPhotoWatchForStacks :: IO ()
 runMyPhotoWatchForStacks = do
   args <- getArgs
   let (actions, nonOptions, errors) = getOpt Permute watchOptions args
-  
-  unless (null errors) $ do
-    mapM_ (IO.hPutStrLn IO.stderr) errors
-    exitWith (ExitFailure 1)
-  
-  opts <- foldl (>>=) (return def) actions
+  (indir, outdir, nonOptsErrors) <- getDirs nonOptions
+  let errors' = errors ++ nonOptsErrors
 
-  finalOpts <- finalizeOpts nonOptions opts
-  case optIndir finalOpts of
-    Nothing -> do
-      IO.hPutStrLn IO.stderr "ERROR: No input directory specified"
-      prg <- getProgName
-      IO.hPutStrLn IO.stderr (usageInfo prg watchOptions)
-      exitWith (ExitFailure 1)
-    Just indir -> do
-      let outdir = case optOutdir finalOpts of
-            Nothing -> "."
-            Just od -> od
-      
-      let finalOffset = if optUseRaw finalOpts && optOffset finalOpts == 12 * 60 * 60
-                        then 12 * 60 * 60 
-                        else optOffset finalOpts
-      
-      if optWatchOnce finalOpts
-        then importStacksOnce (optUseRaw finalOpts) finalOffset indir outdir
-        else watchForStacks (optUseRaw finalOpts) finalOffset indir outdir
+  unless (null errors') $ do
+    mapM_ (IO.hPutStrLn IO.stderr) errors'
+    printHelp
+    exitWith (ExitFailure 1)
+
+  -- for now always assume high mpx, TODO: should be flag or detected
+  let highMpxParameters =
+        Map.fromList
+          [ ( "focus-stack",
+              ["--batchsize=6", "--threads=14"]
+            )
+          ]
+      startOpts = 
+        WatchOptions
+          { optWatchVerbose = False,
+            optWatchStackOpts = def { optWorkdirStrategy = ImportToWorkdirWithSubdir outdir,
+                                       optExport = ExportToParent,
+                                       optRedirectLog = False,
+                                       optParameters = highMpxParameters
+                                     },
+            optWatchOnce = False,
+            optUseRaw = False,
+            optOffset = 12 * 60 * 60, -- 12 hours ago
+            optIndir = indir,
+            optOutdir = outdir
+          }
+  
+  opts <- foldl (>>=) (return startOpts) actions
+  
+  if optWatchOnce opts
+    then importStacksOnce opts
+    else watchForStacks opts

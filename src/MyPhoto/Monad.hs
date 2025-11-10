@@ -27,6 +27,7 @@ instance Default Options where
         optRedirectLog = False,
         optWorkdirStrategy = def,
         optExport = def,
+        optClean = def,
         optEveryNth = Nothing,
         optSortOnCreateDate = True,
         optRemoveOutliers = True,
