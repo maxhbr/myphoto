@@ -447,13 +447,15 @@ runMyPhotoStack'' startOpts actions startImgs = do
       applyUnTiff = do
         guardByExtensions untiffExtensions $ do
           logInfo "run untiff"
-          withImgsIO $ unTiff False
+          opts <- getOpts
+          withImgsIO $ unTiff (optClean opts /= NoCleanup)
           logTimeSinceStart "after runUntiff"
 
       applyUnHeif = do
         guardByExtensions unHeifExtensions $ do
           logInfo "run unHeif"
-          withImgsIO $ unHeif False
+          opts <- getOpts
+          withImgsIO $ unHeif (optClean opts /= NoCleanup)
           logTimeSinceStart "after runUnHeif"
 
       applyRemoveOutliers :: MyPhotoM ()

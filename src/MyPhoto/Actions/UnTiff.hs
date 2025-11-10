@@ -20,8 +20,8 @@ untiffExtensions = [".tiff", ".tif"]
 calculateUntiffedName :: Img -> Img
 calculateUntiffedName = (`replaceExtension` "png")
 
-unTiffImpl1 :: Bool -> Img -> IO Img
-unTiffImpl1 removeTiff img =
+unTiffImpl1 :: Img -> IO (Img,Img)
+unTiffImpl1 img =
   let args =
         [ "-depth",
           "24",
@@ -41,11 +41,12 @@ unTiffImpl1 removeTiff img =
           exitCode <- waitForProcess pHandle
           unless (exitCode == ExitSuccess) $
             fail ("UnTiff failed with " ++ show exitCode)
-          when removeTiff $
-            removeFile img
-        return png
+        return (img, png)
 
 unTiff :: Bool -> Imgs -> IO Imgs
 unTiff removeTiff imgs = do
   sem <- MS.new numCapabilities
-  mapConcurrently (MS.with sem . unTiffImpl1 removeTiff) imgs
+  results <- mapConcurrently (MS.with sem . unTiffImpl1) imgs
+  when removeTiff $
+    forM_ results $ \(img, _) -> removeFile img
+  return (map snd results)

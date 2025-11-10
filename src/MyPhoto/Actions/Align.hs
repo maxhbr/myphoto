@@ -79,8 +79,9 @@ getImageSize :: IO Img -> IO (Int, Int)
 getImageSize ioImg = do
   img <- ioImg
   output <- readProcess "identify" ["-ping", "-format", "%w %h", img] ""
-  let [width, height] = words output
-  return (read width, read height)
+  case words output of
+    [width, height] -> return (read width, read height)
+    _ -> fail ("unable to parse identify output: " ++ output)
 
 getImagesSize :: Imgs -> IO [(Img, (Int, Int))]
 getImagesSize imgs = mapM (\img -> do size <- getImageSize (return img); return (img, size)) imgs

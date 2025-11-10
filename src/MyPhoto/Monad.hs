@@ -4,15 +4,7 @@ import qualified Control.Monad.State.Lazy as MTL
 import Data.List (nub)
 import Data.Time.Clock (UTCTime, diffUTCTime, getCurrentTime)
 import qualified GHC.IO.Handle as IO
-import MyPhoto.Actions.Align
-import MyPhoto.Actions.EnblendEnfuse
-import MyPhoto.Actions.FileSystem
-import MyPhoto.Actions.FocusStack
-import MyPhoto.Actions.Metadata
-import MyPhoto.Actions.Montage
-import MyPhoto.Actions.Outliers
 import MyPhoto.Model
-import MyPhoto.Video
 import qualified System.IO as IO
 
 data MyPhotoState = MyPhotoState

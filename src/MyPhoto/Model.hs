@@ -81,6 +81,7 @@ instance Default ExportStrategy where
 
 data CleanupStrategy
   = NoCleanup
+  | SomeCleanup
   | RemoveWorkdirRecursively
   deriving (Show, Eq)
 
@@ -128,7 +129,7 @@ instance Default Options where
         optSortOnCreateDate = True,
         optRemoveOutliers = True,
         optBreaking = Nothing,
-        optUntiff = False,
+        optUntiff = True,
         optUnHeif = True,
         optFocusStack = True,
         optFocusStackToHuginFallback = True,
