@@ -10,6 +10,7 @@ where
 import MyPhoto.Model
 import System.Directory (copyFile, createFileLink, removeDirectoryRecursive, renameFile)
 import System.FilePath (replaceDirectory)
+import System.Posix.Files (getSymbolicLinkStatus, isSymbolicLink)
 
 getPathInTargetFolder :: FilePath -> FilePath -> IO FilePath
 getPathInTargetFolder target img = do
@@ -54,9 +55,21 @@ link =
 reverseLink =
   applyFsFunc
     ( \img img' -> do
-        renameFile img img'
-        createFileLinkRelative img' img
-        return img'
+        imgSymbolicLinkStatus <- getSymbolicLinkStatus img
+        let imgIsSymbolicLink = isSymbolicLink imgSymbolicLinkStatus
+        if (not imgIsSymbolicLink)
+          then do
+            renameFile img img'
+            createFileLinkRelative img' img
+            return img'
+          else do
+            targetExists <- doesFileExist img'
+            if targetExists
+              then do
+                logInfoIO $ "reverseLink: skipping reverse link for symbolic link " ++ img ++ " as target " ++ img' ++ " exists"
+                return img'
+              else do
+                fail $ "reverseLink: target file " ++ img' ++ " does not exist, cannot create link from symbolic link " ++ img
     )
 
 removeRecursive :: FilePath -> IO ()

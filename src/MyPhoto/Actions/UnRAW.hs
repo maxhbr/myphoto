@@ -88,7 +88,20 @@ getDcrawArgs opts =
 unRAW :: UnRawOptions -> Imgs -> IO Imgs
 unRAW opts imgs = do
   (dcrawArgs, imgs') <- getDcrawArgs opts imgs
-  (exitCode, _, _) <- runDcraw (dcrawArgs ++ imgs')
-  case exitCode of
-    ExitSuccess -> return (map calculateUnRAWedName imgs') -- TODO: get generated output from "Writing data to <OUTPUT> ..." lines
-    _ -> fail ("UnRAW failed with " ++ show exitCode)
+  let expectedTiffs = map calculateUnRAWedName imgs'
+  tiffsExist <- mapM doesFileExist expectedTiffs
+  if and tiffsExist
+    then do
+      when (urVerbose opts) $ putStrLn "All unRAWed TIFFs already exist, skipping dcraw."
+      return expectedTiffs
+    else do
+      when (or tiffsExist) $
+        putStrLn "Warning: Some, but not all, expected unRAWed TIFFs exist, proceeding to call dcraw anyway."
+      (exitCode, _, _) <- runDcraw (dcrawArgs ++ imgs')
+      forM_ expectedTiffs $ \tiff -> do
+        exists <- doesFileExist tiff
+        unless exists $
+          putStrLn $ "Warning: expected unRAWed TIFF " ++ tiff ++ " is missing after dcraw execution"
+      case exitCode of
+        ExitSuccess -> return expectedTiffs -- TODO: get generated output from "Writing data to <OUTPUT> ..." lines
+        _ -> fail ("UnRAW failed with " ++ show exitCode)

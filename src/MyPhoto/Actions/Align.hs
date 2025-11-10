@@ -13,7 +13,6 @@ import MyPhoto.Actions.Metadata (Metadata (..), getMetadataFromImgs)
 import MyPhoto.Model
 import System.Console.GetOpt
 import System.Directory
-import System.Exit
 import System.FilePath
 import System.IO.Temp
 import System.Process
@@ -135,6 +134,7 @@ makeAllImagesTheSameSize opts wd imgs =
 
 align :: AlignOptions -> FilePath -> Imgs -> IO Imgs
 align _ _ [] = return []
+align _ _ [img] = return [img]
 align opts wd imgs = do
   let imgBN = computeStackOutputBN imgs
   let alignWD = wd </> imgBN <.> "align"

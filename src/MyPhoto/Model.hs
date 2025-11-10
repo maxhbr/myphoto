@@ -116,6 +116,28 @@ data Options = Options
   }
   deriving (Show, Eq)
 
+instance Default Options where
+  def =
+    Options
+      { optVerbose = False,
+        optRedirectLog = False,
+        optWorkdirStrategy = def,
+        optExport = def,
+        optClean = def,
+        optEveryNth = Nothing,
+        optSortOnCreateDate = True,
+        optRemoveOutliers = True,
+        optBreaking = Nothing,
+        optUntiff = False,
+        optUnHeif = True,
+        optFocusStack = True,
+        optFocusStackToHuginFallback = True,
+        optFocusStackBatchSize = def,
+        optEnfuse = True,
+        optEnfuseChunkSettings = def,
+        optParameters = mempty
+      }
+
 computeStackOutputBN :: [FilePath] -> FilePath
 computeStackOutputBN [] = undefined -- should not happen
 computeStackOutputBN (img0 : oimgs) =

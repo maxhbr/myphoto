@@ -1,10 +1,7 @@
 module MyPhoto.Monad where
 
-import Control.Concurrent (getNumCapabilities)
 import qualified Control.Monad.State.Lazy as MTL
 import Data.List (nub)
-import Data.List.Split (splitOn)
-import qualified Data.Map as Map
 import Data.Time.Clock (UTCTime, diffUTCTime, getCurrentTime)
 import qualified GHC.IO.Handle as IO
 import MyPhoto.Actions.Align
@@ -16,31 +13,7 @@ import MyPhoto.Actions.Montage
 import MyPhoto.Actions.Outliers
 import MyPhoto.Model
 import MyPhoto.Video
-import System.Console.GetOpt
-import System.Environment (getArgs, getProgName, withArgs)
 import qualified System.IO as IO
-
-instance Default Options where
-  def =
-    Options
-      { optVerbose = False,
-        optRedirectLog = False,
-        optWorkdirStrategy = def,
-        optExport = def,
-        optClean = def,
-        optEveryNth = Nothing,
-        optSortOnCreateDate = True,
-        optRemoveOutliers = True,
-        optBreaking = Nothing,
-        optUntiff = False,
-        optUnHeif = True,
-        optFocusStack = True,
-        optFocusStackToHuginFallback = True,
-        optFocusStackBatchSize = def,
-        optEnfuse = True,
-        optEnfuseChunkSettings = def,
-        optParameters = mempty
-      }
 
 data MyPhotoState = MyPhotoState
   { myPhotoStateOpts :: Options,
@@ -113,9 +86,9 @@ guardByExtensions :: [String] -> MyPhotoM () -> MyPhotoM ()
 guardByExtensions exts action = do
   imgs <- getImgs
   let exts' = map (map toLower) exts
-  let pred = (\img -> takeExtension (map toLower img) `elem` exts')
-  let allMatchPred = all pred imgs
-  let anyMatchPred = any pred imgs
+  let predicate = (\img -> takeExtension (map toLower img) `elem` exts')
+  let allMatchPred = all predicate imgs
+  let anyMatchPred = any predicate imgs
   case (allMatchPred, anyMatchPred) of
     (True, _) -> action
     (False, True) -> fail $ "Some, but not all, images have extensions " ++ show exts
@@ -184,11 +157,11 @@ redirectLogToLogFile action = do
       let logFile = wd' ++ "/myphoto.log"
       logInfo $ "Redirecting log to " ++ logFile
       state <- MTL.get
-      (ret, endState) <- MTL.liftIO $ IO.withFile logFile IO.AppendMode $ \logFile -> do
+      (ret, endState) <- MTL.liftIO $ IO.withFile logFile IO.AppendMode $ \logFile' -> do
         -- redirect stdout to log file without losing the actual output
-        IO.hDuplicateTo logFile IO.stdout
+        IO.hDuplicateTo logFile' IO.stdout
         IO.hSetBuffering IO.stdout IO.LineBuffering
-        IO.hDuplicateTo logFile IO.stderr
+        IO.hDuplicateTo logFile' IO.stderr
         IO.hSetBuffering IO.stderr IO.LineBuffering
 
         MTL.runStateT action state

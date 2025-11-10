@@ -282,59 +282,74 @@ getWdOrFail = do
     Nothing -> error "working directory not yet set"
 
 getWdAndMaybeMoveImgs :: MyPhotoM FilePath
-getWdAndMaybeMoveImgs = do
-  wd <- MTL.gets myPhotoStateWd
-  case wd of
-    Just wd -> return wd
-    Nothing -> do
-      logDebug ("determine working directory")
-      Options {optWorkdirStrategy = workdirStrategy} <- getOpts
-      let implForImportToWorkdir wd = do
-            Options {optEveryNth = everyNth} <- getOpts
-            when (isJust everyNth) $ do
-              fail "cannot import images to subfolder when --every-nth is specified"
-            MTL.liftIO $ createDirectoryIfMissing True wd
-            absWd <- MTL.liftIO $ makeAbsolute wd
-            imgs <- getImgs
-            let indir = computeRawImportDirInWorkdir absWd imgs
-            logInfo ("copy images to " ++ indir)
-            imgs' <- MTL.liftIO $ copy indir imgs
-            putImgs imgs'
-            return absWd
+getWdAndMaybeMoveImgs = let
+    -- getImgsManifest :: MyPhotoM String
+    -- getImgsManifest = do
+    --   imgs <- getImgs
+    --   return (show imgs)
+    -- compareImgsManifest :: String -> FilePath -> MyPhotoM Bool
+    -- compareImgsManifest manifest wd = do
+    --   let oldManifestfile = wd </> ".myphoto_imgs_manifest"
+    --   oldManifest <- MTL.liftIO $ Ex.try (IO.readFile oldManifestfile) :: MyPhotoM (Either Ex.IOException String)
+    --   case oldManifest of
+    --     Left _ -> return False
+    --     Right oldManifestContent -> return (oldManifestContent == manifest)
+    -- writeImgsManifest :: String -> FilePath -> MyPhotoM ()
+    -- writeImgsManifest manifest wd = do
+    --   MTL.liftIO $ IO.writeFile (wd </> ".myphoto_imgs_manifest") manifest
+  in do
+    wd <- MTL.gets myPhotoStateWd
+    case wd of
+      Just wd -> return wd
+      Nothing -> do
+        logDebug ("determine working directory")
+        Options {optWorkdirStrategy = workdirStrategy} <- getOpts
+        let implForImportToWorkdir wd = do
+              Options {optEveryNth = everyNth} <- getOpts
+              when (isJust everyNth) $ do
+                fail "cannot import images to subfolder when --every-nth is specified"
+              MTL.liftIO $ createDirectoryIfMissing True wd
+              absWd <- MTL.liftIO $ makeAbsolute wd
+              imgs <- getImgs
+              let indir = computeRawImportDirInWorkdir absWd imgs
+              logInfo ("copy images to " ++ indir)
+              imgs' <- MTL.liftIO $ copy indir imgs
+              putImgs imgs'
+              return absWd
 
-      wd <- case workdirStrategy of
-        CreateNextToImgDir -> do
-          imgs@(img0 : _) <- getImgs
-          let imgBN = computeStackOutputBN imgs
-          let wd = takeDirectory img0 <.> imgBN <.> "myphoto"
-          MTL.liftIO $ createDirectoryIfMissing True wd
-          return wd
-        MoveExistingImgsToSubfolder -> do
-          opts <- getOpts
-          when (isJust (optEveryNth opts)) $ do
-            fail "cannot move images to subfolder when --every-nth is specified"
-          imgs@(img0 : _) <- getImgs
-          let wd = takeDirectory img0
-          let imgBN = computeStackOutputBN imgs
-          let indir = wd </> imgBN <.> "raw"
-          logInfo ("moving images to " ++ indir)
-          imgs' <- MTL.liftIO $ move indir imgs
-          putImgs imgs'
-          return wd
-        NextToImgFiles -> do
-          (img0 : _) <- getImgs
-          let wd = takeDirectory img0
-          return wd
-        WorkdirStrategyOverwrite wd -> do
-          MTL.liftIO $ createDirectoryIfMissing True wd
-          MTL.liftIO $ makeAbsolute wd
-        ImportToWorkdir wd -> implForImportToWorkdir wd
-        ImportToWorkdirWithSubdir wd -> do
-          imgs <- getImgs
-          let wdWithSubdir = wd </> computeStackOutputBN imgs <.> "myphoto"
-          implForImportToWorkdir wdWithSubdir
-      setWd wd
-      return wd
+        wd <- case workdirStrategy of
+          CreateNextToImgDir -> do
+            imgs@(img0 : _) <- getImgs
+            let imgBN = computeStackOutputBN imgs
+            let wd = takeDirectory img0 <.> imgBN <.> "myphoto"
+            MTL.liftIO $ createDirectoryIfMissing True wd
+            return wd
+          MoveExistingImgsToSubfolder -> do
+            opts <- getOpts
+            when (isJust (optEveryNth opts)) $ do
+              fail "cannot move images to subfolder when --every-nth is specified"
+            imgs@(img0 : _) <- getImgs
+            let wd = takeDirectory img0
+            let imgBN = computeStackOutputBN imgs
+            let indir = wd </> imgBN <.> "raw"
+            logInfo ("moving images to " ++ indir)
+            imgs' <- MTL.liftIO $ move indir imgs
+            putImgs imgs'
+            return wd
+          NextToImgFiles -> do
+            (img0 : _) <- getImgs
+            let wd = takeDirectory img0
+            return wd
+          WorkdirStrategyOverwrite wd -> do
+            MTL.liftIO $ createDirectoryIfMissing True wd
+            MTL.liftIO $ makeAbsolute wd
+          ImportToWorkdir wd -> implForImportToWorkdir wd
+          ImportToWorkdirWithSubdir wd -> do
+            imgs <- getImgs
+            let wdWithSubdir = wd </> computeStackOutputBN imgs <.> "myphoto"
+            implForImportToWorkdir wdWithSubdir
+        setWd wd
+        return wd
 
 getOutputBN :: MyPhotoM FilePath
 getOutputBN = computeStackOutputBN <$> getImgs
@@ -658,9 +673,11 @@ runMyPhotoStack'' startOpts actions startImgs = do
                       else runFocusStack
                   else runHuginAlign
               guardWithOpts optEnfuse $ runEnfuse aligned
-              maybeExport
-              alignOuts
           maybeExport
+          outs <- getOuts
+          when (length outs >= 2) $ do
+            alignOuts
+            maybeExport
           makeOutsPathsAbsolute
           maybeClean
           logTimeSinceStart "finished stateFun"
