@@ -180,22 +180,33 @@ options =
       "Do not run focus stacking by PetteriAimonen/focus-stack",
     Option
       ""
+      ["focus-stack"]
+      ( NoArg
+          (\opt -> return opt {optFocusStack = True})
+      )
+      "Run focus stacking by PetteriAimonen/focus-stack",
+    Option
+      ""
       ["focus-stack-parameter"]
       ( ReqArg
           (\arg opt -> return opt {optParameters = Map.insertWith (++) "focus-stack" [arg] (optParameters opt)})
           "PARAMETER"
       )
       "Parameters for PetteriAimonen/focus-stack",
-    -- Option
-    --   ""
-    --   ["focus-stack-batch-size"]
-    --   ( ReqArg
-    --       (\arg opt -> return opt {optFocusStackBatchSize = case read arg :: Int of
-    --                                                           0 -> NoChunks
-    --                                                           1 -> NoChunks
-    --                                                           n -> ChunkSize n})
-    --       "N"
-    --   ),
+    Option
+      ""
+      ["focus-stack-to-hugin-fallback"]
+      ( NoArg
+          (\opt -> return opt {optFocusStackToHuginFallback = True})
+      )
+      "If focus stacking fails, fall back to hugin alignment",
+    Option
+      ""
+      ["no-focus-stack-to-hugin-fallback"]
+      ( NoArg
+          (\opt -> return opt {optFocusStackToHuginFallback = False})
+      )
+      "If focus stacking fails, fall back to hugin alignment",
     -- enfuse
     Option
       ""
