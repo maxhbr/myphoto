@@ -78,6 +78,13 @@ options =
       "export to new work directory next to input directory",
     Option
       ""
+      ["export-to-parent"]
+      ( NoArg
+          (\opt -> return opt {optExport = ExportToParent})
+      )
+      "export to parent directory",
+    Option
+      ""
       ["every-nth", "sparse"]
       ( ReqArg
           (\arg opt -> return opt {optEveryNth = Just (read arg :: Int)})
@@ -476,19 +483,25 @@ runMyPhotoStack'' startOpts actions startImgs = do
       createShellScript :: MyPhotoM ()
       createShellScript = do
         wd <- getWdAndMaybeMoveImgs
+        opts <- getOpts
         imgs <- getImgs
         let imgsRelativeToWd = map (makeRelative wd) imgs
         script <- MTL.liftIO $ makeAbsolute (computeStackOutputBN imgs ++ ".sh")
         logInfo ("creating shell script at " ++ script)
         MTL.liftIO $ do
           let cmd = "myphoto-stack"
+          let exportOptArg =
+                case optExport opts of
+                  NoExport -> ""
+                  Export -> "--export"
+                  ExportToParent -> "--export-to-parent"
           let scriptContent =
                 unlines $
                   [ "#!/usr/bin/env bash",
                     "set -euo pipefail",
                     "imgs=(" ++ (unwords (map (\img -> "\"" ++ img ++ "\"") imgsRelativeToWd)) ++ ")",
                     "cd \"$(dirname \"$0\")\"",
-                    "exec " ++ cmd ++ " --workdir \"$(pwd)\" --no-remove-outliers --no-breaking --no-sort \"$@\" \"${imgs[@]}\""
+                    unwords ["exec", cmd, "--workdir \"$(pwd)\" --no-remove-outliers --no-breaking --no-sort", exportOptArg, "\"$@\" \"${imgs[@]}\""]
                   ]
           IO.writeFile script scriptContent
 
@@ -596,15 +609,17 @@ runMyPhotoStack'' startOpts actions startImgs = do
       alignOuts :: MyPhotoM ()
       alignOuts = do
         logInfo "align outputs"
-        opts <- getOpts
-        wd <- getWdOrFail
-        withOutsReplaceIO $ \outs -> do
-          if null outs
-            then do
-              logInfoIO "no outputs to align"
-              return outs
-            else
-              align (AlignOptions (optVerbose opts) AlignNamingStrategyOriginal True) wd outs
+        outs <- getOuts
+        when (length outs >= 2) $ do
+          opts <- getOpts
+          wd <- getWdOrFail
+          withOutsReplaceIO $ \outs -> do
+            if null outs
+              then do
+                logInfoIO "no outputs to align"
+                return outs
+              else
+                align (AlignOptions (optVerbose opts) AlignNamingStrategyOriginal True) wd outs
 
       makeOutsPathsAbsolute :: MyPhotoM ()
       makeOutsPathsAbsolute = do
@@ -675,11 +690,8 @@ runMyPhotoStack'' startOpts actions startImgs = do
                       else runFocusStack
                   else runHuginAlign
               guardWithOpts optEnfuse $ runEnfuse aligned
+          alignOuts
           maybeExport
-          outs <- getOuts
-          when (length outs >= 2) $ do
-            alignOuts
-            maybeExport
           makeOutsPathsAbsolute
           maybeClean
           logTimeSinceStart "finished stateFun"
@@ -689,7 +701,6 @@ runMyPhotoStack'' startOpts actions startImgs = do
   startState <- MTL.liftIO $ startMyPhotoState startOpts startImgs
   (wd, endState) <- MTL.runStateT stateFun startState
   print endState
-  appendFile (wd </> "myphoto.states") (show endState)
   return wd
 
 runMyPhotoStack' :: [String] -> IO ()
