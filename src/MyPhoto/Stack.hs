@@ -494,28 +494,35 @@ runMyPhotoStack'' startOpts actions startImgs = do
 
       createShellScript :: MyPhotoM ()
       createShellScript = do
-        wd <- getWdAndMaybeMoveImgs
-        opts <- getOpts
         imgs <- getImgs
-        let imgsRelativeToWd = map (makeRelative wd) imgs
         script <- MTL.liftIO $ makeAbsolute (computeStackOutputBN imgs ++ ".sh")
-        logInfo ("creating shell script at " ++ script)
-        MTL.liftIO $ do
-          let cmd = "myphoto-stack"
-          let exportOptArg =
-                case optExport opts of
-                  NoExport -> ""
-                  Export -> "--export"
-                  ExportToParent -> "--export-to-parent"
-          let scriptContent =
-                unlines $
-                  [ "#!/usr/bin/env bash",
-                    "set -euo pipefail",
-                    "imgs=(" ++ (unwords (map (\img -> "\"" ++ img ++ "\"") imgsRelativeToWd)) ++ ")",
-                    "cd \"$(dirname \"$0\")\"",
-                    unwords ["exec", cmd, "--workdir \"$(pwd)\" --no-remove-outliers --no-breaking --no-sort", exportOptArg, "\"$@\" \"${imgs[@]}\""]
-                  ]
-          IO.writeFile script scriptContent
+        scriptAlreadyExists <- MTL.liftIO $ doesFileExist script
+        if scriptAlreadyExists 
+          then do
+            logInfo ("shell script " ++ script ++ " already exists, not overwriting")
+          else do
+            wd <- getWdAndMaybeMoveImgs
+            opts <- getOpts
+            logInfo ("creating shell script at " ++ script)
+            let imgsRelativeToWd = map (makeRelative wd) imgs
+            MTL.liftIO $ do
+              let cmd = "myphoto-stack"
+                  exportOptArg =
+                    case optExport opts of
+                      NoExport -> ""
+                      Export -> "--export"
+                      ExportToParent -> "--export-to-parent"
+                  fullCmd = unwords [cmd, "--workdir \"$(pwd)\" --no-remove-outliers --no-breaking --no-sort", exportOptArg, "\"$@\""]
+                  scriptContent =
+                    unlines $
+                      [ "#!/usr/bin/env bash",
+                        "set -euo pipefail",
+                        "imgs=(" ++ (unwords (map (\img -> "\"" ++ img ++ "\"") imgsRelativeToWd)) ++ ")",
+                        "cd \"$(dirname \"$0\")\"",
+                        "echo -- '$ " ++ fullCmd ++ " [img [img [...]]]'",
+                        "exec " ++ fullCmd ++ "\"${imgs[@]}\""
+                      ]
+              IO.writeFile script scriptContent
 
       createMontage :: MyPhotoM ()
       createMontage = do
