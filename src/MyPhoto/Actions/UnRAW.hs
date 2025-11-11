@@ -101,7 +101,8 @@ unRAW opts imgs = do
       forM_ expectedTiffs $ \tiff -> do
         exists <- doesFileExist tiff
         unless exists $
-          putStrLn $ "Warning: expected unRAWed TIFF " ++ tiff ++ " is missing after dcraw execution"
+          putStrLn $
+            "Warning: expected unRAWed TIFF " ++ tiff ++ " is missing after dcraw execution"
       case exitCode of
         ExitSuccess -> return expectedTiffs -- TODO: get generated output from "Writing data to <OUTPUT> ..." lines
         _ -> fail ("UnRAW failed with " ++ show exitCode)

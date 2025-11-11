@@ -20,7 +20,7 @@ untiffExtensions = [".tiff", ".tif"]
 calculateUntiffedName :: Img -> Img
 calculateUntiffedName = (`replaceExtension` "png")
 
-unTiffImpl1 :: Img -> IO (Img,Img)
+unTiffImpl1 :: Img -> IO (Img, Img)
 unTiffImpl1 img =
   let args =
         [ "-depth",
@@ -48,5 +48,6 @@ unTiff removeTiff imgs = do
   sem <- MS.new numCapabilities
   results <- mapConcurrently (MS.with sem . unTiffImpl1) imgs
   when removeTiff $
-    forM_ results $ \(img, _) -> removeFile img
+    forM_ results $
+      \(img, _) -> removeFile img
   return (map snd results)
