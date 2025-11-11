@@ -497,7 +497,7 @@ runMyPhotoStack'' startOpts actions startImgs = do
         imgs <- getImgs
         script <- MTL.liftIO $ makeAbsolute (computeStackOutputBN imgs ++ ".sh")
         scriptAlreadyExists <- MTL.liftIO $ doesFileExist script
-        if scriptAlreadyExists 
+        if scriptAlreadyExists
           then do
             logInfo ("shell script " ++ script ++ " already exists, not overwriting")
           else do
