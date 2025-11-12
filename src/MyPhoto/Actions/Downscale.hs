@@ -20,21 +20,24 @@ import System.Exit
 import System.FilePath
 import System.IO.Temp
 import System.Process
-import System.ProgressBar (ProgressBar, defStyle, newProgressBar, incProgress, Progress (..))
+import System.ProgressBar (Progress (..), ProgressBar, defStyle, incProgress, newProgressBar)
 
 downscaleImg :: Int -> Img -> IO Img
 downscaleImg int img = do
-  let (bn, ext) = splitExtensions (takeFileName img)
-      outputImg = bn ++ "@" ++ show int ++ "pct" ++ ext
-      pngArgs = if ext == ".png" then ["-define", "png:compression-level=9", "-quality", "100"] else []
-      jpgArgs = if ext `elem` [".jpg", ".jpeg", ".JPG"] then ["-quality", "95"] else []
-      args = ["-filter", "Lanczos", "-resize", show int ++ "%"] ++ pngArgs ++ jpgArgs
---   logDebugIO $ "Downscaling " ++ img ++ " to " ++ outputImg
-  (_, _, _, pHandle) <- createProcess (proc "magick" (img : args ++ [outputImg]))
-  exitCode <- waitForProcess pHandle
-  unless (exitCode == ExitSuccess) $
-    fail ("Downscaling failed with " ++ show exitCode)
-  return outputImg
+  let (bn, ext) = splitExtensions img
+      outputImg = bn ++ "@" ++ show int ++ "pct.png"
+  outImgExists <- doesFileExist outputImg
+  if outImgExists
+    then do
+      return outputImg
+    else do
+      let pngArgs = ["-define", "png:compression-level=9", "-quality", "100"]
+          args = ["-filter", "Lanczos", "-resize", show int ++ "%"] ++ pngArgs
+      (_, _, _, pHandle) <- createProcess (proc "magick" (img : args ++ [outputImg]))
+      exitCode <- waitForProcess pHandle
+      unless (exitCode == ExitSuccess) $
+        fail ("Downscaling failed with " ++ show exitCode)
+      return outputImg
 
 downscaleImgs :: Int -> Imgs -> IO Imgs
 downscaleImgs 100 imgs = return imgs
@@ -47,8 +50,11 @@ downscaleImgs pct imgs = do
       putStrLn $ "Using " ++ show actualCapabilities ++ " (of " ++ show capabilities ++ ") concurrent threads for downscaling"
       pb <- newProgressBar defStyle 10 (Progress 0 (length imgs) ())
       sem <- MS.new actualCapabilities
-      mapConcurrently ((\img -> MS.with sem $ do
-                                                img' <- downscaleImg pct img
-                                                incProgress pb 1
-                                                return img'
-                                                )) imgs
+      mapConcurrently
+        ( ( \img -> MS.with sem $ do
+              img' <- downscaleImg pct img
+              incProgress pb 1
+              return img'
+          )
+        )
+        imgs

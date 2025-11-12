@@ -7,6 +7,7 @@ module MyPhoto.Stack
     runMyPhotoStack',
     runMyPhotoStack'',
     computeRawImportDirInWorkdir,
+    options,
   )
 where
 
@@ -204,6 +205,13 @@ options =
       "Parameters for PetteriAimonen/focus-stack",
     Option
       ""
+      ["high-mpx"]
+      ( NoArg
+          (\opt -> return opt {optParameters = Map.insertWith (++) "focus-stack" ["--batchsize=6", "--threads=14"] (optParameters opt)})
+      )
+      "Enable high MPX mode",
+    Option
+      ""
       ["focus-stack-to-hugin-fallback"]
       ( NoArg
           (\opt -> return opt {optFocusStackToHuginFallback = True})
@@ -249,6 +257,22 @@ options =
       "Chunk size for enfuse",
     Option
       ""
+      ["enfuse-sparse-chunk-size"]
+      ( ReqArg
+          ( \arg opt ->
+              return
+                opt
+                  { optEnfuseChunkSettings = case read arg :: Int of
+                      0 -> NoChunks
+                      1 -> NoChunks
+                      n -> SparseChunksOfSize n
+                  }
+          )
+          "N"
+      )
+      "Chunk size for enfuse using sparse chunking",
+    Option
+      ""
       ["enfuse-all-variants"]
       ( NoArg
           (\opt -> return opt {optEnfuse = True})
@@ -262,7 +286,13 @@ options =
     --       "PARAMETER"
     --   )
     --   "Parameters for enfuse",
-    -- help
+    Option
+      ""
+      ["only-impoort"]
+      ( NoArg
+          (\opt -> return opt {optFocusStack = False, optEnfuse = False})
+      )
+      "only import images, no processing",
     Option
       ""
       ["redirect-log-to-file"]
@@ -289,7 +319,6 @@ options =
               IO.hPutStrLn IO.stderr "  --dirs [ARG1[,ARG2[,...]] --] DIR1[,DIR2[,...]]"
               IO.hPutStrLn IO.stderr "  --import-dir DIR [ARG1[,ARG2[,...]]]"
               IO.hPutStrLn IO.stderr "  --video VID [ARG1[,ARG2[,...]]]"
-              IO.hPutStrLn IO.stderr "  --high-mpx [ARG1[,ARG2[,...]]]"
               IO.hPutStrLn IO.stderr "  --only-stack [ARG1[,ARG2[,...]]]"
 
               exitWith ExitSuccess
@@ -546,7 +575,6 @@ runMyPhotoStack'' startOpts actions startImgs = do
         imgs <- getImgs
         wd <- getWdAndMaybeMoveImgs
         montageOut <- MTL.liftIO $ montageSample 25 200 (inWorkdir wd (outputBN <.> "all")) imgs
-        logInfo ("wrote " ++ montageOut)
 
         opts <- getOpts
         when (optWorkdirStrategy opts == MoveExistingImgsToSubfolder) $ do
@@ -690,9 +718,11 @@ runMyPhotoStack'' startOpts actions startImgs = do
           guardWithOpts optUnHeif applyUnHeif
           guardWithOpts optUntiff applyUnTiff
           guardWithOpts optRemoveOutliers applyRemoveOutliers
-          guardWithOpts ((/= 100) . optDownscalePct) applyDownscale
-          createShellScript
           createMontage
+          createShellScript
+          guardWithOpts ((/= 100) . optDownscalePct) $ do
+            applyDownscale
+          -- createShellScript
           guardWithOpts
             ( \opts ->
                 (optFocusStack opts || optEnfuse opts)
@@ -778,11 +808,7 @@ runMyPhotoStack = do
       failIfDirDoesNotExist dir
       let basename = takeFileName (dropTrailingPathSeparator dir)
       runMyPhotoStack' (("--import=./0_raw_" ++ basename) : args' ++ [dir])
-    "--high-mpx" : args' -> do
-      runMyPhotoStack' (["--focus-stack-parameter=--batchsize=6", "--focus-stack-parameter=--threads=14"] ++ args')
     "--only-align" : imgs -> do
       aligned <- align (AlignOptions True AlignNamingStrategyOriginal True) "." imgs
       mapM_ (IO.putStrLn . ("aligned: " ++)) aligned
-    "--only-import" : args' -> do
-      runMyPhotoStack' (["--no-focus-stack", "--no-enfuse"] ++ args')
     _ -> runMyPhotoStack' args

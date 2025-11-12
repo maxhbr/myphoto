@@ -21,7 +21,7 @@ import Data.Time.LocalTime
 import Graphics.HsExif
 import MyPhoto.Model hiding (Options (..))
 import System.Exit
-import System.ProgressBar (ProgressBar, defStyle, newProgressBar, incProgress, Progress (..))
+import System.ProgressBar (Progress (..), ProgressBar, defStyle, incProgress, newProgressBar)
 
 data Metadata
   = Metadata
@@ -56,11 +56,13 @@ getMetadataFromImg verbose img = do
 getMetadataFromImgs :: Bool -> [Img] -> IO [Metadata]
 getMetadataFromImgs verbose imgs = do
   pb <- newProgressBar defStyle 10 (Progress 0 (length imgs) ())
-  mapM (\img -> do
-    metadata <- getMetadataFromImg verbose img
-    incProgress pb 1
-    return metadata
-    ) imgs
+  mapM
+    ( \img -> do
+        metadata <- getMetadataFromImg verbose img
+        incProgress pb 1
+        return metadata
+    )
+    imgs
 
 breakingOnMetadatas :: Int -> [Metadata] -> Imgs
 breakingOnMetadatas _ [] = []

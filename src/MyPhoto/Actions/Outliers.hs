@@ -20,7 +20,7 @@ import System.Exit
 import System.FilePath
 import System.IO.Temp
 import System.Process
-import System.ProgressBar (ProgressBar, defStyle, newProgressBar, incProgress, Progress (..))
+import System.ProgressBar (Progress (..), ProgressBar, defStyle, incProgress, newProgressBar)
 
 computImgVec :: Int -> FilePath -> Img -> IO (Img, [Int])
 computImgVec size tmpdir img = do
@@ -46,11 +46,13 @@ computImgsVecs size tmpdir imgs = do
   putStrLn $ "Using " ++ show actualCapabilities ++ " (of " ++ show capabilities ++ ") concurrent threads for outlier detection"
   sem <- MS.new actualCapabilities
   pb <- newProgressBar defStyle 10 (Progress 0 (length imgs) ())
-  mapConcurrently (\img -> MS.with sem $ do
-    vec <- computImgVec size tmpdir img
-    incProgress pb 1
-    return vec
-    ) imgs
+  mapConcurrently
+    ( \img -> MS.with sem $ do
+        vec <- computImgVec size tmpdir img
+        incProgress pb 1
+        return vec
+    )
+    imgs
 
 rmOutliers :: FilePath -> Imgs -> IO Imgs
 rmOutliers _ [] = return []

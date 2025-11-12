@@ -55,6 +55,23 @@ joinLastTwoChunksIfNeeded chunkSize chunks =
         then chunks
         else joinLastTwoChunks chunks
 
+mkSparseBuckets' :: Int -> Int -> [a] -> [[a]] -> [[a]]
+mkSparseBuckets' _ _ [] acc = acc
+mkSparseBuckets' runningIndex bucketCount imgs@(img : imgs') acc =
+  let bucket = runningIndex `mod` bucketCount
+   in if length acc <= bucket
+        then mkSparseBuckets' (runningIndex + 1) bucketCount imgs' (acc ++ [[img]])
+        else
+          let (before, curBucket : after) = splitAt bucket acc
+           in mkSparseBuckets' (runningIndex + 1) bucketCount imgs' (before ++ [(curBucket ++ [img])] ++ after)
+
+mkSparseBuckets :: Int -> [a] -> [[a]]
+mkSparseBuckets chunkSize imgs =
+  let bucketCount = (length imgs + chunkSize - 1) `div` chunkSize
+   in if chunkSize >= length imgs
+        then [imgs]
+        else mkSparseBuckets' 0 bucketCount imgs []
+
 mkChunks' :: Int -> [a] -> [[a]]
 mkChunks' _ [] = []
 mkChunks' chunkSize imgs =
@@ -72,6 +89,9 @@ chunkChunks chunkSize chunks =
 
 mkChunks :: ChunkSettings -> Imgs -> Chunks
 mkChunks NoChunks imgs = Chunk imgs
+mkChunks (SparseChunksOfSize chunkSize) imgs =
+  let imgBuckets = mkSparseBuckets chunkSize imgs
+   in chunkChunks chunkSize (map Chunk imgBuckets)
 mkChunks (ChunkSize chunkSize) imgs =
   let imgChunks = mkChunks' chunkSize imgs
    in chunkChunks chunkSize (map Chunk imgChunks)

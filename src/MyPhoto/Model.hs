@@ -90,6 +90,7 @@ instance Default CleanupStrategy where
 
 data ChunkSettings
   = ChunkSize Int
+  | SparseChunksOfSize Int
   | NoChunks
   deriving (Show, Eq)
 
@@ -111,7 +112,6 @@ data Options = Options
     optDownscalePct :: Int,
     optFocusStack :: Bool,
     optFocusStackToHuginFallback :: Bool,
-    optFocusStackBatchSize :: ChunkSettings,
     optEnfuse :: Bool,
     optEnfuseChunkSettings :: ChunkSettings,
     optParameters :: Map String [String]
@@ -135,7 +135,6 @@ instance Default Options where
         optDownscalePct = 100,
         optFocusStack = True,
         optFocusStackToHuginFallback = False,
-        optFocusStackBatchSize = def,
         optEnfuse = True,
         optEnfuseChunkSettings = def,
         optParameters = mempty

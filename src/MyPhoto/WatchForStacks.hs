@@ -36,6 +36,7 @@ printHelp = do
   IO.hPutStr IO.stderr (usageInfo prg watchOptions)
   IO.hPutStrLn IO.stderr ""
   IO.hPutStrLn IO.stderr "Arguments: [INDIR] [OUTDIR]"
+  IO.hPutStrLn IO.stderr "Stack Arguments can be passed after \"--\""
   IO.hPutStrLn IO.stderr ""
   IO.hPutStrLn IO.stderr "Examples:"
   IO.hPutStrLn IO.stderr "  myphoto-watch /path/to/input"
@@ -329,43 +330,59 @@ getDirs [indir, outdir] = do
 getDirs _ = return (undefined, undefined, ["ERROR: Too many arguments specified"])
 
 runMyPhotoWatchForStacks :: IO ()
-runMyPhotoWatchForStacks = do
-  args <- getArgs
-  let (actions, nonOptions, errors) = getOpt Permute watchOptions args
-  (indir, outdir, nonOptsErrors) <- getDirs nonOptions
-  let errors' = errors ++ nonOptsErrors
+runMyPhotoWatchForStacks =
+  let computeStackOpts :: FilePath -> [String] -> IO Options
+      computeStackOpts outdir [] = do
+        let highMpxParameters =
+              Map.fromList
+                [ ( "focus-stack",
+                    ["--batchsize=6", "--threads=14"]
+                  )
+                ]
+        return
+          def
+            { optWorkdirStrategy = ImportToWorkdirWithSubdir outdir,
+              optExport = ExportToParent,
+              optRedirectLog = False,
+              optParameters = highMpxParameters
+            }
+      computeStackOpts outdir ("--" : stackArgs) = computeStackOpts outdir stackArgs
+      computeStackOpts outdir stackArgs = do
+        let (actions, startImgs, errors) = getOpt RequireOrder options stackArgs
+        unless (null errors) $ do
+          mapM_ (IO.hPutStrLn IO.stderr) errors
+          exitWith (ExitFailure 1)
+        unless (null startImgs) $ do
+          IO.hPutStrLn IO.stderr "ERROR: No input images expected for watch-for-stacks"
+          exitWith (ExitFailure 1)
+        startOpts <- computeStackOpts outdir []
+        foldl (>>=) (return startOpts) actions
+   in do
+        args <- getArgs
+        let (watchArgs, stackArgs) = span (\arg -> arg /= "--") args
+        let (actions, nonOptions, errors) = getOpt Permute watchOptions watchArgs
+        (indir, outdir, nonOptsErrors) <- getDirs nonOptions
+        let errors' = errors ++ nonOptsErrors
 
-  unless (null errors') $ do
-    mapM_ (IO.hPutStrLn IO.stderr) errors'
-    printHelp
-    exitWith (ExitFailure 1)
+        unless (null errors') $ do
+          mapM_ (IO.hPutStrLn IO.stderr) errors'
+          printHelp
+          exitWith (ExitFailure 1)
+        stackOpts <- computeStackOpts outdir stackArgs
 
-  -- for now always assume high mpx, TODO: should be flag or detected
-  let highMpxParameters =
-        Map.fromList
-          [ ( "focus-stack",
-              ["--batchsize=6", "--threads=14"]
-            )
-          ]
-      startOpts =
-        WatchOptions
-          { optWatchVerbose = False,
-            optWatchStackOpts =
-              def
-                { optWorkdirStrategy = ImportToWorkdirWithSubdir outdir,
-                  optExport = ExportToParent,
-                  optRedirectLog = False,
-                  optParameters = highMpxParameters
-                },
-            optWatchOnce = False,
-            optUseRaw = False,
-            optOffset = 12 * 60 * 60, -- 12 hours ago
-            optIndir = indir,
-            optOutdir = outdir
-          }
+        let startOpts =
+              WatchOptions
+                { optWatchVerbose = False,
+                  optWatchStackOpts = stackOpts,
+                  optWatchOnce = False,
+                  optUseRaw = False,
+                  optOffset = 12 * 60 * 60, -- 12 hours ago
+                  optIndir = indir,
+                  optOutdir = outdir
+                }
 
-  opts <- foldl (>>=) (return startOpts) actions
+        opts <- foldl (>>=) (return startOpts) actions
 
-  if optWatchOnce opts
-    then importStacksOnce opts
-    else watchForStacks opts
+        if optWatchOnce opts
+          then importStacksOnce opts
+          else watchForStacks opts

@@ -11,7 +11,7 @@ import MyPhoto.Model
 import System.Directory (copyFile, createFileLink, removeDirectoryRecursive, renameFile)
 import System.FilePath (replaceDirectory)
 import System.Posix.Files (getSymbolicLinkStatus, isSymbolicLink)
-import System.ProgressBar (ProgressBar, defStyle, newProgressBar, incProgress, Progress (..))
+import System.ProgressBar (Progress (..), ProgressBar, defStyle, incProgress, newProgressBar)
 
 getPathInTargetFolder :: FilePath -> FilePath -> IO FilePath
 getPathInTargetFolder target img = do
@@ -42,7 +42,9 @@ copy target imgs = do
         copyFile img img'
         incProgress pb 1
         return img'
-    ) target imgs
+    )
+    target
+    imgs
 move target imgs = do
   pb <- newProgressBar defStyle 10 (Progress 0 (length imgs) ())
   applyFsFunc
@@ -50,7 +52,9 @@ move target imgs = do
         renameFile img img'
         incProgress pb 1
         return img'
-    ) target imgs
+    )
+    target
+    imgs
 link target imgs = do
   pb <- newProgressBar defStyle 10 (Progress 0 (length imgs) ())
   applyFsFunc
@@ -58,29 +62,34 @@ link target imgs = do
         createFileLinkRelative img img'
         incProgress pb 1
         return img'
-    ) target imgs
+    )
+    target
+    imgs
 reverseLink target imgs = do
   pb <- newProgressBar defStyle 10 (Progress 0 (length imgs) ())
   applyFsFunc
     ( \img img' -> do
         imgSymbolicLinkStatus <- getSymbolicLinkStatus img
         let imgIsSymbolicLink = isSymbolicLink imgSymbolicLinkStatus
-        img' <- if (not imgIsSymbolicLink)
-          then do
-            renameFile img img'
-            createFileLinkRelative img' img
-            return img'
-          else do
-            targetExists <- doesFileExist img'
-            if targetExists
-              then do
-                logInfoIO $ "reverseLink: skipping reverse link for symbolic link " ++ img ++ " as target " ++ img' ++ " exists"
-                return img'
-              else do
-                fail $ "reverseLink: target file " ++ img' ++ " does not exist, cannot create link from symbolic link " ++ img
+        img' <-
+          if (not imgIsSymbolicLink)
+            then do
+              renameFile img img'
+              createFileLinkRelative img' img
+              return img'
+            else do
+              targetExists <- doesFileExist img'
+              if targetExists
+                then do
+                  logInfoIO $ "reverseLink: skipping reverse link for symbolic link " ++ img ++ " as target " ++ img' ++ " exists"
+                  return img'
+                else do
+                  fail $ "reverseLink: target file " ++ img' ++ " does not exist, cannot create link from symbolic link " ++ img
         incProgress pb 1
         return img'
-    ) target imgs
+    )
+    target
+    imgs
 
 removeRecursive :: FilePath -> IO ()
 removeRecursive path = do
