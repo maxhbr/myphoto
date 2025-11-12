@@ -171,6 +171,14 @@ options =
           (\opt -> return opt {optUnHeif = False})
       )
       "Do not run unheif (default)",
+    Option
+      ""
+      ["downscale"]
+      ( ReqArg
+          (\arg opt -> return opt {optDownscalePct = read arg :: Int})
+          "PCT"
+      )
+      "Downscale images to PCT percent (default 100)",
     -- focus stack
     Option
       ""
@@ -496,9 +504,8 @@ runMyPhotoStack'' startOpts actions startImgs = do
         let downscalePct = optDownscalePct opts
         when (downscalePct /= 100) $ do
           step "downscale" $ do
-            wd <- getWdAndMaybeMoveImgs
             imgs <- getImgs
-            downscaledImgs <- MTL.liftIO $ downscaleImgs (optDownscalePct opts) wd imgs
+            downscaledImgs <- MTL.liftIO $ downscaleImgs (optDownscalePct opts) imgs
             putImgs downscaledImgs
 
       createShellScript :: MyPhotoM ()

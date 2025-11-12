@@ -64,6 +64,7 @@ library
                       split,
                       statistics,
                       temporary,
+                      terminal-progress-bar,
                       text,
                       time,
                       unix,

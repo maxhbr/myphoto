@@ -11,6 +11,7 @@ import MyPhoto.Model
 import System.Directory (copyFile, createFileLink, removeDirectoryRecursive, renameFile)
 import System.FilePath (replaceDirectory)
 import System.Posix.Files (getSymbolicLinkStatus, isSymbolicLink)
+import System.ProgressBar (ProgressBar, defStyle, newProgressBar, incProgress, Progress (..))
 
 getPathInTargetFolder :: FilePath -> FilePath -> IO FilePath
 getPathInTargetFolder target img = do
@@ -34,30 +35,37 @@ createFileLinkRelative img img' = do
   createFileLink img'' img'
 
 copy, move, link, reverseLink :: FilePath -> Imgs -> IO Imgs
-copy =
+copy target imgs = do
+  pb <- newProgressBar defStyle 10 (Progress 0 (length imgs) ())
   applyFsFunc
     ( \img img' -> do
         copyFile img img'
+        incProgress pb 1
         return img'
-    )
-move =
+    ) target imgs
+move target imgs = do
+  pb <- newProgressBar defStyle 10 (Progress 0 (length imgs) ())
   applyFsFunc
     ( \img img' -> do
         renameFile img img'
+        incProgress pb 1
         return img'
-    )
-link =
+    ) target imgs
+link target imgs = do
+  pb <- newProgressBar defStyle 10 (Progress 0 (length imgs) ())
   applyFsFunc
     ( \img img' -> do
         createFileLinkRelative img img'
+        incProgress pb 1
         return img'
-    )
-reverseLink =
+    ) target imgs
+reverseLink target imgs = do
+  pb <- newProgressBar defStyle 10 (Progress 0 (length imgs) ())
   applyFsFunc
     ( \img img' -> do
         imgSymbolicLinkStatus <- getSymbolicLinkStatus img
         let imgIsSymbolicLink = isSymbolicLink imgSymbolicLinkStatus
-        if (not imgIsSymbolicLink)
+        img' <- if (not imgIsSymbolicLink)
           then do
             renameFile img img'
             createFileLinkRelative img' img
@@ -70,7 +78,9 @@ reverseLink =
                 return img'
               else do
                 fail $ "reverseLink: target file " ++ img' ++ " does not exist, cannot create link from symbolic link " ++ img
-    )
+        incProgress pb 1
+        return img'
+    ) target imgs
 
 removeRecursive :: FilePath -> IO ()
 removeRecursive path = do

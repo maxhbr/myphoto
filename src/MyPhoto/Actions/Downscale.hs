@@ -20,29 +20,35 @@ import System.Exit
 import System.FilePath
 import System.IO.Temp
 import System.Process
+import System.ProgressBar (ProgressBar, defStyle, newProgressBar, incProgress, Progress (..))
 
-downscaleImg :: Int -> FilePath -> Img -> IO Img
-downscaleImg int workdir img = do
+downscaleImg :: Int -> Img -> IO Img
+downscaleImg int img = do
   let (bn, ext) = splitExtensions (takeFileName img)
-      outputImg = inWorkdir workdir (bn ++ "@" ++ show int ++ ext)
+      outputImg = bn ++ "@" ++ show int ++ "pct" ++ ext
       pngArgs = if ext == ".png" then ["-define", "png:compression-level=9", "-quality", "100"] else []
       jpgArgs = if ext `elem` [".jpg", ".jpeg", ".JPG"] then ["-quality", "95"] else []
       args = ["-filter", "Lanczos", "-resize", show int ++ "%"] ++ pngArgs ++ jpgArgs
-  logDebugIO $ "Downscaling " ++ img ++ " to " ++ outputImg
+--   logDebugIO $ "Downscaling " ++ img ++ " to " ++ outputImg
   (_, _, _, pHandle) <- createProcess (proc "magick" (img : args ++ [outputImg]))
   exitCode <- waitForProcess pHandle
   unless (exitCode == ExitSuccess) $
     fail ("Downscaling failed with " ++ show exitCode)
   return outputImg
 
-downscaleImgs :: Int -> FilePath -> Imgs -> IO Imgs
-downscaleImgs 100 _ imgs = return imgs
-downscaleImgs pct workdir imgs = do
+downscaleImgs :: Int -> Imgs -> IO Imgs
+downscaleImgs 100 imgs = return imgs
+downscaleImgs pct imgs = do
   if pct <= 0 || pct >= 100
     then fail "Downscale percentage must be between 1 and 99"
     else do
       capabilities <- getNumCapabilities
       let actualCapabilities = if capabilities > 4 then capabilities - 4 else capabilities
       putStrLn $ "Using " ++ show actualCapabilities ++ " (of " ++ show capabilities ++ ") concurrent threads for downscaling"
+      pb <- newProgressBar defStyle 10 (Progress 0 (length imgs) ())
       sem <- MS.new actualCapabilities
-      mapConcurrently (MS.with sem . downscaleImg pct workdir) imgs
+      mapConcurrently ((\img -> MS.with sem $ do
+                                                img' <- downscaleImg pct img
+                                                incProgress pb 1
+                                                return img'
+                                                )) imgs

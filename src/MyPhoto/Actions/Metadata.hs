@@ -21,6 +21,7 @@ import Data.Time.LocalTime
 import Graphics.HsExif
 import MyPhoto.Model hiding (Options (..))
 import System.Exit
+import System.ProgressBar (ProgressBar, defStyle, newProgressBar, incProgress, Progress (..))
 
 data Metadata
   = Metadata
@@ -53,7 +54,13 @@ getMetadataFromImg verbose img = do
     Left errorMessage -> fail $ "Error reading EXIF data: " ++ errorMessage
 
 getMetadataFromImgs :: Bool -> [Img] -> IO [Metadata]
-getMetadataFromImgs verbose imgs = mapM (\img -> getMetadataFromImg verbose img) imgs
+getMetadataFromImgs verbose imgs = do
+  pb <- newProgressBar defStyle 10 (Progress 0 (length imgs) ())
+  mapM (\img -> do
+    metadata <- getMetadataFromImg verbose img
+    incProgress pb 1
+    return metadata
+    ) imgs
 
 breakingOnMetadatas :: Int -> [Metadata] -> Imgs
 breakingOnMetadatas _ [] = []
