@@ -18,6 +18,7 @@ import Data.List.Split (splitOn)
 import qualified Data.Map as Map
 import Data.Maybe (isJust)
 import MyPhoto.Actions.Align
+import MyPhoto.Actions.Downscale
 import MyPhoto.Actions.EnblendEnfuse
 import MyPhoto.Actions.FileSystem
 import MyPhoto.Actions.FocusStack
@@ -331,8 +332,14 @@ getWdAndMaybeMoveImgs =
                   absWd <- MTL.liftIO $ makeAbsolute wd
                   imgs <- getImgs
                   let indir = computeRawImportDirInWorkdir absWd imgs
-                  logInfo ("copy images to " ++ indir)
-                  imgs' <- MTL.liftIO $ copy indir imgs
+                  let expectedFiles = map (inWorkdir indir) imgs
+                  allFilesExist <- and <$> mapM (MTL.liftIO . doesFileExist) expectedFiles
+                  imgs' <-
+                    if allFilesExist
+                      then do
+                        logInfo ("importToWorkdir: skipping copy of images to " ++ indir ++ " as they already exist there")
+                        return expectedFiles
+                      else step ("copy images to " ++ indir) $ MTL.liftIO $ copy indir imgs
                   putImgs imgs'
                   return absWd
 
@@ -459,38 +466,40 @@ runMyPhotoStack'' startOpts actions startImgs = do
 
       applyUnRAW = do
         guardByExtensions unrawExtensions $ do
-          logInfo "run unraw"
-          withImgsIO $ unRAW def
-          logTimeSinceStart "after runUnraw"
+          step "unraw" . withImgsIO $ unRAW def
 
       applyUnTiff = do
         guardByExtensions untiffExtensions $ do
-          logInfo "run untiff"
-          opts <- getOpts
-          withImgsIO $ unTiff (optClean opts /= NoCleanup)
-          logTimeSinceStart "after runUntiff"
+          step "untiff" $ do
+            opts <- getOpts
+            withImgsIO $ unTiff (optClean opts /= NoCleanup)
 
       applyUnHeif = do
         guardByExtensions unHeifExtensions $ do
-          logInfo "run unHeif"
-          opts <- getOpts
-          withImgsIO $ unHeif (optClean opts /= NoCleanup)
-          logTimeSinceStart "after runUnHeif"
+          step "unheif" $ do
+            opts <- getOpts
+            withImgsIO $ unHeif (optClean opts /= NoCleanup)
 
       applyRemoveOutliers :: MyPhotoM ()
       applyRemoveOutliers = do
-        logInfo "removing outliers"
         wd <- getWdAndMaybeMoveImgs
         imgs <- getImgs
         metadatas <- MTL.liftIO $ getMetadataFromImgs False imgs
         let anyFlashWasFired = any (\(Metadata {_flashFired = flashFired}) -> flashFired) metadatas
         if anyFlashWasFired
-          then do
-            withImgsIO $ rmOutliers wd
-            logTimeSinceStart "after applyRemoveOutliers"
-          else do
-            logInfo "skipping outlier removal because no flash was fired in any image"
-            return ()
+          then step "remove outliers" . withImgsIO $ rmOutliers wd
+          else logInfo "skipping outlier removal because no flash was fired in any image"
+
+      applyDownscale :: MyPhotoM ()
+      applyDownscale = do
+        opts <- getOpts
+        let downscalePct = optDownscalePct opts
+        when (downscalePct /= 100) $ do
+          step "downscale" $ do
+            wd <- getWdAndMaybeMoveImgs
+            imgs <- getImgs
+            downscaledImgs <- MTL.liftIO $ downscaleImgs (optDownscalePct opts) wd imgs
+            putImgs downscaledImgs
 
       createShellScript :: MyPhotoM ()
       createShellScript = do
@@ -525,8 +534,7 @@ runMyPhotoStack'' startOpts actions startImgs = do
               IO.writeFile script scriptContent
 
       createMontage :: MyPhotoM ()
-      createMontage = do
-        logInfo "create montage"
+      createMontage = step "montage" $ do
         outputBN <- getOutputBN
         imgs <- getImgs
         wd <- getWdAndMaybeMoveImgs
@@ -537,11 +545,9 @@ runMyPhotoStack'' startOpts actions startImgs = do
         when (optWorkdirStrategy opts == MoveExistingImgsToSubfolder) $ do
           _ <- MTL.liftIO $ reverseLink (wd </> "..") [montageOut]
           return ()
-        logTimeSinceStart "after createMontage"
 
       runFocusStack :: MyPhotoM [FilePath]
-      runFocusStack = do
-        logInfo "focus stacking (and aligning) with PetteriAimonen/focus-stack"
+      runFocusStack = step "focus stacking (and aligning) with PetteriAimonen/focus-stack" $ do
         imgs <- getImgs
         opts <- getOpts
         let additionalParameters = Map.findWithDefault [] "focus-stack" (optParameters opts)
@@ -550,22 +556,18 @@ runMyPhotoStack'' startOpts actions startImgs = do
         -- #if 0
         --         focusStackedAlignedOut <- MTL.liftIO $ montageSample 25 200 (focusStacked -<.> ".aligned") aligned
         -- #endif
-        logTimeSinceStart "after runFocusStack"
         return aligned
 
       runHuginAlign :: MyPhotoM [FilePath]
-      runHuginAlign = do
-        logInfo "just aligning with hugin"
+      runHuginAlign = step "just aligning with hugin" $ do
         imgs <- getImgs
         opts <- getOpts
         wd <- getWdAndMaybeMoveImgs
         aligned <- MTL.liftIO $ align (AlignOptions (optVerbose opts) AlignNamingStrategySequential False) wd imgs
-        logTimeSinceStart "after runHuginAlign"
         return aligned
 
       runEnfuse :: [FilePath] -> MyPhotoM ()
-      runEnfuse aligned = do
-        logInfo "focus stacking with enfuse"
+      runEnfuse aligned = step "focus stacking with enfuse" $ do
         outputBn <- getOutputBN
         enfuseResult <- do
           opts <- getOpts
@@ -581,7 +583,6 @@ runMyPhotoStack'' startOpts actions startImgs = do
         case enfuseResult of
           Left err -> fail err
           Right enfuseOuts -> addOuts enfuseOuts
-        logTimeSinceStart "after runEnfuse"
 
       maybeExport :: MyPhotoM ()
       maybeExport = do
@@ -626,8 +627,7 @@ runMyPhotoStack'' startOpts actions startImgs = do
             MTL.liftIO $ removeDirectoryRecursive wd
 
       alignOuts :: MyPhotoM ()
-      alignOuts = do
-        logInfo "align outputs"
+      alignOuts = step "align outputs" $ do
         outs <- getOuts
         when (length outs >= 2) $ do
           opts <- getOpts
@@ -683,6 +683,7 @@ runMyPhotoStack'' startOpts actions startImgs = do
           guardWithOpts optUnHeif applyUnHeif
           guardWithOpts optUntiff applyUnTiff
           guardWithOpts optRemoveOutliers applyRemoveOutliers
+          guardWithOpts ((/= 100) . optDownscalePct) applyDownscale
           createShellScript
           createMontage
           guardWithOpts

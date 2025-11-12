@@ -29,6 +29,7 @@ library
     other-modules:
         MyPhoto.Utils.Samples,
         MyPhoto.Actions.Align,
+        MyPhoto.Actions.Downscale,
         MyPhoto.Actions.EnblendEnfuse,
         MyPhoto.Actions.Metadata,
         MyPhoto.Actions.FileSystem,

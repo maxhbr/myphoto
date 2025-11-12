@@ -140,6 +140,17 @@ logTimeSinceStart msg = do
   logInfo $ msg ++ " (elapsed time: " ++ show diff ++ ", elapsed since last log: " ++ show diffSinceLastLog ++ ")"
   MTL.modify (\s -> s {myPhotoLastLogTime = currentTime})
 
+step :: String -> MyPhotoM a -> MyPhotoM a
+step stepName action = do
+  logInfo "###########################################################"
+  logInfo $ "## Starting step: " ++ stepName
+  currentTimeBefore <- MTL.liftIO getCurrentTime
+  actionResult <- action
+  currentTimeAfter <- MTL.liftIO getCurrentTime
+  logInfo $ "## Finished step: " ++ stepName ++ " (elapsed time: " ++ show (diffUTCTime currentTimeAfter currentTimeBefore) ++ ")"
+  logInfo "###########################################################"
+  return actionResult
+
 redirectLogToLogFile :: MyPhotoM a -> MyPhotoM a
 redirectLogToLogFile action = do
   wd <- MTL.gets myPhotoStateWd
