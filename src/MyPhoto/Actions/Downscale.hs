@@ -24,7 +24,7 @@ import System.ProgressBar (Progress (..), ProgressBar, defStyle, incProgress, ne
 
 downscaleImg :: Int -> Img -> IO Img
 downscaleImg int img = do
-  let (bn, ext) = splitExtensions img
+  let (bn, _) = splitExtensions img
       outputImg = bn ++ "@" ++ show int ++ "pct.png"
   outImgExists <- doesFileExist outputImg
   if outImgExists

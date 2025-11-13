@@ -8,10 +8,7 @@ where
 import Control.Concurrent.Async (concurrently)
 import Control.Monad
 import Data.List (sortBy)
-import Data.Maybe (fromMaybe)
-import MyPhoto.Actions.Metadata (Metadata (..), getMetadataFromImgs)
 import MyPhoto.Model
-import System.Console.GetOpt
 import System.Directory
 import System.FilePath
 import System.IO.Temp

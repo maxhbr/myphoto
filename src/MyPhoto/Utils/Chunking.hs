@@ -12,11 +12,16 @@ import System.Directory
 import System.Exit
 import System.FilePath
 import System.Process
+import System.ProgressBar (Progress (..), ProgressBar, defStyle, incProgress, newProgressBar)
 
 data Chunks
   = Chunk Imgs
   | Chunks [Chunks]
   deriving (Show, Eq)
+
+countChunks :: Chunks -> Int
+countChunks (Chunk imgs) = 1
+countChunks (Chunks chunks) = 1 + sum (map countChunks chunks)
 
 showChunkTree :: Chunks -> String
 showChunkTree (Chunk imgs) = show (length imgs)
@@ -26,12 +31,15 @@ linearizeChunks :: Chunks -> Imgs
 linearizeChunks (Chunk imgs) = imgs
 linearizeChunks (Chunks chunks) = concatMap linearizeChunks chunks
 
-resolveChunks :: MS.MSem Int -> (FilePath -> Imgs -> IO (Either String Img)) -> FilePath -> Chunks -> IO (Either String Img)
-resolveChunks sem f bn (Chunk imgs) = MS.with sem $ f bn imgs
-resolveChunks sem f bn (Chunks chunks) = do
+resolveChunks' :: ProgressBar () -> MS.MSem Int -> (FilePath -> Imgs -> IO (Either String Img)) -> FilePath -> Chunks -> IO (Either String Img)
+resolveChunks' pb sem f bn (Chunk imgs) = MS.with sem $ do
+  ret <- f bn imgs
+  incProgress pb 1
+  return ret
+resolveChunks' pb sem f bn (Chunks chunks) = do
   let chunkSize = length chunks
   let chunkBn = \i -> bn ++ "_chunk" ++ show i ++ "of" ++ show chunkSize
-  results <- mapConcurrently (\(i, c) -> resolveChunks sem f (chunkBn i) c) (zip [1 ..] chunks)
+  results <- mapConcurrently (\(i, c) -> resolveChunks' pb sem f (chunkBn i) c) (zip [1 ..] chunks)
   let foldResults :: Either String [FilePath] -> Either String FilePath -> Either String [FilePath]
       foldResults (Left err1) (Left err2) = Left (unlines [err1, err2])
       foldResults r1@(Left _) _ = r1
@@ -39,8 +47,13 @@ resolveChunks sem f bn (Chunks chunks) = do
       foldResults _ r2@(Left e) = Left e
   let result = foldl foldResults (Right []) results
   case result of
-    Right imgs -> resolveChunks sem f bn (Chunk imgs)
+    Right imgs -> resolveChunks' pb sem f bn (Chunk imgs)
     Left err -> return (Left err)
+
+resolveChunks :: MS.MSem Int -> (FilePath -> Imgs -> IO (Either String Img)) -> FilePath -> Chunks -> IO (Either String Img)
+resolveChunks sem f bn chunks = do
+  pb <- newProgressBar defStyle 10 (Progress 0 (countChunks chunks) ())
+  resolveChunks' pb sem f bn chunks
 
 joinLastTwoChunksIfNeeded :: Int -> [[a]] -> [[a]]
 joinLastTwoChunksIfNeeded _ [] = []
