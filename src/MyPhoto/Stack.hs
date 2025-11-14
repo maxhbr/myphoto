@@ -295,6 +295,13 @@ options =
       "only import images, no processing",
     Option
       ""
+      ["clean-workdir-recursively"]
+      ( NoArg
+          (\opt -> return opt {optClean = RemoveWorkdirRecursively})
+      )
+      "Clean work directory recursively after processing",
+    Option
+      ""
       ["redirect-log-to-file"]
       ( NoArg
           (\opt -> return opt {optRedirectLog = True})
@@ -565,7 +572,7 @@ runMyPhotoStack'' startOpts actions startImgs = do
                         "imgs=(" ++ (unwords (map (\img -> "\"" ++ img ++ "\"") imgsRelativeToWd)) ++ ")",
                         "cd \"$(dirname \"$0\")\"",
                         "echo -- '$ " ++ fullCmd ++ " [img [img [...]]]'",
-                        "exec " ++ fullCmd ++ "\"${imgs[@]}\""
+                        "exec " ++ fullCmd ++ " \"${imgs[@]}\""
                       ]
               IO.writeFile script scriptContent
 
