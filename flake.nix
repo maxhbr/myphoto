@@ -121,6 +121,9 @@
 
             makeWrapper ${self.packages.${system}.myphoto-unwrapped}/bin/myphoto-watch $out/bin/myphoto-watch \
               --set PATH ${pkgs.lib.makeBinPath extraLibraries}
+            makeWrapper ${self.packages.${system}.myphoto-unwrapped}/bin/myphoto-watch $out/bin/myphoto-import \
+              --set PATH ${pkgs.lib.makeBinPath extraLibraries} \
+              --add-flags "--only-import"
           '';
         };
         zerene-stacker = pkgs.stdenv.mkDerivation rec {

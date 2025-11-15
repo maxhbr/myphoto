@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module MyPhoto.WatchForStacks where
@@ -12,7 +13,9 @@ import Data.Time.Clock.POSIX (getCurrentTime, posixSecondsToUTCTime, utcTimeToPO
 import MyPhoto.Actions.FileSystem (copy)
 import MyPhoto.Actions.Metadata
 import MyPhoto.Actions.UnRAW (unrawExtensions)
+import MyPhoto.Impl
 import MyPhoto.Model
+import MyPhoto.Monad
 import MyPhoto.Stack
 import System.Console.GetOpt
 import System.Directory.Recursive (getFilesRecursive)
@@ -218,7 +221,7 @@ handleFinishedClusters oldState@WatchForStacksState {wfsInFileClusters = oldClus
   MTL.liftIO . putStrLn $ "#unchanged: " ++ show (length unchanged)
 
   MTL.liftIO $ createDirectoryIfMissing True outdir
-  newlyFinished <-
+  newlyImported <-
     mapM
       ( \cluster -> do
           let imgs = reverse $ map wfsfPath cluster
@@ -232,28 +235,52 @@ handleFinishedClusters oldState@WatchForStacksState {wfsInFileClusters = oldClus
               if expectedWDExists
                 then do
                   MTL.liftIO . putStrLn $ "INFO: img already exists: " ++ expectedWD
-                  return (expectedWD, cluster)
+                  return (expectedWD, cluster, Nothing)
                 else do
-                  wd <-
+                  (wd, importState) <-
                     MTL.liftIO $
                       catch
-                        (runMyPhotoStack'' opts [] (map wfsfPath cluster))
+                        ( do
+                            startState <- startMyPhotoState opts imgs
+                            (wd, importState) <- runImportStage startState
+                            return (wd, Just importState)
+                        )
                         ( \e -> do
                             let output = outdir </> (computeStackOutputBN imgs)
                             putStrLn $ "ERROR: " ++ show (e :: SomeException)
                             appendFile (output ++ ".exceptions") (show e ++ "\n")
-                            return output
+                            return (output, Nothing)
                         )
-                  return (wd, cluster)
+                  return (wd, cluster, importState)
             else do
               MTL.liftIO $ do
                 putStrLn $ "INFO: cluster too small, just copy: " ++ show (length cluster)
                 copy outdir (map wfsfPath cluster)
-              return (outdir, cluster)
+              return (outdir, cluster, Nothing)
       )
       unchanged
 
-  let newFinishedClusters = unionWith (++) finishedClusters (fromListWith (++) newlyFinished)
+  newlyFinished <- 
+    mapM
+      ( \(wd, cluster, mImportState) -> case mImportState of
+          Just importState@MyPhotoState {myPhotoStateImgs = imgs} ->
+            MTL.liftIO $
+              catch
+                ( do
+                    (_, stackState) <- runStackStage importState
+                    return (wd, cluster, Just stackState)
+                )
+                ( \e -> do
+                    let output = outdir </> (computeStackOutputBN imgs)
+                    putStrLn $ "ERROR: " ++ show (e :: SomeException)
+                    appendFile (output ++ ".exceptions") (show e ++ "\n")
+                    return (output, cluster, Nothing)
+                )
+          Nothing -> return (wd, cluster, Nothing)
+      )
+      newlyImported
+
+  let newFinishedClusters = unionWith (++) finishedClusters (fromListWith (++) (map (\(a,b,_) -> (a,b)) newlyFinished))
   MTL.put $ wfss {wfsInFileClusters = changed, wfsFinishedClusters = newFinishedClusters}
 
 watchForStacksLoop :: WatchForStacksM ()
@@ -331,23 +358,10 @@ getDirs _ = return (undefined, undefined, ["ERROR: Too many arguments specified"
 
 runMyPhotoWatchForStacks :: IO ()
 runMyPhotoWatchForStacks =
-  let computeStackOpts :: FilePath -> [String] -> IO Options
-      computeStackOpts outdir [] = do
-        let highMpxParameters =
-              Map.fromList
-                [ ( "focus-stack",
-                    ["--batchsize=6", "--threads=14"]
-                  )
-                ]
-        return
-          def
-            { optWorkdirStrategy = ImportToWorkdirWithSubdir outdir,
-              optExport = ExportToParent,
-              optRedirectLog = False,
-              optParameters = highMpxParameters
-            }
-      computeStackOpts outdir ("--" : stackArgs) = computeStackOpts outdir stackArgs
-      computeStackOpts outdir stackArgs = do
+  let computeStackOpts :: Options -> [String] -> IO Options
+      computeStackOpts initialStackOpts [] = return initialStackOpts
+      computeStackOpts initialStackOpts ("--" : stackArgs) = computeStackOpts initialStackOpts stackArgs
+      computeStackOpts initialStackOpts stackArgs = do
         let (actions, startImgs, errors) = getOpt RequireOrder options stackArgs
         unless (null errors) $ do
           mapM_ (IO.hPutStrLn IO.stderr) errors
@@ -355,8 +369,14 @@ runMyPhotoWatchForStacks =
         unless (null startImgs) $ do
           IO.hPutStrLn IO.stderr "ERROR: No input images expected for watch-for-stacks"
           exitWith (ExitFailure 1)
-        startOpts <- computeStackOpts outdir []
-        foldl (>>=) (return startOpts) actions
+        foldl (>>=) (return initialStackOpts) actions
+
+      applyStackOpts :: [String] -> WatchOptions -> IO WatchOptions
+      applyStackOpts [] opts = return opts
+      applyStackOpts ("--" : rest) opts = applyStackOpts rest opts
+      applyStackOpts stackArgs opts@WatchOptions {optWatchStackOpts = initialStackOpts} = do
+        stackOpts <- computeStackOpts initialStackOpts stackArgs
+        return opts {optWatchStackOpts = stackOpts}
    in do
         args <- getArgs
         let (watchArgs, stackArgs) = span (\arg -> arg /= "--") args
@@ -368,12 +388,23 @@ runMyPhotoWatchForStacks =
           mapM_ (IO.hPutStrLn IO.stderr) errors'
           printHelp
           exitWith (ExitFailure 1)
-        stackOpts <- computeStackOpts outdir stackArgs
 
+        let highMpxParameters =
+              Map.fromList
+                [ ( "focus-stack",
+                    ["--batchsize=6", "--threads=14"]
+                  )
+                ]
         let startOpts =
               WatchOptions
                 { optWatchVerbose = False,
-                  optWatchStackOpts = stackOpts,
+                  optWatchStackOpts =
+                    def
+                      { optWorkdirStrategy = ImportToWorkdirWithSubdir outdir,
+                        optExport = ExportToParent,
+                        optRedirectLog = False,
+                        optParameters = highMpxParameters
+                      },
                   optWatchOnce = False,
                   optUseRaw = False,
                   optOffset = 12 * 60 * 60, -- 12 hours ago
@@ -381,7 +412,7 @@ runMyPhotoWatchForStacks =
                   optOutdir = outdir
                 }
 
-        opts <- foldl (>>=) (return startOpts) actions
+        opts <- (foldl (>>=) (return startOpts) actions) >>= applyStackOpts stackArgs
 
         if optWatchOnce opts
           then importStacksOnce opts
