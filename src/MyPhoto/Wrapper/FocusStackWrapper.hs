@@ -46,7 +46,7 @@ focusStackOptionsToArgs
           ["--output=" ++ output]
             ++ (if depthMap then ["--depthmap=" ++ output ++ ".depthmap.png"] else [])
             ++ (if d3DView then ["--3dview=" ++ output ++ ".3dviewpt.png"] else [])
-            ++ ["--save-steps", "--jpgquality=100"]
+            ++ ["--save-steps", "--jpgquality=100", "--no-whitebalance", "--no-contrast"]
      in verbosityOpt ++ croppingOpt ++ outputOpt ++ additionalParameters
 
 computeAlignedImgs :: FilePath -> Imgs -> [FilePath]

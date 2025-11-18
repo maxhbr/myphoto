@@ -454,8 +454,19 @@ runStackStage =
                           return aligned
                         Left (ex :: Ex.SomeException) -> do
                           logWarn $ "focus-stack failed with exception: " ++ show ex
-                          logWarn "falling back to hugin alignment"
-                          runHuginAlign
+                          let veryHighPxParameters = ["--threads=6", "--focus-stack-parameter=--batchsize=3"]
+                              addVeryHighPxParametersToMap = Map.insertWith (++) "focus-stack" veryHighPxParameters
+                              modifyOpts opts = opts {optParameters = addVeryHighPxParametersToMap (optParameters opts)}
+                              modifyStateWithModifiedOpts s = s {myPhotoStateOpts = modifyOpts (myPhotoStateOpts s)}
+                          result' <- MTL.liftIO $ Ex.try $ MTL.runStateT runFocusStack (modifyStateWithModifiedOpts currentState)
+                          case result' of
+                            Right (aligned, newState) -> do
+                              MTL.put newState
+                              return aligned
+                            Left (ex' :: Ex.SomeException) -> do
+                              logWarn $ "focus-stack failed with exception: " ++ show ex'
+                              logWarn "falling back to hugin alignment"
+                              runHuginAlign
                     else runFocusStack
                 else runHuginAlign
             guardWithOpts optEnfuse $ runEnfuse aligned
