@@ -7,8 +7,6 @@ import Control.Concurrent as Thread
 import Control.Exception (SomeException, catch)
 import Control.Monad ((>=>))
 import qualified Control.Monad.State.Lazy as MTL
-import Data.Map (Map, fromList, fromListWith, toList, union, unionWith)
-import qualified Data.Map as Map
 import Data.Time.Clock.POSIX (getCurrentTime, posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
 import MyPhoto.Actions.FileSystem (copy)
 import MyPhoto.Actions.Metadata
@@ -123,7 +121,7 @@ data WatchForStacksState = WatchForStacksState
     wfsOldInFiles :: [FilePath],
     wfsFailedInFiles :: [FilePath],
     wfsInFileClusters :: [[WatchForStacksFile]],
-    wfsFinishedClusters :: Map FilePath [WatchForStacksFile]
+    wfsFinishedClusters :: [[WatchForStacksFile]]
   }
   deriving (Show, Eq)
 
@@ -139,7 +137,7 @@ knowsFile img = do
     } <-
     MTL.get
   let filePathsInInFiles = map wfsfPath (concat inFiles)
-  let filePathsInFinishedClusters = map wfsfPath (concatMap snd (toList finishedClusters))
+  let filePathsInFinishedClusters = map wfsfPath (concat finishedClusters)
   return $ img `elem` (filePathsInInFiles ++ filePathsInFinishedClusters ++ failedFiles ++ oldFiles)
 
 analyzeFile :: FilePath -> IO WatchForStacksFile
@@ -235,7 +233,7 @@ handleFinishedClusters oldState@WatchForStacksState {wfsInFileClusters = oldClus
               if expectedWDExists
                 then do
                   MTL.liftIO . putStrLn $ "INFO: img already exists: " ++ expectedWD
-                  return (expectedWD, cluster, Nothing)
+                  return (cluster, Nothing)
                 else do
                   (wd, importState) <-
                     MTL.liftIO $
@@ -251,36 +249,36 @@ handleFinishedClusters oldState@WatchForStacksState {wfsInFileClusters = oldClus
                             appendFile (output ++ ".exceptions") (show e ++ "\n")
                             return (output, Nothing)
                         )
-                  return (wd, cluster, importState)
+                  return (cluster, importState)
             else do
               MTL.liftIO $ do
                 putStrLn $ "INFO: cluster too small, just copy: " ++ show (length cluster)
                 copy outdir (map wfsfPath cluster)
-              return (outdir, cluster, Nothing)
+              return (cluster, Nothing)
       )
       unchanged
 
   newlyFinished <- 
     mapM
-      ( \(wd, cluster, mImportState) -> case mImportState of
+      ( \(cluster, mImportState) -> case mImportState of
           Just importState@MyPhotoState {myPhotoStateImgs = imgs} ->
             MTL.liftIO $
               catch
                 ( do
                     (_, stackState) <- runStackStage importState
-                    return (wd, cluster, Just stackState)
+                    return (cluster, Just stackState)
                 )
                 ( \e -> do
                     let output = outdir </> (computeStackOutputBN imgs)
                     putStrLn $ "ERROR: " ++ show (e :: SomeException)
                     appendFile (output ++ ".exceptions") (show e ++ "\n")
-                    return (output, cluster, Nothing)
+                    return (cluster, Nothing)
                 )
-          Nothing -> return (wd, cluster, Nothing)
+          Nothing -> return (cluster, Nothing)
       )
       newlyImported
 
-  let newFinishedClusters = unionWith (++) finishedClusters (fromListWith (++) (map (\(a,b,_) -> (a,b)) newlyFinished))
+  let newFinishedClusters = finishedClusters ++ map (\(b,_) -> b) newlyFinished
   MTL.put $ wfss {wfsInFileClusters = changed, wfsFinishedClusters = newFinishedClusters}
 
 watchForStacksLoop :: WatchForStacksM ()
@@ -298,7 +296,7 @@ watchForStacksLoop = do
   WatchForStacksState {wfsFailedInFiles = failedFiles, wfsInFileClusters = clusters, wfsFinishedClusters = finishedclusters, wfsOldInFiles = oldFiles} <- MTL.get
   MTL.liftIO $ putStrLn $ "#openClusters: " ++ show (length clusters) ++ "\n##openClusters: " ++ show (map length clusters)
   MTL.liftIO $ putStrLn $ "#finishedClusters: " ++ show (length finishedclusters)
-  mapM_ (\(wd, cluster) -> MTL.liftIO $ putStrLn $ "  " ++ wd ++ " #=" ++ show (length cluster)) (toList finishedclusters)
+  mapM_ (\cluster -> MTL.liftIO $ putStrLn $ "  #=" ++ show (length cluster)) finishedclusters
   MTL.liftIO $ putStrLn $ "#failedFiles: " ++ show (length failedFiles)
   MTL.liftIO $ putStrLn $ "#oldFiles: " ++ show (length oldFiles)
 
@@ -322,7 +320,7 @@ watchForStacks opts@WatchOptions {..} = do
   let minimalTime = currentSeconds - optOffset
   let extensions = if optUseRaw then unrawExtensions else jpgExtensions
 
-  MTL.evalStateT watchForStacksLoop (WatchForStacksState opts extensions minimalTime [] [] [] mempty)
+  MTL.evalStateT watchForStacksLoop (WatchForStacksState opts extensions minimalTime [] [] [] [])
 
 importStacksOnce :: WatchOptions -> IO ()
 importStacksOnce opts@WatchOptions {..} = do
@@ -345,7 +343,7 @@ importStacksOnce opts@WatchOptions {..} = do
         state <- MTL.get
         handleFinishedClusters state
     )
-    (WatchForStacksState opts extensions minimalTime [] [] [] mempty)
+    (WatchForStacksState opts extensions minimalTime [] [] [] [])
 
 getDirs :: [String] -> IO (FilePath, FilePath, [String])
 getDirs [] = return (undefined, undefined, ["ERROR: No input directory specified"])
