@@ -111,7 +111,6 @@ data Options = Options
     optUnHeif :: Bool,
     optDownscalePct :: Int,
     optFocusStack :: Bool,
-    optFocusStackToHuginFallback :: Bool,
     optEnfuse :: Bool,
     optEnfuseChunkSettings :: ChunkSettings,
     optParameters :: Map String [String]
@@ -134,7 +133,6 @@ instance Default Options where
         optUnHeif = True,
         optDownscalePct = 100,
         optFocusStack = True,
-        optFocusStackToHuginFallback = False,
         optEnfuse = True,
         optEnfuseChunkSettings = def,
         optParameters = mempty

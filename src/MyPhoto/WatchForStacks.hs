@@ -389,12 +389,6 @@ runMyPhotoWatchForStacks =
           printHelp
           exitWith (ExitFailure 1)
 
-        let highMpxParameters =
-              Map.fromList
-                [ ( "focus-stack",
-                    ["--batchsize=6", "--threads=14"]
-                  )
-                ]
         let startOpts =
               WatchOptions
                 { optWatchVerbose = False,
@@ -402,8 +396,7 @@ runMyPhotoWatchForStacks =
                     def
                       { optWorkdirStrategy = ImportToWorkdirWithSubdir outdir,
                         optExport = ExportToParent,
-                        optRedirectLog = False,
-                        optParameters = highMpxParameters
+                        optRedirectLog = False
                       },
                   optWatchOnce = False,
                   optUseRaw = False,

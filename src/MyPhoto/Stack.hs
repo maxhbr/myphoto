@@ -210,20 +210,6 @@ options =
           (\opt -> return opt {optParameters = Map.insertWith (++) "focus-stack" ["--batchsize=6", "--threads=14"] (optParameters opt)})
       )
       "Enable high MPX mode",
-    Option
-      ""
-      ["focus-stack-to-hugin-fallback"]
-      ( NoArg
-          (\opt -> return opt {optFocusStackToHuginFallback = True})
-      )
-      "If focus stacking fails, fall back to hugin alignment",
-    Option
-      ""
-      ["no-focus-stack-to-hugin-fallback"]
-      ( NoArg
-          (\opt -> return opt {optFocusStackToHuginFallback = False})
-      )
-      "If focus stacking fails, fall back to hugin alignment",
     -- enfuse
     Option
       ""
