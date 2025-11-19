@@ -16,7 +16,6 @@ module MyPhoto.Model
     CleanupStrategy (..),
     ChunkSettings (..),
     Options (..),
-    computeStackOutputBN,
     inWorkdir,
     findOutFile,
     findAltFileOfFile,
@@ -137,14 +136,6 @@ instance Default Options where
         optEnfuseChunkSettings = def,
         optParameters = mempty
       }
-
-computeStackOutputBN :: [FilePath] -> FilePath
-computeStackOutputBN [] = undefined -- should not happen
-computeStackOutputBN (img0 : oimgs) =
-  let lastImg = case oimgs of
-        [] -> ""
-        _ -> "_to_" ++ takeBaseName (last oimgs)
-   in takeBaseName img0 ++ lastImg ++ "_stack_of_" ++ show (length oimgs + 1)
 
 inWorkdir :: FilePath -> FilePath -> FilePath
 inWorkdir workdir img = workdir </> takeFileName img

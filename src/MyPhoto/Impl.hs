@@ -5,7 +5,7 @@
 module MyPhoto.Impl
   ( runImportStage,
     runStackStage,
-    computeRawImportDirInWorkdir,
+    getRawImportDirInWorkdir,
   )
 where
 
@@ -34,9 +34,13 @@ import System.Console.GetOpt
 import System.Directory (removeDirectoryRecursive)
 import System.Environment (getArgs, getProgName, withArgs)
 import qualified System.IO as IO
+import Data.Time.Format (formatTime, defaultTimeLocale)
+import Data.Time.Calendar (fromGregorian)
 
-computeRawImportDirInWorkdir :: FilePath -> Imgs -> FilePath
-computeRawImportDirInWorkdir wd imgs = wd </> computeStackOutputBN imgs <.> "raw"
+getRawImportDirInWorkdir :: FilePath -> Imgs -> IO FilePath
+getRawImportDirInWorkdir wd imgs = do
+  outputBN <- getStackOutputBN imgs
+  return $ inWorkdir wd (outputBN <.> "raw")
 
 getWdOrFail :: MyPhotoM FilePath
 getWdOrFail = do
@@ -76,7 +80,7 @@ getWdAndMaybeMoveImgs =
                   MTL.liftIO $ createDirectoryIfMissing True wd
                   absWd <- MTL.liftIO $ makeAbsolute wd
                   imgs <- getImgs
-                  let indir = computeRawImportDirInWorkdir absWd imgs
+                  indir <- MTL.liftIO $ getRawImportDirInWorkdir absWd imgs
                   let expectedFiles = map (inWorkdir indir) imgs
                   allFilesExist <- and <$> mapM (MTL.liftIO . doesFileExist) expectedFiles
                   imgs' <-
@@ -91,8 +95,8 @@ getWdAndMaybeMoveImgs =
             wd <- case workdirStrategy of
               CreateNextToImgDir -> do
                 imgs@(img0 : _) <- getImgs
-                let imgBN = computeStackOutputBN imgs
-                let wd = takeDirectory img0 <.> imgBN <.> "myphoto"
+                outputBN <- MTL.liftIO $ getStackOutputBN imgs
+                let wd = (inWorkdir (takeDirectory img0) outputBN) <.> "myphoto"
                 MTL.liftIO $ createDirectoryIfMissing True wd
                 return wd
               MoveExistingImgsToSubfolder -> do
@@ -101,8 +105,8 @@ getWdAndMaybeMoveImgs =
                   fail "cannot move images to subfolder when --every-nth is specified"
                 imgs@(img0 : _) <- getImgs
                 let wd = takeDirectory img0
-                let imgBN = computeStackOutputBN imgs
-                let indir = wd </> imgBN <.> "raw"
+                outputBN <- MTL.liftIO $ getStackOutputBN imgs
+                let indir = inWorkdir wd (outputBN <.> "raw")
                 logInfo ("moving images to " ++ indir)
                 imgs' <- MTL.liftIO $ move indir imgs
                 putImgs imgs'
@@ -117,13 +121,11 @@ getWdAndMaybeMoveImgs =
               ImportToWorkdir wd -> implForImportToWorkdir wd
               ImportToWorkdirWithSubdir wd -> do
                 imgs <- getImgs
-                let wdWithSubdir = wd </> computeStackOutputBN imgs <.> "myphoto"
+                outputBN <- MTL.liftIO $ getStackOutputBN imgs
+                let wdWithSubdir = inWorkdir wd (outputBN <.> "myphoto")
                 implForImportToWorkdir wdWithSubdir
             setWd wd
             return wd
-
-getOutputBN :: MyPhotoM FilePath
-getOutputBN = computeStackOutputBN <$> getImgs
 
 maybeRedirectLogToLogFile :: MyPhotoM a -> MyPhotoM a
 maybeRedirectLogToLogFile action = do
@@ -243,7 +245,8 @@ applyDownscale = do
 createShellScript :: MyPhotoM ()
 createShellScript = do
   imgs <- getImgs
-  script <- MTL.liftIO $ makeAbsolute (computeStackOutputBN imgs ++ ".sh")
+  outputBN <- MTL.liftIO $ getStackOutputBN imgs
+  script <- MTL.liftIO $ makeAbsolute (outputBN ++ ".sh")
   scriptAlreadyExists <- MTL.liftIO $ doesFileExist script
   if scriptAlreadyExists
     then do
@@ -274,8 +277,8 @@ createShellScript = do
 
 createMontage :: MyPhotoM ()
 createMontage = step "montage" $ do
-  outputBN <- getOutputBN
   imgs <- getImgs
+  outputBN <- MTL.liftIO $ getStackOutputBN imgs
   wd <- getWdAndMaybeMoveImgs
   montageOut <- MTL.liftIO $ montageSample 25 200 (inWorkdir wd (outputBN <.> "all")) imgs
 
@@ -306,14 +309,14 @@ runHuginAlign = step "just aligning with hugin" $ do
 
 runEnfuse :: [FilePath] -> MyPhotoM ()
 runEnfuse aligned = step "focus stacking with enfuse" $ do
-  outputBn <- getOutputBN
+  outputBN <- MTL.liftIO $ getStackOutputBN aligned
   enfuseResult <- do
     opts <- getOpts
     MTL.liftIO $
       enfuseStackImgs
         ( def
             { eeOptions = def {eeVerbose = optVerbose opts},
-              eeaOutputBN = Just outputBn,
+              eeaOutputBN = Just outputBN,
               eeaChunk = optEnfuseChunkSettings opts
             }
         )

@@ -11,7 +11,7 @@ import MyPhoto.Model
 import System.Directory (copyFile, createFileLink, removeDirectoryRecursive, renameFile)
 import System.FilePath (replaceDirectory)
 import System.Posix.Files (getSymbolicLinkStatus, isSymbolicLink)
-import System.ProgressBar (Progress (..), ProgressBar, defStyle, incProgress, newProgressBar)
+import System.ProgressBar (Progress (..), defStyle, incProgress, newProgressBar)
 
 getPathInTargetFolder :: FilePath -> FilePath -> IO FilePath
 getPathInTargetFolder target img = do
@@ -71,7 +71,7 @@ reverseLink target imgs = do
     ( \img img' -> do
         imgSymbolicLinkStatus <- getSymbolicLinkStatus img
         let imgIsSymbolicLink = isSymbolicLink imgSymbolicLinkStatus
-        img' <-
+        img'' <-
           if (not imgIsSymbolicLink)
             then do
               renameFile img img'
@@ -86,7 +86,7 @@ reverseLink target imgs = do
                 else do
                   fail $ "reverseLink: target file " ++ img' ++ " does not exist, cannot create link from symbolic link " ++ img
         incProgress pb 1
-        return img'
+        return img''
     )
     target
     imgs

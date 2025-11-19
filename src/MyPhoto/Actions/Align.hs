@@ -14,6 +14,7 @@ import System.FilePath
 import System.IO.Temp
 import System.Process
 import Text.Printf
+import MyPhoto.Actions.Metadata (getStackOutputBN)
 
 data AlignNamingStrategy
   = AlignNamingStrategyOriginal
@@ -134,8 +135,8 @@ align :: AlignOptions -> FilePath -> Imgs -> IO Imgs
 align _ _ [] = return []
 align _ _ [img] = return [img]
 align opts wd imgs = do
-  let imgBN = computeStackOutputBN imgs
-  let alignWD = wd </> imgBN <.> "align"
+  outputBN <- getStackOutputBN imgs
+  let alignWD = wd </> outputBN <.> "align"
   createDirectoryIfMissing True alignWD
 
   -- TODO: look at: https://photo.stackexchange.com/a/83179

@@ -223,12 +223,12 @@ handleFinishedClusters oldState@WatchForStacksState {wfsInFileClusters = oldClus
     mapM
       ( \cluster -> do
           let imgs = reverse $ map wfsfPath cluster
-          let bn = computeStackOutputBN imgs
+          bn <- MTL.liftIO $ getStackOutputBN imgs
           if length cluster > 10
             then do
               MTL.liftIO . putStrLn $ "INFO: work on " ++ bn ++ " of size " ++ show (length cluster)
               let imgs = map wfsfPath cluster
-              let expectedWD = computeRawImportDirInWorkdir outdir imgs
+              expectedWD <- MTL.liftIO $ getRawImportDirInWorkdir outdir imgs
               expectedWDExists <- MTL.liftIO $ doesDirectoryExist expectedWD
               if expectedWDExists
                 then do
@@ -244,8 +244,9 @@ handleFinishedClusters oldState@WatchForStacksState {wfsInFileClusters = oldClus
                             return (wd, Just importState)
                         )
                         ( \e -> do
-                            let output = outdir </> (computeStackOutputBN imgs)
                             putStrLn $ "ERROR: " ++ show (e :: SomeException)
+                            outputBN <- MTL.liftIO $ getStackOutputBN imgs
+                            let output = inWorkdir outdir outputBN
                             appendFile (output ++ ".exceptions") (show e ++ "\n")
                             return (output, Nothing)
                         )
@@ -269,7 +270,8 @@ handleFinishedClusters oldState@WatchForStacksState {wfsInFileClusters = oldClus
                     return (cluster, Just stackState)
                 )
                 ( \e -> do
-                    let output = outdir </> (computeStackOutputBN imgs)
+                    outputBN <- MTL.liftIO $ getStackOutputBN imgs
+                    let output = inWorkdir outdir outputBN
                     putStrLn $ "ERROR: " ++ show (e :: SomeException)
                     appendFile (output ++ ".exceptions") (show e ++ "\n")
                     return (cluster, Nothing)

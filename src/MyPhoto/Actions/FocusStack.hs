@@ -8,14 +8,15 @@ import MyPhoto.Wrapper.FocusStackWrapper
 import qualified System.IO as IO
 import Control.Exception (SomeException, try)
 import Control.Concurrent (getNumCapabilities)
-
+import MyPhoto.Actions.Metadata (getStackOutputBN)
 
 backoffStrategy :: [(Maybe Int, Maybe Int)]
 backoffStrategy = [(Nothing,Nothing), (Just 6, Just 14), (Just 4, Just 6)]
 
 mkOptions :: Bool -> [String] -> [FilePath] -> IO FocusStackOptions
 mkOptions verbose additionalParameters imgs = do
-  output <- makeAbsolute (computeStackOutputBN imgs ++ "_focus-stack.png")
+  outputBN <- getStackOutputBN imgs
+  output <- makeAbsolute (outputBN ++ "_focus-stack.png")
   let focusStackWorkdir = output -<.> "workdir"
   return $ (initFocusStackOptions imgs focusStackWorkdir output)
     { _verbose = verbose,

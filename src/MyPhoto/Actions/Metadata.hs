@@ -6,6 +6,7 @@ module MyPhoto.Actions.Metadata
     getMetadataFromImg,
     getMetadataFromImgs,
     Metadata (..),
+    getStackOutputBN,
   )
 where
 
@@ -16,7 +17,7 @@ import qualified Data.ByteString.Lazy as B
 import qualified Data.Map as Map
 import Data.Text (Text, unpack)
 import Data.Time
-import Data.Time.Clock.POSIX (utcTimeToPOSIXSeconds)
+import Data.Time.Clock.POSIX (posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
 import Data.Time.LocalTime
 import Graphics.HsExif
 import MyPhoto.Model hiding (Options (..))
@@ -83,3 +84,18 @@ sortByCreateDate :: Bool -> Imgs -> IO Imgs
 sortByCreateDate verbose imgs = do
   metadatas <- getMetadataFromImgs verbose imgs
   return (map (\(Metadata {_img = img}) -> img) (sortOn (\(Metadata {_createDate = time}) -> time) metadatas))
+
+computeStackOutputBN :: Imgs -> FilePath
+computeStackOutputBN [] = undefined -- should not happen
+computeStackOutputBN (img0 : oimgs) =
+  let lastImg = case oimgs of
+        [] -> ""
+        _ -> "_to_" ++ takeBaseName (last oimgs)
+   in takeBaseName img0 ++ lastImg ++ "_stack_of_" ++ show (length oimgs + 1)
+   
+getStackOutputBN :: Imgs -> IO FilePath
+getStackOutputBN [] = fail "need at least 1 images to compute stack output BN"
+getStackOutputBN imgs@(img0 : _) = do
+  Metadata {_createDate = createDate} <- getMetadataFromImg False img0
+  let creationDateStr = formatTime defaultTimeLocale "%Y%m%d_" (utctDay $ posixSecondsToUTCTime $ fromIntegral createDate)
+  return $ creationDateStr ++ computeStackOutputBN imgs
