@@ -37,6 +37,11 @@ import qualified System.IO as IO
 import Data.Time.Format (formatTime, defaultTimeLocale)
 import Data.Time.Calendar (fromGregorian)
 
+getStackOutputBNFromImgs :: MyPhotoM FilePath
+getStackOutputBNFromImgs = do
+  imgs <- getImgs
+  MTL.liftIO $ getStackOutputBN imgs
+
 getRawImportDirInWorkdir :: FilePath -> Imgs -> IO FilePath
 getRawImportDirInWorkdir wd imgs = do
   outputBN <- getStackOutputBN imgs
@@ -94,8 +99,8 @@ getWdAndMaybeMoveImgs =
 
             wd <- case workdirStrategy of
               CreateNextToImgDir -> do
-                imgs@(img0 : _) <- getImgs
-                outputBN <- MTL.liftIO $ getStackOutputBN imgs
+                outputBN <- getStackOutputBNFromImgs
+                img0 : _ <- getImgs
                 let wd = (inWorkdir (takeDirectory img0) outputBN) <.> "myphoto"
                 MTL.liftIO $ createDirectoryIfMissing True wd
                 return wd
@@ -105,7 +110,7 @@ getWdAndMaybeMoveImgs =
                   fail "cannot move images to subfolder when --every-nth is specified"
                 imgs@(img0 : _) <- getImgs
                 let wd = takeDirectory img0
-                outputBN <- MTL.liftIO $ getStackOutputBN imgs
+                outputBN <- getStackOutputBNFromImgs
                 let indir = inWorkdir wd (outputBN <.> "raw")
                 logInfo ("moving images to " ++ indir)
                 imgs' <- MTL.liftIO $ move indir imgs
@@ -120,8 +125,7 @@ getWdAndMaybeMoveImgs =
                 MTL.liftIO $ makeAbsolute wd
               ImportToWorkdir wd -> implForImportToWorkdir wd
               ImportToWorkdirWithSubdir wd -> do
-                imgs <- getImgs
-                outputBN <- MTL.liftIO $ getStackOutputBN imgs
+                outputBN <- getStackOutputBNFromImgs
                 let wdWithSubdir = inWorkdir wd (outputBN <.> "myphoto")
                 implForImportToWorkdir wdWithSubdir
             setWd wd
@@ -244,8 +248,7 @@ applyDownscale = do
 
 createShellScript :: MyPhotoM ()
 createShellScript = do
-  imgs <- getImgs
-  outputBN <- MTL.liftIO $ getStackOutputBN imgs
+  outputBN <- getStackOutputBNFromImgs
   script <- MTL.liftIO $ makeAbsolute (outputBN ++ ".sh")
   scriptAlreadyExists <- MTL.liftIO $ doesFileExist script
   if scriptAlreadyExists
@@ -255,6 +258,7 @@ createShellScript = do
       wd <- getWdAndMaybeMoveImgs
       opts <- getOpts
       logInfo ("creating shell script at " ++ script)
+      imgs <- getImgs
       let imgsRelativeToWd = map (makeRelative wd) imgs
       MTL.liftIO $ do
         let cmd = "myphoto-stack"
@@ -277,9 +281,9 @@ createShellScript = do
 
 createMontage :: MyPhotoM ()
 createMontage = step "montage" $ do
-  imgs <- getImgs
-  outputBN <- MTL.liftIO $ getStackOutputBN imgs
+  outputBN <- getStackOutputBNFromImgs
   wd <- getWdAndMaybeMoveImgs
+  imgs <- getImgs
   montageOut <- MTL.liftIO $ montageSample 25 200 (inWorkdir wd (outputBN <.> "all")) imgs
 
   opts <- getOpts
@@ -309,7 +313,7 @@ runHuginAlign = step "just aligning with hugin" $ do
 
 runEnfuse :: [FilePath] -> MyPhotoM ()
 runEnfuse aligned = step "focus stacking with enfuse" $ do
-  outputBN <- MTL.liftIO $ getStackOutputBN aligned
+  outputBN <- getStackOutputBNFromImgs
   enfuseResult <- do
     opts <- getOpts
     MTL.liftIO $
@@ -400,6 +404,14 @@ mkStage stage startState = do
   (a, endState) <- MTL.runStateT stage startState
   print endState
   return (a, endState)
+  
+withinCurrentWorkdir :: MyPhotoM a -> MyPhotoM a
+withinCurrentWorkdir action = do
+  wd <- getWdAndMaybeMoveImgs
+  MTL.liftIO $ do
+    setCurrentDirectory wd
+    logInfoIO ("work directory: " ++ wd)
+  action
 
 runImportStage :: MyPhotoState -> IO (FilePath, MyPhotoState)
 runImportStage =
@@ -410,11 +422,7 @@ runImportStage =
         makeImgsPathsAbsoluteAndCheckExistence
         sortOnCreateDate
         applyEveryNth
-        wd <- getWdAndMaybeMoveImgs
-        maybeRedirectLogToLogFile $ do
-          MTL.liftIO $ do
-            setCurrentDirectory wd
-            logInfoIO ("work directory: " ++ wd)
+        withinCurrentWorkdir $ do
           guardWithOpts
             ( \opts ->
                 let breaking = optBreaking opts
@@ -437,7 +445,7 @@ runImportStage =
 runStackStage :: MyPhotoState -> IO ((), MyPhotoState)
 runStackStage =
   mkStage
-    ( do
+    ( withinCurrentWorkdir $ do
         guardWithOpts
           ( \opts ->
               (optFocusStack opts || optEnfuse opts)
