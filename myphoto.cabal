@@ -23,8 +23,8 @@ library
     import:           warnings
     exposed-modules:
         MyPhoto.Impl,
-        MyPhoto.Stack,
-        MyPhoto.WatchForStacks,
+        MyPhoto.AppStack,
+        MyPhoto.AppWatch,
         MyPhoto.Model,
         MyPhoto.Utils.Chunking
     other-modules:

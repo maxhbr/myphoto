@@ -1,7 +1,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module MyPhoto.WatchForStacks where
+module MyPhoto.AppWatch where
 
 import Control.Concurrent as Thread
 import Control.Exception (SomeException, catch)
@@ -14,7 +14,7 @@ import MyPhoto.Actions.UnRAW (unrawExtensions)
 import MyPhoto.Impl
 import MyPhoto.Model
 import MyPhoto.Monad
-import MyPhoto.Stack
+import MyPhoto.AppStack
 import System.Console.GetOpt
 import System.Directory.Recursive (getFilesRecursive)
 import System.Environment (getArgs, getProgName)

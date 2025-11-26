@@ -1,6 +1,6 @@
 module Main where
 
-import MyPhoto.WatchForStacks
+import MyPhoto.AppWatch
 
 main :: IO ()
 main = runMyPhotoWatchForStacks

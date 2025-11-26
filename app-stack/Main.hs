@@ -1,6 +1,6 @@
 module Main where
 
-import MyPhoto.Stack
+import MyPhoto.AppStack
 
 main :: IO ()
 main = runMyPhotoStack

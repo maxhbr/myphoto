@@ -2,7 +2,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module MyPhoto.Stack
+module MyPhoto.AppStack
   ( runMyPhotoStack,
     runMyPhotoStack',
     runMyPhotoStack'',
