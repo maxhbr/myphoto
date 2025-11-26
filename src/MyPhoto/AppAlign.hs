@@ -22,6 +22,6 @@ runMyPhotoAlign = do
     [] -> printUsage
     [_] -> return ()
     files -> do
-      let opts = def {alignOptVerbose = True, alignOptUntiff = True}
+      let opts = def {alignOptVerbose = True, alignOptNamingStrategy = AlignNamingStrategyOriginal, alignOptSortBySize = True, alignOptUntiff = True}
       aligned <- align opts "." files
       mapM_ putStrLn aligned
