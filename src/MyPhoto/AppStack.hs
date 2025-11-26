@@ -383,7 +383,4 @@ runMyPhotoStack = do
       failIfDirDoesNotExist dir
       let basename = takeFileName (dropTrailingPathSeparator dir)
       runMyPhotoStack' (("--import=./0_raw_" ++ basename) : args' ++ [dir])
-    "--only-align" : imgs -> do
-      aligned <- align (AlignOptions True AlignNamingStrategyOriginal True True) "." imgs
-      mapM_ (IO.putStrLn . ("aligned: " ++)) aligned
     _ -> runMyPhotoStack' args

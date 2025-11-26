@@ -69,12 +69,16 @@
         myphoto-watch-from-github = pkgs.writeShellScriptBin "myphoto-gh-watch" ''
           exec nix run --refresh "github:maxhbr/myphoto"#myphoto-watch -- "$@"
         '';
+        myphoto-align-from-github = pkgs.writeShellScriptBin "myphoto-gh-align" ''
+          exec nix run --refresh "github:maxhbr/myphoto"#myphoto-align -- "$@"
+        '';
         myphoto = pkgs.buildEnv {
           name = "myphoto";
 
           paths = [
             self.packages.${system}.myphoto-stack-from-github
             self.packages.${system}.myphoto-watch-from-github
+            self.packages.${system}.myphoto-align-from-github
           ];
           pathsToLink = [
             "/bin"
@@ -115,9 +119,8 @@
               --set PATH ${pkgs.lib.makeBinPath extraLibraries} \
               --add-flags "--dirs"
 
-            makeWrapper ${self.packages.${system}.myphoto-unwrapped}/bin/myphoto-stack $out/bin/myphoto-align \
-              --set PATH ${pkgs.lib.makeBinPath extraLibraries} \
-              --add-flags "--only-align"
+            makeWrapper ${self.packages.${system}.myphoto-unwrapped}/bin/myphoto-align $out/bin/myphoto-align \
+              --set PATH ${pkgs.lib.makeBinPath extraLibraries}
 
             makeWrapper ${self.packages.${system}.myphoto-unwrapped}/bin/myphoto-watch $out/bin/myphoto-watch \
               --set PATH ${pkgs.lib.makeBinPath extraLibraries}
@@ -378,6 +381,10 @@
         myphoto-watch = {
           type = "app";
           program = "${self.packages.${system}.myphoto}/bin/myphoto-watch";
+        };
+        myphoto-align = {
+          type = "app";
+          program = "${self.packages.${system}.myphoto}/bin/myphoto-align";
         };
         zerene-stacker = {
           type = "app";

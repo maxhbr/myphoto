@@ -25,6 +25,7 @@ library
         MyPhoto.Impl,
         MyPhoto.AppStack,
         MyPhoto.AppWatch,
+        MyPhoto.AppAlign,
         MyPhoto.Model,
         MyPhoto.Utils.Chunking
     other-modules:
@@ -103,3 +104,12 @@ test-suite test-myphoto
                       test-framework,
                       test-framework-hunit,
                       HUnit
+
+executable myphoto-align
+    import:           warnings
+    main-is:          Main.hs
+    ghc-options:      -Wall -threaded -rtsopts
+    build-depends:    base,
+                      myphoto
+    hs-source-dirs:   app-align
+    default-language: Haskell2010
