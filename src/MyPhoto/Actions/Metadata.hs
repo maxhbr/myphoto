@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module MyPhoto.Actions.Metadata
-  ( breaking,
+  ( applyBreakingToImgs,
     sortByCreateDate,
     getMetadataFromImg,
     getMetadataFromImgs,
@@ -76,8 +76,8 @@ breakingOnMetadatas gapInSeconds ((r@(Metadata {_img = img})) : rs) =
           else breakingOnMetadatas' (imgs' ++ [img']) r2' rs'
    in breakingOnMetadatas' [img] r rs
 
-breaking :: Bool -> Int -> Imgs -> IO Imgs
-breaking verbose gapInSeconds imgs = do
+applyBreakingToImgs :: Bool -> Int -> Imgs -> IO Imgs
+applyBreakingToImgs verbose gapInSeconds imgs = do
   metadatas <- getMetadataFromImgs verbose imgs
   return (breakingOnMetadatas gapInSeconds metadatas)
 

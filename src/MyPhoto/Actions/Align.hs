@@ -15,6 +15,7 @@ import System.IO.Temp
 import System.Process
 import Text.Printf
 import MyPhoto.Actions.Metadata (getStackOutputBN)
+import MyPhoto.Actions.UnTiff (unTiff)
 
 data AlignNamingStrategy
   = AlignNamingStrategyOriginal
@@ -24,12 +25,13 @@ data AlignNamingStrategy
 data AlignOptions = AlignOptions
   { alignOptVerbose :: Bool,
     alignOptNamingStrategy :: AlignNamingStrategy,
-    alignOptSortBySize :: Bool
+    alignOptSortBySize :: Bool,
+    alignOptUntiff :: Bool
   }
   deriving (Eq, Show)
 
 instance Default AlignOptions where
-  def = AlignOptions False AlignNamingStrategySequential False
+  def = AlignOptions False AlignNamingStrategySequential False True
 
 callAlignImageStack :: [String] -> String -> [Img] -> IO [Img]
 callAlignImageStack alignArgs prefix imgs =
@@ -192,6 +194,8 @@ align opts wd imgs = do
               AlignNamingStrategyOriginal -> inWorkdir wd (bnAtIdx (i - 1) ++ "_ALIGNED.tif")
               AlignNamingStrategySequential -> inWorkdir alignWD (printf (bnAtIdx 0 ++ "_ALIGN-%04d-%04d.tif") i (length imgs))
 
-        outs <- copyAndRenameImages mkOutImgName imgsInTmp'
-        return outs
+        outTiffs <- copyAndRenameImages mkOutImgName imgsInTmp'
+        if alignOptUntiff opts
+          then unTiff True outTiffs
+          else return outTiffs
     )

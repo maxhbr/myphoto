@@ -206,7 +206,7 @@ applyBreaking = do
         _ -> do
           logInfo ("breaking on time gap of " ++ show gapInSeconds ++ " seconds")
           imgs <- getImgs
-          broken <- MTL.liftIO $ breaking (optVerbose opts) gapInSeconds imgs
+          broken <- MTL.liftIO $ applyBreakingToImgs (optVerbose opts) gapInSeconds imgs
           putImgs broken
           logTimeSinceStart "after applyBreaking"
 
@@ -308,7 +308,7 @@ runHuginAlign = step "just aligning with hugin" $ do
   imgs <- getImgs
   opts <- getOpts
   wd <- getWdAndMaybeMoveImgs
-  aligned <- MTL.liftIO $ align (AlignOptions (optVerbose opts) AlignNamingStrategySequential False) wd imgs
+  aligned <- MTL.liftIO $ align (AlignOptions (optVerbose opts) AlignNamingStrategySequential False True) wd imgs
   return aligned
 
 runEnfuse :: [FilePath] -> MyPhotoM ()
@@ -369,7 +369,7 @@ alignOuts = step "align outputs" $ do
           logInfoIO "no outputs to align"
           return outs
         else
-          align (AlignOptions (optVerbose opts) AlignNamingStrategyOriginal True) wd outs
+          align (AlignOptions (optVerbose opts) AlignNamingStrategyOriginal True True) wd outs
 
 makeOutsPathsAbsolute :: MyPhotoM ()
 makeOutsPathsAbsolute = do
