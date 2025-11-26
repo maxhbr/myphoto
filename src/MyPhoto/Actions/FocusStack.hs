@@ -45,7 +45,9 @@ tryWithBackoff options capabilities strategies =
       case result of
         Right res -> return res
         Left ex -> do
-          IO.hPutStrLn IO.stderr $ "WARNING: focus stacking failed with error: " ++ show ex
+          IO.hPutStrLn IO.stderr $ "WARNING: !!!"
+          IO.hPutStrLn IO.stderr $ "WARNING: !!! focus stacking failed with error: " ++ show ex
+          IO.hPutStrLn IO.stderr $ "WARNING: !!!"
           IO.hPutStrLn IO.stderr $ "INFO: try with " ++ strategyDesc
           runFocusStack strategyOptions
     (strategy : rest) -> do

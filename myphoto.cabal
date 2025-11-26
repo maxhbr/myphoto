@@ -26,6 +26,7 @@ library
         MyPhoto.AppStack,
         MyPhoto.AppWatch,
         MyPhoto.AppAlign,
+        MyPhoto.AppToPNG,
         MyPhoto.Model,
         MyPhoto.Utils.Chunking
     other-modules:
@@ -93,6 +94,15 @@ executable myphoto-watch
     build-depends:    base,
                       myphoto
     hs-source-dirs:   app-watch
+    default-language: Haskell2010
+
+executable myphoto-toPNG
+    import:           warnings
+    main-is:          Main.hs
+    ghc-options:      -Wall -threaded -rtsopts
+    build-depends:    base,
+                      myphoto
+    hs-source-dirs:   app-toPNG
     default-language: Haskell2010
 
 test-suite test-myphoto

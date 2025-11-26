@@ -72,6 +72,9 @@
         myphoto-align-from-github = pkgs.writeShellScriptBin "myphoto-gh-align" ''
           exec nix run --refresh "github:maxhbr/myphoto"#myphoto-align -- "$@"
         '';
+        myphoto-toPNG-from-github = pkgs.writeShellScriptBin "myphoto-gh-toPNG" ''
+          exec nix run --refresh "github:maxhbr/myphoto"#myphoto-toPNG -- "$@"
+        '';
         myphoto = pkgs.buildEnv {
           name = "myphoto";
 
@@ -79,6 +82,7 @@
             self.packages.${system}.myphoto-stack-from-github
             self.packages.${system}.myphoto-watch-from-github
             self.packages.${system}.myphoto-align-from-github
+            self.packages.${system}.myphoto-toPNG-from-github
           ];
           pathsToLink = [
             "/bin"
@@ -120,6 +124,9 @@
               --add-flags "--dirs"
 
             makeWrapper ${self.packages.${system}.myphoto-unwrapped}/bin/myphoto-align $out/bin/myphoto-align \
+              --set PATH ${pkgs.lib.makeBinPath extraLibraries}
+
+            makeWrapper ${self.packages.${system}.myphoto-unwrapped}/bin/myphoto-toPNG $out/bin/myphoto-toPNG \
               --set PATH ${pkgs.lib.makeBinPath extraLibraries}
 
             makeWrapper ${self.packages.${system}.myphoto-unwrapped}/bin/myphoto-watch $out/bin/myphoto-watch \
@@ -385,6 +392,10 @@
         myphoto-align = {
           type = "app";
           program = "${self.packages.${system}.myphoto}/bin/myphoto-align";
+        };
+        myphoto-toPNG = {
+          type = "app";
+          program = "${self.packages.${system}.myphoto}/bin/myphoto-toPNG";
         };
         zerene-stacker = {
           type = "app";
