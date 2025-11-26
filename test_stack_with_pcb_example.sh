@@ -3,7 +3,7 @@
 set -euo pipefail
 
 thisdir="$(dirname "$(readlink -f "$0")")"
-tmpdir="$thisdir/_tmp/test_with_pcb_example/"
+tmpdir="$thisdir/_tmp_test_stack/test_with_pcb_example/"
 mkdir -p "$tmpdir"
 
 echo "tmpdir=$tmpdir"

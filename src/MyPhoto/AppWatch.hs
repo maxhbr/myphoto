@@ -8,6 +8,7 @@ import Control.Exception (SomeException, catch)
 import Control.Monad ((>=>))
 import qualified Control.Monad.State.Lazy as MTL
 import Data.Time.Clock.POSIX (getCurrentTime, posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
+import Data.Time.Clock (UTCTime, diffUTCTime)
 import MyPhoto.Actions.FileSystem (copy)
 import MyPhoto.Actions.Metadata
 import MyPhoto.Actions.UnRAW (unrawExtensions)
@@ -26,6 +27,7 @@ data WatchOptions = WatchOptions
     optWatchOnce :: Bool,
     optWatchOnlyImport :: Bool,
     optUseRaw :: Bool,
+    optClusterDistance :: Int,
     optOffset :: Int,
     optIndir :: FilePath,
     optOutdir :: FilePath
@@ -90,6 +92,14 @@ watchOptions =
       "Use RAW files instead of JPG",
     Option
       ""
+      ["cluster-distance"]
+      ( ReqArg
+          (\arg opt -> return opt {optClusterDistance = read arg})
+          "SECONDS"
+      )
+      "Max distance in seconds between shots in a stack (default: 6)",
+    Option
+      ""
       ["offset"]
       ( ReqArg
           (\arg opt -> return opt {optOffset = (read arg :: Int) * 60 * 60})
@@ -109,8 +119,6 @@ watchOptions =
   ]
 
 jpgExtensions = [".jpg", ".JPG"]
-
-clusterDistanceInSeconds = 6
 
 loopIntervalInSeconds = 40
 
@@ -154,26 +162,26 @@ analyzeFile p = do
   let isoDate = posixSecondsToUTCTime (fromIntegral exifTimeSeconds)
   return $ WatchForStacksFile p exifTimeSeconds
 
-findCloseClusters :: Int -> [[WatchForStacksFile]] -> ([[WatchForStacksFile]], [[WatchForStacksFile]])
-findCloseClusters needle [] = ([], [])
-findCloseClusters needle (cluster : clusters) =
-  let (closeClusters, farClusters) = findCloseClusters needle clusters
-      isClose = any (\(WatchForStacksFile _ exifTimeSeconds) -> abs (exifTimeSeconds - needle) < clusterDistanceInSeconds) cluster
+findCloseClusters :: Int -> Int -> [[WatchForStacksFile]] -> ([[WatchForStacksFile]], [[WatchForStacksFile]])
+findCloseClusters _ _ [] = ([], [])
+findCloseClusters clusterDistance needle (cluster : clusters) =
+  let (closeClusters, farClusters) = findCloseClusters clusterDistance needle clusters
+      isClose = any (\(WatchForStacksFile _ exifTimeSeconds) -> abs (exifTimeSeconds - needle) < clusterDistance) cluster
    in if isClose
         then (cluster : closeClusters, farClusters)
         else (closeClusters, cluster : farClusters)
 
-insertIntoClusters :: WatchForStacksFile -> [[WatchForStacksFile]] -> [[WatchForStacksFile]]
-insertIntoClusters file [] = [[file]]
-insertIntoClusters file clusters =
-  let (closeClusters, farClusters) = findCloseClusters (wfsfExifTimeSeconds file) clusters
+insertIntoClusters :: Int -> WatchForStacksFile -> [[WatchForStacksFile]] -> [[WatchForStacksFile]]
+insertIntoClusters _ file [] = [[file]]
+insertIntoClusters clusterDistance file clusters =
+  let (closeClusters, farClusters) = findCloseClusters clusterDistance (wfsfExifTimeSeconds file) clusters
    in (file : concat closeClusters) : farClusters
 
 addFile :: WatchForStacksFile -> WatchForStacksM ()
 addFile file@(WatchForStacksFile p exifTimeSeconds) = do
   -- MTL.liftIO $ putStrLn $ "addFile: " ++ p ++ " (" ++ show exifTimeSeconds ++ ")"
-  wfss@WatchForStacksState {wfsInFileClusters = clusters} <- MTL.get
-  let newClusters = insertIntoClusters file clusters
+  wfss@WatchForStacksState {wfsInFileClusters = clusters, wfsOpts = WatchOptions {optClusterDistance = clusterDistance}} <- MTL.get
+  let newClusters = insertIntoClusters clusterDistance file clusters
   MTL.put $ wfss {wfsInFileClusters = newClusters}
 
 addFailedFile :: FilePath -> WatchForStacksM ()
@@ -220,6 +228,15 @@ peekFiles = do
 
 handleFinishedClusters :: WatchForStacksState -> WatchForStacksM ()
 handleFinishedClusters oldState@WatchForStacksState {wfsInFileClusters = oldClusters} = do
+  let inBox title m = do
+        MTL.liftIO . putStrLn $ "▛" ++ (replicate 78 '▀') ++ "▜"
+        MTL.liftIO . putStrLn $ "▌ " ++ "Starting " ++ title
+        currentTimeBefore <- MTL.liftIO getCurrentTime
+        r <- m
+        currentTimeAfter <- MTL.liftIO getCurrentTime
+        MTL.liftIO . putStrLn $ "▌ " ++ ("Finished " ++ title ++ " (elapsed time: " ++ show (diffUTCTime currentTimeAfter currentTimeBefore) ++ ")")
+        MTL.liftIO . putStrLn $ "▙" ++ (replicate 78 '▄') ++ "▟"
+        return r
   MTL.liftIO $ putStrLn "handleFinishedClusters ..."
   wfss@WatchForStacksState {wfsOpts = WatchOptions {optOutdir = outdir, optWatchStackOpts = opts}, wfsInFileClusters = newClusters, wfsFinishedClusters = finishedClusters} <- MTL.get
   let (unchanged, changed) = partition (\cluster -> cluster `elem` oldClusters) newClusters
@@ -229,10 +246,10 @@ handleFinishedClusters oldState@WatchForStacksState {wfsInFileClusters = oldClus
   MTL.liftIO $ createDirectoryIfMissing True outdir
   newlyImported <-
     mapM
-      ( \cluster -> do
+      ( \cluster -> inBox "import" $ do
           let imgs = reverse $ map wfsfPath cluster
           bn <- MTL.liftIO $ getStackOutputBN imgs
-          if length cluster > 10
+          if length cluster > 6
             then do
               MTL.liftIO . putStrLn $ "INFO: work on " ++ bn ++ " of size " ++ show (length cluster)
               let imgs = map wfsfPath cluster
@@ -274,7 +291,7 @@ handleFinishedClusters oldState@WatchForStacksState {wfsInFileClusters = oldClus
         mapM
           ( \(cluster, mImportState) -> case mImportState of
               Just importState@MyPhotoState {myPhotoStateImgs = imgs} ->
-                MTL.liftIO $
+                inBox "stack" $ MTL.liftIO $
                   catch
                     ( do
                         (_, stackState) <- runStackStage importState
@@ -347,7 +364,9 @@ importStacksOnce opts@WatchOptions {..} = do
 
   currentTime <- getCurrentTime
   let currentSeconds = round (utcTimeToPOSIXSeconds currentTime)
-  let minimalTime = currentSeconds - optOffset
+  let minimalTime = if optOffset > 0
+                            then currentSeconds - optOffset
+                            else 0
   let extensions = if optUseRaw then unrawExtensions else jpgExtensions
 
   MTL.evalStateT
@@ -412,6 +431,7 @@ runMyPhotoWatchForStacks =
                   optWatchOnce = False,
                   optWatchOnlyImport = False,
                   optUseRaw = False,
+                  optClusterDistance = 6,
                   optOffset = 12 * 60 * 60, -- 12 hours ago
                   optIndir = indir,
                   optOutdir = outdir

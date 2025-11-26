@@ -8,6 +8,7 @@ where
 import Control.Monad
 import MyPhoto.Model
 import MyPhoto.Wrapper.DcrawWrapper
+import System.Directory (doesFileExist, removeFile)
 
 unrawExtensions :: [String]
 unrawExtensions = [".arw", ".raw", ".nef"]
@@ -33,7 +34,8 @@ data UnRawOptions = UnRawOptions
   { urVerbose :: Bool,
     urWhitebalance :: WhiteBalanceOption,
     urColorSpace :: ColorSpace,
-    urQuality :: Int
+    urQuality :: Int,
+    urCleanup :: Bool
   }
   deriving (Show)
 
@@ -43,48 +45,49 @@ instance Default UnRawOptions where
       { urVerbose = False,
         urWhitebalance = WBFromRaw,
         urColorSpace = SRGBColorSpace,
-        urQuality = 3
+        urQuality = 3,
+        urCleanup = False
       }
 
 calculateUnRAWedName :: FilePath -> FilePath
 calculateUnRAWedName = (<.> "tiff")
 
 getDcrawArgs :: UnRawOptions -> [Img] -> IO ([String], [Img])
-getDcrawArgs opts =
-  let addVerbosityArgs :: UnRawOptions -> ([String], [Img]) -> IO ([String], [Img])
-      addVerbosityArgs UnRawOptions {urVerbose = True} (args, imgs) = pure (args ++ ["-v"], imgs)
-      addVerbosityArgs _ v = pure v
+getDcrawArgs opts imgs = do
+  (dcrawArgs, imgs') <-
+    addVerbosityArgs opts ([], imgs)
+      >>= addWhiteBalanceArgs opts
+      >>= addColorspaceArgs opts
+      >>= addQualityArgs opts
+      >>= addOutputFormaArgs
+  when (urVerbose opts) $ do
+    putStrLn "dcrawArgs:"
+    print dcrawArgs
+    putStrLn "imgs:"
+    print imgs'
+  return (dcrawArgs, imgs')
+  where
+    addVerbosityArgs :: UnRawOptions -> ([String], [Img]) -> IO ([String], [Img])
+    addVerbosityArgs UnRawOptions {urVerbose = True} (args, imgs') = pure (args ++ ["-v"], imgs')
+    addVerbosityArgs _ v = pure v
 
-      addWhiteBalanceArgs :: UnRawOptions -> ([String], [Img]) -> IO ([String], [Img])
-      addWhiteBalanceArgs UnRawOptions {urWhitebalance = WBFromRaw} (args, imgs) = pure (args ++ ["-W"], imgs)
-      addWhiteBalanceArgs UnRawOptions {urWhitebalance = WBFromImage wbImg} (args, imgs) = do
-        multipliers <- calculateWhitebalance wbImg
-        return (args ++ ["-r"] ++ multipliers, imgs)
-      addWhiteBalanceArgs UnRawOptions {urWhitebalance = WBFromFirstImage} (args, wbImg : imgs) = addWhiteBalanceArgs (def {urWhitebalance = WBFromImage wbImg}) (args, imgs)
-      addWhiteBalanceArgs UnRawOptions {urWhitebalance = WBFromFirstImage} (_, []) = fail "missing first image for whitebalance"
+    addWhiteBalanceArgs :: UnRawOptions -> ([String], [Img]) -> IO ([String], [Img])
+    addWhiteBalanceArgs UnRawOptions {urWhitebalance = WBFromRaw} (args, imgs') = pure (args ++ ["-W"], imgs')
+    addWhiteBalanceArgs UnRawOptions {urWhitebalance = WBFromImage wbImg} (args, imgs') = do
+      multipliers <- calculateWhitebalance wbImg
+      return (args ++ ["-r"] ++ multipliers, imgs')
+    addWhiteBalanceArgs UnRawOptions {urWhitebalance = WBFromFirstImage} (args, wbImg : imgs') = addWhiteBalanceArgs (def {urWhitebalance = WBFromImage wbImg}) (args, imgs')
+    addWhiteBalanceArgs UnRawOptions {urWhitebalance = WBFromFirstImage} (_, []) = fail "missing first image for whitebalance"
 
-      addColorspaceArgs :: UnRawOptions -> ([String], [Img]) -> IO ([String], [Img])
-      addColorspaceArgs UnRawOptions {urColorSpace = ocs} (args, imgs) = pure (args ++ colorSpaceToArgs ocs, imgs)
+    addColorspaceArgs :: UnRawOptions -> ([String], [Img]) -> IO ([String], [Img])
+    addColorspaceArgs UnRawOptions {urColorSpace = ocs} (args, imgs') = pure (args ++ colorSpaceToArgs ocs, imgs')
 
-      addQualityArgs :: UnRawOptions -> ([String], [Img]) -> IO ([String], [Img])
-      addQualityArgs UnRawOptions {urQuality = 3} v = pure v
-      addQualityArgs UnRawOptions {urQuality = q} (args, imgs) = pure (args ++ ["-q", show q], imgs)
+    addQualityArgs :: UnRawOptions -> ([String], [Img]) -> IO ([String], [Img])
+    addQualityArgs UnRawOptions {urQuality = 3} v = pure v
+    addQualityArgs UnRawOptions {urQuality = q} (args, imgs') = pure (args ++ ["-q", show q], imgs')
 
-      addOutputFormaArgs :: ([String], [Img]) -> IO ([String], [Img])
-      addOutputFormaArgs (args, imgs) = pure (args ++ ["-T"], imgs)
-   in \imgs -> do
-        (dcrawArgs, imgs') <-
-          addVerbosityArgs opts ([], imgs)
-            >>= addWhiteBalanceArgs opts
-            >>= addColorspaceArgs opts
-            >>= addQualityArgs opts
-            >>= addOutputFormaArgs
-        when (urVerbose opts) $ do
-          putStrLn "dcrawArgs:"
-          print dcrawArgs
-          putStrLn "imgs:"
-          print imgs'
-        return (dcrawArgs, imgs')
+    addOutputFormaArgs :: ([String], [Img]) -> IO ([String], [Img])
+    addOutputFormaArgs (args, imgs') = pure (args ++ ["-T"], imgs')
 
 unRAW :: UnRawOptions -> Imgs -> IO Imgs
 unRAW opts imgs = do
@@ -94,6 +97,10 @@ unRAW opts imgs = do
   if and tiffsExist
     then do
       when (urVerbose opts) $ putStrLn "All unRAWed TIFFs already exist, skipping dcraw."
+      when (urCleanup opts) $
+        forM_ (zip imgs' expectedTiffs) $ \(raw, tiff) -> do
+          tiffExists <- doesFileExist tiff
+          when tiffExists $ removeFile raw
       return expectedTiffs
     else do
       when (or tiffsExist) $
@@ -105,5 +112,10 @@ unRAW opts imgs = do
           putStrLn $
             "Warning: expected unRAWed TIFF " ++ tiff ++ " is missing after dcraw execution"
       case exitCode of
-        ExitSuccess -> return expectedTiffs -- TODO: get generated output from "Writing data to <OUTPUT> ..." lines
+        ExitSuccess -> do
+          when (urCleanup opts) $
+            forM_ (zip imgs' expectedTiffs) $ \(raw, tiff) -> do
+              tiffExists <- doesFileExist tiff
+              when tiffExists $ removeFile raw
+          return expectedTiffs -- TODO: get generated output from "Writing data to <OUTPUT> ..." lines
         _ -> fail ("UnRAW failed with " ++ show exitCode)

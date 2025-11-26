@@ -142,13 +142,17 @@ logTimeSinceStart msg = do
 
 step :: String -> MyPhotoM a -> MyPhotoM a
 step stepName action = do
-  logInfo "///////////////////////////////////////////////////////////"
-  logInfo $ "|| Starting step: " ++ stepName
+  let border = replicate 79 '─'
+      logBoxStart  = logInfo $ "┌" ++ border
+      logInBox msg = logInfo $ "│ " ++ msg
+      logBoxEnd    = logInfo $ "└" ++ border
+  logBoxStart
+  logInBox ("Starting step: " ++ stepName)
   currentTimeBefore <- MTL.liftIO getCurrentTime
   actionResult <- action
   currentTimeAfter <- MTL.liftIO getCurrentTime
-  logInfo $ "|| Finished step: " ++ stepName ++ " (elapsed time: " ++ show (diffUTCTime currentTimeAfter currentTimeBefore) ++ ")"
-  logInfo "\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"
+  logInBox ("Finished step: " ++ stepName ++ " (elapsed time: " ++ show (diffUTCTime currentTimeAfter currentTimeBefore) ++ ")")
+  logBoxEnd
   return actionResult
 
 redirectLogToLogFile :: MyPhotoM a -> MyPhotoM a
