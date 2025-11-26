@@ -10,12 +10,12 @@ module MyPhoto.Actions.Metadata
   )
 where
 
+import Control.Exception (SomeException, try)
 import Control.Monad
 import qualified Data.Aeson as A
 import qualified Data.Aeson.Types as A
 import qualified Data.ByteString.Lazy as B
 import qualified Data.Map as Map
-import Control.Exception (try, SomeException)
 import Data.Text (Text, unpack)
 import Data.Time
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
@@ -93,12 +93,12 @@ computeStackOutputBN (img0 : oimgs) =
         [] -> ""
         _ -> "_to_" ++ takeBaseName (last oimgs)
    in takeBaseName img0 ++ lastImg ++ "_stack_of_" ++ show (length oimgs + 1)
-   
+
 getStackOutputBN :: Imgs -> IO FilePath
 getStackOutputBN [] = fail "need at least 1 images to compute stack output BN"
 getStackOutputBN imgs@(img0 : _) = do
   result <- try (getMetadataFromImg False img0) :: IO (Either SomeException Metadata)
   let creationDateStr = case result of
-                          Left _ -> "YYYYMMDD_"
-                          Right (Metadata {_createDate = createDate}) -> formatTime defaultTimeLocale "%Y%m%d_" (utctDay $ posixSecondsToUTCTime $ fromIntegral createDate)
+        Left _ -> "YYYYMMDD_"
+        Right (Metadata {_createDate = createDate}) -> formatTime defaultTimeLocale "%Y%m%d_" (utctDay $ posixSecondsToUTCTime $ fromIntegral createDate)
   return $ creationDateStr ++ computeStackOutputBN imgs

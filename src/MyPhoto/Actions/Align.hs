@@ -8,14 +8,14 @@ where
 import Control.Concurrent.Async (concurrently)
 import Control.Monad
 import Data.List (sortBy)
+import MyPhoto.Actions.Metadata (getStackOutputBN)
+import MyPhoto.Actions.UnTiff (unTiff)
 import MyPhoto.Model
 import System.Directory
 import System.FilePath
 import System.IO.Temp
 import System.Process
 import Text.Printf
-import MyPhoto.Actions.Metadata (getStackOutputBN)
-import MyPhoto.Actions.UnTiff (unTiff)
 
 data AlignNamingStrategy
   = AlignNamingStrategyOriginal

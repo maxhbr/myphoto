@@ -79,11 +79,11 @@ computeAlignedImgs' :: FilePath -> Imgs -> [FilePath]
 computeAlignedImgs' workdir = map (\img -> workdir </> "aligned_" ++ takeFileName img)
 
 computeAlignedImgs :: FocusStackOptions -> [FilePath]
-computeAlignedImgs FocusStackOptions{ _workdir = workdir, _imgs = imgs } =
+computeAlignedImgs FocusStackOptions {_workdir = workdir, _imgs = imgs} =
   computeAlignedImgs' workdir imgs
 
 computeResultAndCheck :: FocusStackOptions -> IO (FilePath, [FilePath])
-computeResultAndCheck opts@FocusStackOptions{_output = output } = do
+computeResultAndCheck opts@FocusStackOptions {_output = output} = do
   let alignedImgs = computeAlignedImgs opts
   outputExists <- doesFileExist output
   unless outputExists $ do

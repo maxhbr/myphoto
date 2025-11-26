@@ -16,6 +16,8 @@ import Data.List (isInfixOf)
 import Data.List.Split (splitOn)
 import qualified Data.Map as Map
 import Data.Maybe (isJust)
+import Data.Time.Calendar (fromGregorian)
+import Data.Time.Format (defaultTimeLocale, formatTime)
 import MyPhoto.Actions.Align
 import MyPhoto.Actions.Downscale
 import MyPhoto.Actions.EnblendEnfuse
@@ -34,8 +36,6 @@ import System.Console.GetOpt
 import System.Directory (removeDirectoryRecursive)
 import System.Environment (getArgs, getProgName, withArgs)
 import qualified System.IO as IO
-import Data.Time.Format (formatTime, defaultTimeLocale)
-import Data.Time.Calendar (fromGregorian)
 
 getStackOutputBNFromImgs :: MyPhotoM FilePath
 getStackOutputBNFromImgs = do
@@ -404,7 +404,7 @@ mkStage stage startState = do
   (a, endState) <- MTL.runStateT stage startState
   print endState
   return (a, endState)
-  
+
 withinCurrentWorkdir :: MyPhotoM a -> MyPhotoM a
 withinCurrentWorkdir action = do
   wd <- getWdAndMaybeMoveImgs

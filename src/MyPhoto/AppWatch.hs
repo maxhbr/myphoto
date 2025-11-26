@@ -11,10 +11,10 @@ import Data.Time.Clock.POSIX (getCurrentTime, posixSecondsToUTCTime, utcTimeToPO
 import MyPhoto.Actions.FileSystem (copy)
 import MyPhoto.Actions.Metadata
 import MyPhoto.Actions.UnRAW (unrawExtensions)
+import MyPhoto.AppStack
 import MyPhoto.Impl
 import MyPhoto.Model
 import MyPhoto.Monad
-import MyPhoto.AppStack
 import System.Console.GetOpt
 import System.Directory.Recursive (getFilesRecursive)
 import System.Environment (getArgs, getProgName)
@@ -267,31 +267,31 @@ handleFinishedClusters oldState@WatchForStacksState {wfsInFileClusters = oldClus
       )
       unchanged
 
-  newlyFinished <- 
+  newlyFinished <-
     if optWatchOnlyImport (wfsOpts wfss)
-    then return newlyImported
-    else 
-      mapM
-        ( \(cluster, mImportState) -> case mImportState of
-            Just importState@MyPhotoState {myPhotoStateImgs = imgs} ->
-              MTL.liftIO $
-                catch
-                  ( do
-                      (_, stackState) <- runStackStage importState
-                      return (cluster, Just stackState)
-                  )
-                  ( \e -> do
-                      outputBN <- MTL.liftIO $ getStackOutputBN imgs
-                      let output = inWorkdir outdir outputBN
-                      putStrLn $ "ERROR: " ++ show (e :: SomeException)
-                      appendFile (output ++ ".exceptions") (show e ++ "\n")
-                      return (cluster, Nothing)
-                  )
-            Nothing -> return (cluster, Nothing)
-        )
-        newlyImported
+      then return newlyImported
+      else
+        mapM
+          ( \(cluster, mImportState) -> case mImportState of
+              Just importState@MyPhotoState {myPhotoStateImgs = imgs} ->
+                MTL.liftIO $
+                  catch
+                    ( do
+                        (_, stackState) <- runStackStage importState
+                        return (cluster, Just stackState)
+                    )
+                    ( \e -> do
+                        outputBN <- MTL.liftIO $ getStackOutputBN imgs
+                        let output = inWorkdir outdir outputBN
+                        putStrLn $ "ERROR: " ++ show (e :: SomeException)
+                        appendFile (output ++ ".exceptions") (show e ++ "\n")
+                        return (cluster, Nothing)
+                    )
+              Nothing -> return (cluster, Nothing)
+          )
+          newlyImported
 
-  let newFinishedClusters = finishedClusters ++ map (\(b,_) -> b) newlyFinished
+  let newFinishedClusters = finishedClusters ++ map (\(b, _) -> b) newlyFinished
   MTL.put $ wfss {wfsInFileClusters = changed, wfsFinishedClusters = newFinishedClusters}
 
 watchForStacksLoop :: WatchForStacksM ()
