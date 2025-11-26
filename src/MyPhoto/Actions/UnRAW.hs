@@ -1,6 +1,7 @@
 module MyPhoto.Actions.UnRAW
   ( unRAW,
     unrawExtensions,
+    UnRawOptions (..),
   )
 where
 
