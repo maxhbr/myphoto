@@ -40,8 +40,9 @@ tryWithBackoff :: FocusStackOptions -> Int -> [(Maybe Int, Maybe Int)] -> IO (Fi
 tryWithBackoff options capabilities strategies =
   case strategies of
     [] -> runFocusStack options
-    [lastStrategy] -> do
-      let (strategyOptions, strategyDesc) = applyStrategy options capabilities lastStrategy
+    (strategy : rest) -> do
+      let (strategyOptions, strategyDesc) = applyStrategy options capabilities strategy
+      IO.hPutStrLn IO.stderr $ "INFO: try with " ++ strategyDesc
       result <- try (runFocusStack strategyOptions) :: IO (Either SomeException (FilePath, [FilePath]))
       case result of
         Right res -> return res
@@ -49,17 +50,11 @@ tryWithBackoff options capabilities strategies =
           IO.hPutStrLn IO.stderr $ "WARNING: !!!"
           IO.hPutStrLn IO.stderr $ "WARNING: !!! focus stacking failed with error: " ++ show ex
           IO.hPutStrLn IO.stderr $ "WARNING: !!!"
-          IO.hPutStrLn IO.stderr $ "INFO: try with " ++ strategyDesc
-          runFocusStack strategyOptions
-    (strategy : rest) -> do
-      let (strategyOptions, strategyDesc) = applyStrategy options capabilities strategy
-      result <- try (runFocusStack strategyOptions) :: IO (Either SomeException (FilePath, [FilePath]))
-      case result of
-        Right res -> return res
-        Left ex -> do
-          IO.hPutStrLn IO.stderr $ "WARNING: focus stacking failed with error: " ++ show ex
-          IO.hPutStrLn IO.stderr $ "INFO: try with " ++ strategyDesc
-          tryWithBackoff options capabilities rest
+          if null rest
+            then fail "ERROR: all focus stacking strategies failed, aborting"
+            else do
+              IO.hPutStrLn IO.stderr $ "INFO: retrying with different strategy"
+              tryWithBackoff options capabilities rest
 
 applyStrategy :: FocusStackOptions -> Int -> (Maybe Int, Maybe Int) -> (FocusStackOptions, String)
 applyStrategy options capabilities (mbBatchsize, mbThreads) =
@@ -69,7 +64,7 @@ applyStrategy options capabilities (mbBatchsize, mbThreads) =
            in (Just capped, capped)
         Nothing -> (Nothing, capabilities)
       strategyOptions = options {_batchsize = mbBatchsize, _threads = threads}
-      strategyDesc = case (mbBatchsize, mbThreads) of
+      stqrategyDesc = case (mbBatchsize, mbThreads) of
         (Nothing, Nothing) -> "default options"
         (Just bs, Just ts) -> "batchsize=" ++ show bs ++ " and threads=" ++ show threadsValue ++ " (capped from " ++ show ts ++ ")"
         (Just bs, Nothing) -> "batchsize=" ++ show bs ++ " and threads=" ++ show threadsValue
