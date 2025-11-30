@@ -118,7 +118,8 @@ executable myphoto-gallery
                       text,
                       time,
                       tomland,
-                      optparse-applicative
+                      optparse-applicative,
+                      process
     other-modules:    CmdAddMeta,
                       CmdImport,
                       Model
