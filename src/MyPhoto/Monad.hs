@@ -143,9 +143,9 @@ logTimeSinceStart msg = do
 step :: String -> MyPhotoM a -> MyPhotoM a
 step stepName action = do
   let border = replicate 79 '─'
-      logBoxStart  = logInfo $ "┌" ++ border
+      logBoxStart = logInfo $ "┌" ++ border
       logInBox msg = logInfo $ "│ " ++ msg
-      logBoxEnd    = logInfo $ "└" ++ border
+      logBoxEnd = logInfo $ "└" ++ border
   logBoxStart
   logInBox ("Starting step: " ++ stepName)
   currentTimeBefore <- MTL.liftIO getCurrentTime

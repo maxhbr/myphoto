@@ -7,8 +7,8 @@ import Control.Concurrent as Thread
 import Control.Exception (SomeException, catch)
 import Control.Monad ((>=>))
 import qualified Control.Monad.State.Lazy as MTL
-import Data.Time.Clock.POSIX (getCurrentTime, posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
 import Data.Time.Clock (UTCTime, diffUTCTime)
+import Data.Time.Clock.POSIX (getCurrentTime, posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
 import MyPhoto.Actions.FileSystem (copy)
 import MyPhoto.Actions.Metadata
 import MyPhoto.Actions.UnRAW (unrawExtensions)
@@ -291,19 +291,20 @@ handleFinishedClusters oldState@WatchForStacksState {wfsInFileClusters = oldClus
         mapM
           ( \(cluster, mImportState) -> case mImportState of
               Just importState@MyPhotoState {myPhotoStateImgs = imgs} ->
-                inBox "stack" $ MTL.liftIO $
-                  catch
-                    ( do
-                        (_, stackState) <- runStackStage importState
-                        return (cluster, Just stackState)
-                    )
-                    ( \e -> do
-                        outputBN <- MTL.liftIO $ getStackOutputBN imgs
-                        let output = inWorkdir outdir outputBN
-                        putStrLn $ "ERROR: " ++ show (e :: SomeException)
-                        appendFile (output ++ ".exceptions") (show e ++ "\n")
-                        return (cluster, Nothing)
-                    )
+                inBox "stack" $
+                  MTL.liftIO $
+                    catch
+                      ( do
+                          (_, stackState) <- runStackStage importState
+                          return (cluster, Just stackState)
+                      )
+                      ( \e -> do
+                          outputBN <- MTL.liftIO $ getStackOutputBN imgs
+                          let output = inWorkdir outdir outputBN
+                          putStrLn $ "ERROR: " ++ show (e :: SomeException)
+                          appendFile (output ++ ".exceptions") (show e ++ "\n")
+                          return (cluster, Nothing)
+                      )
               Nothing -> return (cluster, Nothing)
           )
           newlyImported
@@ -364,9 +365,10 @@ importStacksOnce opts@WatchOptions {..} = do
 
   currentTime <- getCurrentTime
   let currentSeconds = round (utcTimeToPOSIXSeconds currentTime)
-  let minimalTime = if optOffset > 0
-                            then currentSeconds - optOffset
-                            else 0
+  let minimalTime =
+        if optOffset > 0
+          then currentSeconds - optOffset
+          else 0
   let extensions = if optUseRaw then unrawExtensions else jpgExtensions
 
   MTL.evalStateT

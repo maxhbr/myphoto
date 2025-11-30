@@ -1,17 +1,18 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Model
-  ( PhotoMeta (..)
-  , ImportedMeta (..)
-  , defaultMeta
-  , defaultDirMeta
-  , mergeMeta
-  , writePhotoMeta
-  , writeImportedMeta
-  , loadPhotoMeta
-  , loadImportedMeta
-  , resolveAboutPaths
-  ) where
+  ( PhotoMeta (..),
+    ImportedMeta (..),
+    defaultMeta,
+    defaultDirMeta,
+    mergeMeta,
+    writePhotoMeta,
+    writeImportedMeta,
+    loadPhotoMeta,
+    loadImportedMeta,
+    resolveAboutPaths,
+  )
+where
 
 import Control.Applicative ((<|>))
 import Data.Bifunctor (first)
@@ -21,78 +22,78 @@ import System.FilePath (isAbsolute, makeRelative, takeDirectory, (</>))
 import qualified Toml
 
 data ImportedMeta = ImportedMeta
-  { original :: PhotoMeta
-  , overwrite :: PhotoMeta
-  , imported :: String
-  , md5 :: String
+  { original :: PhotoMeta,
+    overwrite :: PhotoMeta,
+    imported :: String,
+    md5 :: String
   }
   deriving (Show, Eq)
 
 -- Core metadata used by both file and directory TOML files.
 data PhotoMeta = PhotoMeta
-  { img :: Maybe FilePath
-  , tags :: Set.Set String
-  , path :: Maybe FilePath
-  , about :: [FilePath] -- always absolute paths, which are never serialized
-  , modified :: Maybe String
+  { img :: Maybe FilePath,
+    tags :: Set.Set String,
+    path :: Maybe FilePath,
+    about :: [FilePath], -- always absolute paths, which are never serialized
+    modified :: Maybe String
   }
   deriving (Show, Eq)
 
 instance Semigroup PhotoMeta where
   a <> b =
     PhotoMeta
-      { img = img b <|> img a
-      , tags = tags a <> tags b
-      , path = path b <|> path a
-      , about = about b <> about a
-      , modified = modified b <|> modified a
+      { img = img b <|> img a,
+        tags = tags a <> tags b,
+        path = path b <|> path a,
+        about = about b <> about a,
+        modified = modified b <|> modified a
       }
 
 instance Monoid PhotoMeta where
   mempty =
     PhotoMeta
-      { img = Nothing
-      , tags = Set.empty
-      , path = Nothing
-      , about = []
-      , modified = Nothing
+      { img = Nothing,
+        tags = Set.empty,
+        path = Nothing,
+        about = [],
+        modified = Nothing
       }
 
 data PhotoMetaPayload = PhotoMetaPayload
-  { payloadImg :: Maybe FilePath
-  , payloadTags :: [String]
-  , payloadPath :: Maybe FilePath
-  , payloadAbout :: [FilePath] -- always relative paths, relative to the TOML file
-  , payloadModified :: Maybe String
+  { payloadImg :: Maybe FilePath,
+    payloadTags :: [String],
+    payloadPath :: Maybe FilePath,
+    payloadAbout :: [FilePath], -- always relative paths, relative to the TOML file
+    payloadModified :: Maybe String
   }
   deriving (Show, Eq)
 
 data ImportedMetaPayload = ImportedMetaPayload
-  { payloadOriginal :: PhotoMetaPayload
-  , payloadOverwrite :: PhotoMetaPayload
-  , payloadImported :: String
-  , payloadMd5 :: String
+  { payloadOriginal :: PhotoMetaPayload,
+    payloadOverwrite :: PhotoMetaPayload,
+    payloadImported :: String,
+    payloadMd5 :: String
   }
   deriving (Show, Eq)
 
 defaultMeta :: FilePath -> String -> PhotoMeta
 defaultMeta relImg modDate =
   PhotoMeta
-    { img = Just relImg
-    , tags = Set.empty
-    , path = Nothing
-    , about = []
-    , modified = Just modDate
+    { img = Just relImg,
+      tags = Set.empty,
+      path = Nothing,
+      about = [],
+      modified = Just modDate
     }
 
 defaultDirMeta :: String -> PhotoMeta
 defaultDirMeta _ =
   PhotoMeta
-    { img = Nothing
-    , tags = Set.empty
-    , path = Nothing
-    , about = []
-    , modified = Nothing
+    { img = Nothing,
+      tags = Set.empty,
+      path = Nothing,
+      about = [],
+      modified = Nothing
     }
 
 mergeMeta :: PhotoMeta -> PhotoMeta -> PhotoMeta
@@ -128,21 +129,21 @@ photoMetaPayloadCodec =
 toPayload :: FilePath -> PhotoMeta -> PhotoMetaPayload
 toPayload tomlPath meta =
   PhotoMetaPayload
-    { payloadImg = img meta
-    , payloadTags = Set.toList (tags meta)
-    , payloadPath = path meta
-    , payloadAbout = map (makeRelative (takeDirectory tomlPath)) (about meta)
-    , payloadModified = modified meta
+    { payloadImg = img meta,
+      payloadTags = Set.toList (tags meta),
+      payloadPath = path meta,
+      payloadAbout = map (makeRelative (takeDirectory tomlPath)) (about meta),
+      payloadModified = modified meta
     }
 
 fromPayload :: PhotoMetaPayload -> PhotoMeta
 fromPayload payload =
   PhotoMeta
-    { img = payloadImg payload
-    , tags = Set.fromList (payloadTags payload)
-    , path = payloadPath payload
-    , about = payloadAbout payload
-    , modified = payloadModified payload
+    { img = payloadImg payload,
+      tags = Set.fromList (payloadTags payload),
+      path = payloadPath payload,
+      about = payloadAbout payload,
+      modified = payloadModified payload
     }
 
 importedMetaPayloadCodec :: Toml.TomlCodec ImportedMetaPayload
@@ -157,10 +158,10 @@ toImportedPayload :: FilePath -> ImportedMeta -> ImportedMetaPayload
 toImportedPayload tomlPath meta =
   let baseDir = takeDirectory tomlPath
    in ImportedMetaPayload
-        { payloadOriginal = toPayload baseDir (original meta)
-        , payloadOverwrite = toPayload baseDir (overwrite meta)
-        , payloadImported = imported meta
-        , payloadMd5 = md5 meta
+        { payloadOriginal = toPayload baseDir (original meta),
+          payloadOverwrite = toPayload baseDir (overwrite meta),
+          payloadImported = imported meta,
+          payloadMd5 = md5 meta
         }
 
 fromImportedPayload :: FilePath -> ImportedMetaPayload -> ImportedMeta
@@ -168,10 +169,10 @@ fromImportedPayload tomlPath payload =
   let baseDir = takeDirectory tomlPath
       toMeta = resolveAboutPaths baseDir . fromPayload
    in ImportedMeta
-        { original = toMeta (payloadOriginal payload)
-        , overwrite = toMeta (payloadOverwrite payload)
-        , imported = payloadImported payload
-        , md5 = payloadMd5 payload
+        { original = toMeta (payloadOriginal payload),
+          overwrite = toMeta (payloadOverwrite payload),
+          imported = payloadImported payload,
+          md5 = payloadMd5 payload
         }
 
 renderErrors :: [Toml.TomlDecodeError] -> String

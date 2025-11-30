@@ -9,16 +9,16 @@ import Data.Time.Format (defaultTimeLocale, formatTime)
 import Model (PhotoMeta (..), defaultDirMeta, defaultMeta, loadPhotoMeta, writePhotoMeta)
 import Options.Applicative
 import System.Directory
-  ( doesFileExist
-  , getModificationTime
-  , makeAbsolute
+  ( doesFileExist,
+    getModificationTime,
+    makeAbsolute,
   )
 import System.Exit (die)
 import System.FilePath
-  ( makeRelative
-  , takeDirectory
-  , takeFileName
-  , (</>)
+  ( makeRelative,
+    takeDirectory,
+    takeFileName,
+    (</>),
   )
 import System.IO (hPutStrLn, stderr)
 
@@ -26,11 +26,11 @@ metaSuffix :: String
 metaSuffix = ".myphoto.toml"
 
 data AddMetaOpts = AddMetaOpts
-  { amoImg :: Maybe FilePath
-  , amoTags :: [String]
-  , amoAbout :: [FilePath]
-  , amoPath :: Maybe FilePath
-  , amoFiles :: [FilePath]
+  { amoImg :: Maybe FilePath,
+    amoTags :: [String],
+    amoAbout :: [FilePath],
+    amoPath :: Maybe FilePath,
+    amoFiles :: [FilePath]
   }
 
 parseAddArgs :: [String] -> Either String (PhotoMeta, [FilePath])
@@ -55,10 +55,10 @@ parseAddArgs argv =
 
     cliMeta opts =
       mempty
-        { img = amoImg opts
-        , tags = Set.fromList (amoTags opts)
-        , about = amoAbout opts
-        , path = amoPath opts
+        { img = amoImg opts,
+          tags = Set.fromList (amoTags opts),
+          about = amoAbout opts,
+          path = amoPath opts
         }
 
 runAddMeta :: PhotoMeta -> FilePath -> IO ()
@@ -83,11 +83,11 @@ runAddMeta cliMeta filePath = do
       else pure (defaultMeta (takeFileName relPath) modDate)
   let newMeta =
         baseMeta
-          { img = img cliMeta <|> Just (takeFileName relPath)
-          , tags = Set.union (tags baseMeta) (tags cliMeta)
-          , about = about baseMeta ++ about cliMeta
-          , path = path cliMeta <|> path baseMeta
-          , modified = Just modDate
+          { img = img cliMeta <|> Just (takeFileName relPath),
+            tags = Set.union (tags baseMeta) (tags cliMeta),
+            about = about baseMeta ++ about cliMeta,
+            path = path cliMeta <|> path baseMeta,
+            modified = Just modDate
           }
   writePhotoMeta metaPath newMeta
   ensureDirectoryMeta metaDir modDate

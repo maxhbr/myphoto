@@ -33,7 +33,7 @@ parseArgs args = do
 usage :: String
 usage =
   unlines
-    [ "Usage:"
-    , "  myphoto-gallery [--tag TAG] [--about FILE] FILE [FILE ...]  # create sidecar metadata for FILE"
-    , "  myphoto-gallery import [--dry-run] PATH/TO/DIR    # import files with sidecar metadata into CWD"
+    [ "Usage:",
+      "  myphoto-gallery [--tag TAG] [--about FILE] FILE [FILE ...]  # create sidecar metadata for FILE",
+      "  myphoto-gallery import [--dry-run] PATH/TO/DIR    # import files with sidecar metadata into CWD"
     ]

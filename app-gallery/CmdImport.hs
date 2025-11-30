@@ -16,33 +16,33 @@ import qualified Data.Maybe as Maybe
 import Data.Time.Clock (UTCTime, getCurrentTime)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Model
-  ( ImportedMeta (..)
-  , PhotoMeta (..)
-  , defaultDirMeta
-  , loadImportedMeta
-  , loadPhotoMeta
-  , mergeMeta
-  , resolveAboutPaths
-  , writeImportedMeta
+  ( ImportedMeta (..),
+    PhotoMeta (..),
+    defaultDirMeta,
+    loadImportedMeta,
+    loadPhotoMeta,
+    mergeMeta,
+    resolveAboutPaths,
+    writeImportedMeta,
   )
 import Nanogallery (writeNanogalleries)
 import Options.Applicative
 import System.Directory
-  ( copyFile
-  , createDirectoryIfMissing
-  , doesDirectoryExist
-  , doesFileExist
-  , listDirectory
-  , makeAbsolute
+  ( copyFile,
+    createDirectoryIfMissing,
+    doesDirectoryExist,
+    doesFileExist,
+    listDirectory,
+    makeAbsolute,
   )
 import System.Exit (die)
 import System.FilePath
-  ( isAbsolute
-  , makeRelative
-  , splitDirectories
-  , takeDirectory
-  , takeFileName
-  , (</>)
+  ( isAbsolute,
+    makeRelative,
+    splitDirectories,
+    takeDirectory,
+    takeFileName,
+    (</>),
   )
 import System.IO (hPutStrLn, stderr)
 import System.Process (callProcess)
@@ -54,8 +54,8 @@ importedSuffix :: String
 importedSuffix = ".myphoto.imported.toml"
 
 data ImportOpts = ImportOpts
-  { ioDryRun :: Bool
-  , ioDir :: FilePath
+  { ioDryRun :: Bool,
+    ioDir :: FilePath
   }
 
 parseImportArgs :: [String] -> Either String ImportOpts
@@ -75,10 +75,10 @@ parseImportArgs argv =
         <*> argument str (metavar "WORKDIR")
 
 runImport :: FilePath -> IO ()
-runImport dir = runImportWithOpts ImportOpts{ioDryRun = False, ioDir = dir}
+runImport dir = runImportWithOpts ImportOpts {ioDryRun = False, ioDir = dir}
 
 runImportWithOpts :: ImportOpts -> IO ()
-runImportWithOpts ImportOpts{ioDryRun, ioDir} = do
+runImportWithOpts ImportOpts {ioDryRun, ioDir} = do
   let dir = ioDir
   ok <- doesDirectoryExist dir
   unless ok (die ("Directory not found: " <> dir))
@@ -91,7 +91,7 @@ runImportWithOpts ImportOpts{ioDryRun, ioDir} = do
   when (not ioDryRun) $ do
     writeNanogalleries "." summaries
     (createScaledGallery "_4k" 3840 2160 summaries) >>= writeNanogalleries "./_4k"
-    -- (createScaledGallery "_1080p" 1920 1080 summaries) >>= writeNanogalleries "./_1080p"
+    (createScaledGallery "_1080p" 1920 1080 summaries) >>= writeNanogalleries "./_1080p"
 
 findMetaFiles :: FilePath -> IO [FilePath]
 findMetaFiles dir = do
@@ -134,10 +134,10 @@ importOne dryRun rootDir metaPath = do
                 now <- formatDate <$> getCurrentTime
                 let importedMeta =
                       ImportedMeta
-                        { original = merged
-                        , overwrite = mempty
-                        , imported = now
-                        , md5 = hashValue
+                        { original = merged,
+                          overwrite = mempty,
+                          imported = now,
+                          md5 = hashValue
                         }
                 writeImportedMeta (target <> importedSuffix) (importedMeta {original = (original importedMeta) {img = Just (takeFileName target), about = newAbout}})
                 putStrLn $ "Imported: " <> sourcePath <> " -> " <> target
@@ -171,7 +171,7 @@ loadDirMeta dir = do
     then do
       parsed <- loadPhotoMeta path'
       case parsed of
-        Right m -> pure ((resolveAboutPaths dir m){img = Nothing})
+        Right m -> pure ((resolveAboutPaths dir m) {img = Nothing})
         Left err -> do
           hPutStrLn stderr ("Warning: could not parse directory metadata, ignoring: " <> err)
           pure (defaultDirMeta "")
@@ -247,7 +247,24 @@ createScaledGallery outDir width height summaries = do
             else do
               createDirectoryIfMissing True (takeDirectory dest)
               let resizeArg = show width ++ "x" ++ show height ++ ">"
-              res <- try (callProcess "magick" [src, "-resize", resizeArg, "-quality", "90", dest]) :: IO (Either SomeException ())
+              res <-
+                try
+                  ( callProcess
+                      "magick"
+                      [ src,
+                        "-resize",
+                        resizeArg,
+                        "-unsharp",
+                        "1.5x1.2+1.0+0.10",
+                        "-interlace",
+                        "Plane",
+                        "-strip",
+                        "-quality",
+                        "95",
+                        dest
+                      ]
+                  ) ::
+                  IO (Either SomeException ())
               case res of
                 Left err -> hPutStrLn stderr ("[" ++ outDir ++ "] Failed for " <> src <> ": " <> show err) >> pure Nothing
                 Right _ -> do

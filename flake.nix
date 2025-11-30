@@ -36,14 +36,19 @@
         pkgs.haskellPackages.developPackage {
           root = lib.cleanSourceWith {
             src = ./.;
-            filter = path: type:
+            filter =
+              path: type:
               let
                 baseName = baseNameOf path;
                 relativePath = lib.removePrefix (toString ./. + "/") (toString path);
               in
               !(
                 # Exclude shell scripts in root
-                (type == "regular" && lib.hasSuffix ".sh" baseName && (builtins.match "[^/]+\\.sh" relativePath) != null)
+                (
+                  type == "regular"
+                  && lib.hasSuffix ".sh" baseName
+                  && (builtins.match "[^/]+\\.sh" relativePath) != null
+                )
                 # Exclude specific directories
                 || lib.hasPrefix "one-time-scripts" relativePath
                 || lib.hasPrefix "old.hs" relativePath
@@ -148,7 +153,9 @@
             makeWrapper ${self.packages.${system}.myphoto-unwrapped}/bin/myphoto-toPNG $out/bin/myphoto-toPNG \
               --set PATH ${pkgs.lib.makeBinPath extraLibraries}
 
-            makeWrapper ${self.packages.${system}.myphoto-unwrapped}/bin/myphoto-gallery $out/bin/myphoto-gallery \
+            makeWrapper ${
+              self.packages.${system}.myphoto-unwrapped
+            }/bin/myphoto-gallery $out/bin/myphoto-gallery \
               --set PATH ${pkgs.lib.makeBinPath extraLibraries}
 
             makeWrapper ${self.packages.${system}.myphoto-unwrapped}/bin/myphoto-watch $out/bin/myphoto-watch \
