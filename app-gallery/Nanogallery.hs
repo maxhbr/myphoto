@@ -5,6 +5,7 @@ module Nanogallery (writeNanogalleries, computeThumbnails, computeOneThumbnail) 
 import Data.List (intercalate)
 import Control.Exception (SomeException, try)
 import Control.Monad (unless)
+import Control.Concurrent.Async (mapConcurrently)
 import qualified Data.Set as Set
 import Model (PhotoMeta (..))
 import System.Directory (createDirectoryIfMissing, doesFileExist)
@@ -26,7 +27,7 @@ writeNanogalleries root summaries = do
 
 -- | Enrich summaries with optional thumbnail paths under $root/.thumbnail/<md5>.jpg.
 computeThumbnails :: FilePath -> [(FilePath, PhotoMeta, String)] -> IO [(FilePath, PhotoMeta, Maybe FilePath, String)]
-computeThumbnails root summaries = mapM addThumb summaries
+computeThumbnails root summaries = mapConcurrently addThumb summaries
   where
     addThumb (metaPath, meta, md5sum) = do
       thumb <- computeOneThumbnail root metaPath md5sum

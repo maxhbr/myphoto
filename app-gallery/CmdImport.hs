@@ -88,9 +88,10 @@ runImportWithOpts ImportOpts{ioDryRun, ioDir} = do
     then putStrLn "No metadata files found."
     else forM_ metaFiles (importOne ioDryRun rootDir)
   summaries <- loadImportedSummaries "."
-  when (not ioDryRun) $ do 
+  when (not ioDryRun) $ do
     writeNanogalleries "." summaries
-    (create4kGallery "_4k" summaries) >>= writeNanogalleries "./_4k"
+    (createScaledGallery "_4k" 3840 2160 summaries) >>= writeNanogalleries "./_4k"
+    -- (createScaledGallery "_1080p" 1920 1080 summaries) >>= writeNanogalleries "./_1080p"
 
 findMetaFiles :: FilePath -> IO [FilePath]
 findMetaFiles dir = do
@@ -223,8 +224,8 @@ loadImportedSummaries dir = do
               imgPath = dropImportedMetaSuffix fp
            in pure (Just (imgPath, merged, md5 im))
 
-create4kGallery :: FilePath -> [(FilePath, PhotoMeta, String)] -> IO [(FilePath, PhotoMeta, String)]
-create4kGallery outDir summaries = do
+createScaledGallery :: FilePath -> Int -> Int -> [(FilePath, PhotoMeta, String)] -> IO [(FilePath, PhotoMeta, String)]
+createScaledGallery outDir width height summaries = do
   results <- mapConcurrently go summaries
   pure (catMaybes results)
   where
@@ -236,7 +237,7 @@ create4kGallery outDir summaries = do
       exists <- doesFileExist src
       if not exists
         then do
-          hPutStrLn stderr ("[4k] Source missing, skipping: " <> src)
+          hPutStrLn stderr ("[" ++ outDir ++ "] Source missing, skipping: " <> src)
           pure Nothing
         else do
           cached <- readHash hashPath
@@ -245,12 +246,13 @@ create4kGallery outDir summaries = do
             then pure (Just (src, meta, srcHash))
             else do
               createDirectoryIfMissing True (takeDirectory dest)
-              res <- try (callProcess "magick" [src, "-resize", "3840x2160>", "-quality", "95", dest]) :: IO (Either SomeException ())
+              let resizeArg = show width ++ "x" ++ show height ++ ">"
+              res <- try (callProcess "magick" [src, "-resize", resizeArg, "-quality", "90", dest]) :: IO (Either SomeException ())
               case res of
-                Left err -> hPutStrLn stderr ("[4k] Failed for " <> src <> ": " <> show err) >> pure Nothing
+                Left err -> hPutStrLn stderr ("[" ++ outDir ++ "] Failed for " <> src <> ": " <> show err) >> pure Nothing
                 Right _ -> do
                   BS.writeFile hashPath (BSC.pack srcHash)
-                  putStrLn $ "[4k] Wrote " <> dest
+                  putStrLn $ "[" ++ outDir ++ "] Wrote " <> dest
                   pure (Just (src, meta, srcHash))
     readHash p = do
       ok <- doesFileExist p
