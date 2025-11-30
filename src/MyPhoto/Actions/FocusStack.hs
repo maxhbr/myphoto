@@ -11,7 +11,7 @@ import MyPhoto.Wrapper.FocusStackWrapper
 import qualified System.IO as IO
 
 backoffStrategy :: [(Maybe Int, Maybe Int)]
-backoffStrategy = [(Nothing, Nothing), (Just 6, Just 14), (Just 4, Just 6)]
+backoffStrategy = [(Nothing, Nothing), (Just 6, Just 14), (Just 4, Just 6), (Just 3, Just 3)]
 
 mkOptions :: Bool -> [String] -> [FilePath] -> IO FocusStackOptions
 mkOptions verbose additionalParameters imgs = do
@@ -64,7 +64,7 @@ applyStrategy options capabilities (mbBatchsize, mbThreads) =
            in (Just capped, capped)
         Nothing -> (Nothing, capabilities)
       strategyOptions = options {_batchsize = mbBatchsize, _threads = threads}
-      stqrategyDesc = case (mbBatchsize, mbThreads) of
+      strategyDesc = case (mbBatchsize, mbThreads) of
         (Nothing, Nothing) -> "default options"
         (Just bs, Just ts) -> "batchsize=" ++ show bs ++ " and threads=" ++ show threadsValue ++ " (capped from " ++ show ts ++ ")"
         (Just bs, Nothing) -> "batchsize=" ++ show bs ++ " and threads=" ++ show threadsValue

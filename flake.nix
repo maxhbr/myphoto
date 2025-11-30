@@ -34,7 +34,22 @@
           addExtraLibraries = (t.flip hl.addExtraLibraries) extraLibraries;
         in
         pkgs.haskellPackages.developPackage {
-          root = ./.;
+          root = lib.cleanSourceWith {
+            src = ./.;
+            filter = path: type:
+              let
+                baseName = baseNameOf path;
+                relativePath = lib.removePrefix (toString ./. + "/") (toString path);
+              in
+              !(
+                # Exclude shell scripts in root
+                (type == "regular" && lib.hasSuffix ".sh" baseName && (builtins.match "[^/]+\\.sh" relativePath) != null)
+                # Exclude specific directories
+                || lib.hasPrefix "one-time-scripts" relativePath
+                || lib.hasPrefix "old.hs" relativePath
+                || lib.hasPrefix "PetteriAimonen-focus-stack" relativePath
+              );
+          };
           name = "myphoto-unwrapped";
           returnShellEnv = !(devTools == [ ]);
 
@@ -75,6 +90,9 @@
         myphoto-toPNG-from-github = pkgs.writeShellScriptBin "myphoto-gh-toPNG" ''
           exec nix run --refresh "github:maxhbr/myphoto"#myphoto-toPNG -- "$@"
         '';
+        myphoto-gallery-from-github = pkgs.writeShellScriptBin "myphoto-gh-gallery" ''
+          exec nix run --refresh "github:maxhbr/myphoto"#myphoto-gallery -- "$@"
+        '';
         myphoto = pkgs.buildEnv {
           name = "myphoto";
 
@@ -83,6 +101,7 @@
             self.packages.${system}.myphoto-watch-from-github
             self.packages.${system}.myphoto-align-from-github
             self.packages.${system}.myphoto-toPNG-from-github
+            self.packages.${system}.myphoto-gallery-from-github
           ];
           pathsToLink = [
             "/bin"
@@ -127,6 +146,9 @@
               --set PATH ${pkgs.lib.makeBinPath extraLibraries}
 
             makeWrapper ${self.packages.${system}.myphoto-unwrapped}/bin/myphoto-toPNG $out/bin/myphoto-toPNG \
+              --set PATH ${pkgs.lib.makeBinPath extraLibraries}
+
+            makeWrapper ${self.packages.${system}.myphoto-unwrapped}/bin/myphoto-gallery $out/bin/myphoto-gallery \
               --set PATH ${pkgs.lib.makeBinPath extraLibraries}
 
             makeWrapper ${self.packages.${system}.myphoto-unwrapped}/bin/myphoto-watch $out/bin/myphoto-watch \
@@ -397,6 +419,10 @@
           type = "app";
           program = "${self.packages.${system}.myphoto}/bin/myphoto-toPNG";
         };
+        myphoto-gallery = {
+          type = "app";
+          program = "${self.packages.${system}.myphoto}/bin/myphoto-gallery";
+        };
         zerene-stacker = {
           type = "app";
           program = "${self.packages.${system}.zerene-stacker}/bin/zerene-stacker";
@@ -434,6 +460,7 @@
             files = pkgs.lib.concatStringsSep " " [
               "myphoto-stack.sh"
               "myphoto-watch.sh"
+              "myphoto-gallery.sh"
             ];
           in
           pkgs.stdenv.mkDerivation {

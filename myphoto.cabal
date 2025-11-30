@@ -105,6 +105,25 @@ executable myphoto-toPNG
     hs-source-dirs:   app-toPNG
     default-language: Haskell2010
 
+executable myphoto-gallery
+    import:           warnings
+    main-is:          Main.hs
+    ghc-options:      -Wall -threaded -rtsopts
+    build-depends:    base,
+                      containers,
+                      directory,
+                      filepath,
+                      cryptonite,
+                      bytestring,
+                      text,
+                      time,
+                      tomland
+    other-modules:    CmdAddMeta,
+                      CmdImport,
+                      Model
+    hs-source-dirs:   app-gallery
+    default-language: Haskell2010
+
 test-suite test-myphoto
   type:               exitcode-stdio-1.0
   main-is:            Main.hs

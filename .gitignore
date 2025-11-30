@@ -102,3 +102,5 @@ cabal-testsuite/PackageTests/NewUpdate/RejectFutureIndexStates/cabal.out
 
 # ignore the downloaded binary files
 scripts/release/binary-downloads/
+
+.cache
