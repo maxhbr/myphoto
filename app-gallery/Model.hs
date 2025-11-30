@@ -25,7 +25,8 @@ data ImportedMeta = ImportedMeta
   { original :: PhotoMeta,
     overwrite :: PhotoMeta,
     imported :: String,
-    md5 :: String
+    md5 :: String,
+    originalPath :: Maybe FilePath
   }
   deriving (Show, Eq)
 
@@ -72,7 +73,8 @@ data ImportedMetaPayload = ImportedMetaPayload
   { payloadOriginal :: PhotoMetaPayload,
     payloadOverwrite :: PhotoMetaPayload,
     payloadImported :: String,
-    payloadMd5 :: String
+    payloadMd5 :: String,
+    payloadOriginalPath :: Maybe FilePath
   }
   deriving (Show, Eq)
 
@@ -153,6 +155,7 @@ importedMetaPayloadCodec =
     <*> Toml.table photoMetaPayloadCodec "overwrite" Toml..= payloadOverwrite
     <*> Toml.string "imported" Toml..= payloadImported
     <*> Toml.string "md5" Toml..= payloadMd5
+    <*> Toml.dioptional (Toml.string "originalPath") Toml..= payloadOriginalPath
 
 toImportedPayload :: FilePath -> ImportedMeta -> ImportedMetaPayload
 toImportedPayload tomlPath meta =
@@ -161,7 +164,8 @@ toImportedPayload tomlPath meta =
         { payloadOriginal = toPayload baseDir (original meta),
           payloadOverwrite = toPayload baseDir (overwrite meta),
           payloadImported = imported meta,
-          payloadMd5 = md5 meta
+          payloadMd5 = md5 meta,
+          payloadOriginalPath = originalPath meta
         }
 
 fromImportedPayload :: FilePath -> ImportedMetaPayload -> ImportedMeta
@@ -172,7 +176,8 @@ fromImportedPayload tomlPath payload =
         { original = toMeta (payloadOriginal payload),
           overwrite = toMeta (payloadOverwrite payload),
           imported = payloadImported payload,
-          md5 = payloadMd5 payload
+          md5 = payloadMd5 payload,
+          originalPath = payloadOriginalPath payload
         }
 
 renderErrors :: [Toml.TomlDecodeError] -> String

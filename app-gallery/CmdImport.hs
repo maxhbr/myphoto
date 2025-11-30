@@ -15,6 +15,7 @@ import Data.Maybe (catMaybes)
 import qualified Data.Maybe as Maybe
 import Data.Time.Clock (UTCTime, getCurrentTime)
 import Data.Time.Format (defaultTimeLocale, formatTime)
+import qualified Data.Set as Set
 import Model
   ( ImportedMeta (..),
     PhotoMeta (..),
@@ -132,14 +133,25 @@ importOne dryRun rootDir metaPath = do
                 newAbout <- copyAboutFiles destDir merged
                 hashValue <- computeMd5 sourcePath
                 now <- formatDate <$> getCurrentTime
+                let importedMetaFilePath = target <> importedSuffix
+                mayebeExistingOverwrite <- do
+                  exists <- doesFileExist importedMetaFilePath
+                  if exists
+                    then do
+                      parsed <- loadImportedMeta importedMetaFilePath
+                      case parsed of
+                        Left err -> hPutStrLn stderr ("Warning: could not parse existing imported metadata " <> importedMetaFilePath <> ": " <> err) >> pure Nothing
+                        Right im -> pure (Just (overwrite im))
+                    else pure Nothing
                 let importedMeta =
                       ImportedMeta
                         { original = merged,
-                          overwrite = mempty,
+                          overwrite = maybe (mempty {tags = Set.fromList ["New"]}) id mayebeExistingOverwrite,
                           imported = now,
-                          md5 = hashValue
+                          md5 = hashValue,
+                          originalPath = Just (makeRelative rootDir (takeDirectory sourcePath))
                         }
-                writeImportedMeta (target <> importedSuffix) (importedMeta {original = (original importedMeta) {img = Just (takeFileName target), about = newAbout}})
+                writeImportedMeta importedMetaFilePath (importedMeta {original = (original importedMeta) {img = Just (takeFileName target), about = newAbout}})
                 putStrLn $ "Imported: " <> sourcePath <> " -> " <> target
 
 resolveSource :: FilePath -> FilePath -> FilePath
