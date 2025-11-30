@@ -4,9 +4,12 @@
 module CmdImport (runImport, runImportWithOpts, parseImportArgs, ImportOpts (..)) where
 
 import Control.Applicative ((<|>))
-import Control.Monad (forM_, unless, when)
+import Control.Concurrent.Async (mapConcurrently)
+import Control.Exception (SomeException, try)
+import Control.Monad (forM_, unless, void, when)
 import qualified Crypto.Hash as Hash
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as BSC
 import Data.List (isSuffixOf)
 import Data.Maybe (catMaybes)
 import qualified Data.Maybe as Maybe
@@ -22,6 +25,7 @@ import Model
   , resolveAboutPaths
   , writeImportedMeta
   )
+import Nanogallery (writeNanogalleries)
 import Options.Applicative
 import System.Directory
   ( copyFile
@@ -84,7 +88,9 @@ runImportWithOpts ImportOpts{ioDryRun, ioDir} = do
     then putStrLn "No metadata files found."
     else forM_ metaFiles (importOne ioDryRun rootDir)
   summaries <- loadImportedSummaries "."
-  when (not ioDryRun) (create4kGallery "_4k" summaries)
+  when (not ioDryRun) $ do 
+    writeNanogalleries "." summaries
+    (create4kGallery "_4k" summaries) >>= writeNanogalleries "./_4k"
 
 findMetaFiles :: FilePath -> IO [FilePath]
 findMetaFiles dir = do
@@ -186,9 +192,9 @@ loadDirMetaChain root dir = do
 copyAboutFiles :: FilePath -> PhotoMeta -> IO [FilePath]
 copyAboutFiles destDir meta = do
   let aboutDir = destDir </> "_myphoto.about"
-  createDirectoryIfMissing True aboutDir
   results <- mapM (copyOne aboutDir) (about meta)
-  pure (Maybe.catMaybes results)
+  let kept = Maybe.catMaybes results
+  pure kept
   where
     copyOne aboutDir src = do
       exists <- doesFileExist src
@@ -197,12 +203,13 @@ copyAboutFiles destDir meta = do
           hPutStrLn stderr ("Warning: about file missing, skipping: " <> src)
           pure Nothing
         else do
+          createDirectoryIfMissing True aboutDir
           let target = aboutDir </> takeFileName src
           copyFile src target
           let relPath = makeRelative destDir target
           pure (Just relPath)
 
-loadImportedSummaries :: FilePath -> IO [(FilePath, PhotoMeta)]
+loadImportedSummaries :: FilePath -> IO [(FilePath, PhotoMeta, String)]
 loadImportedSummaries dir = do
   files <- findImportedFiles dir
   catMaybes <$> mapM parseOne files
@@ -213,31 +220,41 @@ loadImportedSummaries dir = do
         Left err -> hPutStrLn stderr ("Warning: could not parse imported metadata " <> fp <> ": " <> err) >> pure Nothing
         Right im ->
           let merged = original im <> overwrite im
-           in pure (Just (fp, merged))
+              imgPath = dropImportedMetaSuffix fp
+           in pure (Just (imgPath, merged, md5 im))
 
-create4kGallery :: FilePath -> [(FilePath, PhotoMeta)] -> IO [(FilePath, PhotoMeta)]
+create4kGallery :: FilePath -> [(FilePath, PhotoMeta, String)] -> IO [(FilePath, PhotoMeta, String)]
 create4kGallery outDir summaries = do
-  results <- mapM go summaries
+  results <- mapConcurrently go summaries
   pure (catMaybes results)
   where
-    go (metaPath, meta) = do
-      let dir = takeDirectory metaPath
-          src = dir </> takeFileName (dropImportedMetaSuffix metaPath)
+    go (src, meta, srcHash) = do
+      let dir = takeDirectory src
           rel = makeRelative "." src
           dest = outDir </> rel
+          hashPath = dest <> ".md5"
       exists <- doesFileExist src
       if not exists
         then do
           hPutStrLn stderr ("[4k] Source missing, skipping: " <> src)
           pure Nothing
         else do
-          createDirectoryIfMissing True (takeDirectory dest)
-          res <- try (callProcess "magick" [src, "-resize", "3840x2160>", "-quality", "95", dest]) :: IO (Either SomeException ())
-          case res of
-            Left err -> hPutStrLn stderr ("[4k] Failed for " <> src <> ": " <> show err) >> pure Nothing
-            Right _ -> do
-              putStrLn $ "[4k] Wrote " <> dest
-              pure (Just (metaPath, meta))
+          cached <- readHash hashPath
+          destExists <- doesFileExist dest
+          if destExists && cached == Just srcHash
+            then pure (Just (src, meta, srcHash))
+            else do
+              createDirectoryIfMissing True (takeDirectory dest)
+              res <- try (callProcess "magick" [src, "-resize", "3840x2160>", "-quality", "95", dest]) :: IO (Either SomeException ())
+              case res of
+                Left err -> hPutStrLn stderr ("[4k] Failed for " <> src <> ": " <> show err) >> pure Nothing
+                Right _ -> do
+                  BS.writeFile hashPath (BSC.pack srcHash)
+                  putStrLn $ "[4k] Wrote " <> dest
+                  pure (Just (src, meta, srcHash))
+    readHash p = do
+      ok <- doesFileExist p
+      if ok then fmap (Just . BSC.unpack) (BS.readFile p) else pure Nothing
 
 findImportedFiles :: FilePath -> IO [FilePath]
 findImportedFiles dir = do

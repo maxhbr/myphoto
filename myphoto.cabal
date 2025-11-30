@@ -119,9 +119,11 @@ executable myphoto-gallery
                       time,
                       tomland,
                       optparse-applicative,
-                      process
+                      process,
+                      async
     other-modules:    CmdAddMeta,
                       CmdImport,
+                      Nanogallery,
                       Model
     hs-source-dirs:   app-gallery
     default-language: Haskell2010
