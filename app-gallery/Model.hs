@@ -86,7 +86,7 @@ defaultMeta relImg modDate =
     }
 
 defaultDirMeta :: String -> PhotoMeta
-defaultDirMeta modDate =
+defaultDirMeta _ =
   PhotoMeta
     { img = Nothing
     , tags = Set.empty

@@ -1,12 +1,13 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE NamedFieldPuns #-}
 
-module CmdImport (runImport) where
+module CmdImport (runImport, runImportWithOpts, parseImportArgs, ImportOpts (..)) where
 
 import Control.Applicative ((<|>))
-import Control.Monad (forM_, unless)
+import Control.Monad (forM_, unless, when)
 import qualified Data.Maybe as Maybe
 import Data.List (isSuffixOf)
+import Data.Maybe (catMaybes, fromMaybe)
 import Model
   ( PhotoMeta (..)
   , defaultDirMeta
@@ -31,17 +32,16 @@ import System.FilePath
   ( isAbsolute
   , makeRelative
   , splitDirectories
-  , splitExtension
   , takeDirectory
   , takeFileName
   , (</>)
   )
 import System.IO (hPutStrLn, stderr)
+import System.Process (callProcess)
 import qualified Crypto.Hash as Hash
 import qualified Data.ByteString as BS
 import Data.Time.Clock (UTCTime, getCurrentTime)
 import Data.Time.Format (defaultTimeLocale, formatTime)
-import Data.Maybe (catMaybes)
 
 metaSuffix :: String
 metaSuffix = ".myphoto.toml"
@@ -52,6 +52,22 @@ data ImportOpts = ImportOpts
   { ioDryRun :: Bool
   , ioDir :: FilePath
   }
+
+parseImportArgs :: [String] -> Either String ImportOpts
+parseImportArgs argv =
+  case execParserPure defaultPrefs parserInfo argv of
+    Success opts -> Right opts
+    Failure failure -> Left (fst (renderFailure failure "myphoto-gallery import"))
+    CompletionInvoked _ -> Left "completion not supported"
+  where
+    parserInfo =
+      info
+        (importParser <**> helper)
+        (fullDesc <> progDesc "Import images using .myphoto.toml sidecars")
+    importParser =
+      ImportOpts
+        <$> switch (long "dry-run" <> help "Print actions without copying/importing")
+        <*> argument str (metavar "WORKDIR")
 
 runImport :: FilePath -> IO ()
 runImport dir = runImportWithOpts ImportOpts{ioDryRun = False, ioDir = dir}
@@ -66,8 +82,12 @@ runImportWithOpts ImportOpts{ioDryRun, ioDir} = do
   if null metaFiles
     then putStrLn "No metadata files found."
     else forM_ metaFiles (importOne ioDryRun rootDir)
-  _ <- loadImportedSummaries "."
+  summaries <- loadImportedSummaries "."
+  when (not ioDryRun) (create4kGallery "_4k" summaries)
   pure ()
+
+create4kGallery :: FilePath -> [(FilePath, PhotoMeta)] -> IO ()
+create4kGallery outDir summaries = do
 
 findMetaFiles :: FilePath -> IO [FilePath]
 findMetaFiles dir = do
@@ -83,6 +103,7 @@ findMetaFiles dir = do
 
 importOne :: Bool -> FilePath -> FilePath -> IO ()
 importOne dryRun rootDir metaPath = do
+  -- hPutStrLn stderr ("Processing metadata: " <> metaPath)
   absMetaPath <- makeAbsolute metaPath
   let metaDir = takeDirectory absMetaPath
   metaResult <- loadPhotoMeta absMetaPath
@@ -168,7 +189,7 @@ loadDirMetaChain root dir = do
 
 copyAboutFiles :: FilePath -> PhotoMeta -> IO [FilePath]
 copyAboutFiles destDir meta = do
-  let aboutDir = destDir </> "myphoto.about"
+  let aboutDir = destDir </> "_myphoto.about"
   createDirectoryIfMissing True aboutDir
   results <- mapM (copyOne aboutDir) (about meta)
   pure (Maybe.catMaybes results)
@@ -207,7 +228,9 @@ findImportedFiles dir = do
       let path' = dir </> entry
       isDir <- doesDirectoryExist path'
       if isDir
-        then findImportedFiles path'
+        then if any (\d -> take 1 d == "_") (splitDirectories path')
+             then pure []
+             else findImportedFiles path'
         else pure [path' | ".myphoto.imported.toml" `isSuffixOf` path']
 
 computeMd5 :: FilePath -> IO String
