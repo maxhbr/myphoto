@@ -17,7 +17,7 @@ mv "$tmpdir/test_with_pcb_example/pcb/pcb_002.jpg" "$tmpdir/test_with_pcb_exampl
 
 
 "$thisdir/myphoto-gallery.sh" "$tmpdir/test_with_pcb_example/pcb/pcb_"*".jpg"
-"$thisdir/myphoto-gallery.sh" --tag pcb --tag macro "$tmpdir/test_with_pcb_example/pcb/pcb_006.jpg"
+"$thisdir/myphoto-gallery.sh" --tag pcb --tag macro --path "macro/pcb2" "$tmpdir/test_with_pcb_example/pcb/pcb_006.jpg"
 rm -f "$tmpdir/test_with_pcb_example/pcb/pcb_005.jpg.myphoto.toml"
 
 cat > "$tmpdir/test_with_pcb_example/myphoto.toml" << EOF
@@ -28,6 +28,7 @@ EOF
 cat > "$tmpdir/test_with_pcb_example/pcb/myphoto.toml" << EOF
 about = ["0_about/pcb_002.jpg"]
 tags = ["common"]
+path = "macro/pcb"
 EOF
 
 mkdir -p "$tmpdir/gallery"

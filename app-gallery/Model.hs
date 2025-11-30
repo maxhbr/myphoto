@@ -9,6 +9,7 @@ module Model
   , writePhotoMeta
   , writeImportedMeta
   , loadPhotoMeta
+  , loadImportedMeta
   , resolveAboutPaths
   ) where
 
@@ -91,7 +92,7 @@ defaultDirMeta modDate =
     , tags = Set.empty
     , path = Nothing
     , about = []
-    , modified = Just modDate
+    , modified = Nothing
     }
 
 mergeMeta :: PhotoMeta -> PhotoMeta -> PhotoMeta
@@ -109,6 +110,11 @@ loadPhotoMeta :: FilePath -> IO (Either String PhotoMeta)
 loadPhotoMeta path' = do
   content <- TIO.readFile path'
   pure (first renderErrors (fmap fromPayload (Toml.decode photoMetaPayloadCodec content)))
+
+loadImportedMeta :: FilePath -> IO (Either String ImportedMeta)
+loadImportedMeta path' = do
+  content <- TIO.readFile path'
+  pure (first renderErrors (fmap (fromImportedPayload path') (Toml.decode importedMetaPayloadCodec content)))
 
 photoMetaPayloadCodec :: Toml.TomlCodec PhotoMetaPayload
 photoMetaPayloadCodec =
@@ -155,6 +161,17 @@ toImportedPayload tomlPath meta =
         , payloadOverwrite = toPayload baseDir (overwrite meta)
         , payloadImported = imported meta
         , payloadMd5 = md5 meta
+        }
+
+fromImportedPayload :: FilePath -> ImportedMetaPayload -> ImportedMeta
+fromImportedPayload tomlPath payload =
+  let baseDir = takeDirectory tomlPath
+      toMeta = resolveAboutPaths baseDir . fromPayload
+   in ImportedMeta
+        { original = toMeta (payloadOriginal payload)
+        , overwrite = toMeta (payloadOverwrite payload)
+        , imported = payloadImported payload
+        , md5 = payloadMd5 payload
         }
 
 renderErrors :: [Toml.TomlDecodeError] -> String

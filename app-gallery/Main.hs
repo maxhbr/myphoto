@@ -1,13 +1,13 @@
 module Main where
 
-import CmdAddMeta (runAddMeta)
+import CmdAddMeta (parseAddArgs, runAddMeta)
 import CmdImport (runImport)
-import qualified Data.Set as Set
+import Model (PhotoMeta)
 import System.Environment (getArgs)
 import System.Exit (die)
 
 data Command
-  = CmdAdd [FilePath] (Set.Set String) [FilePath]
+  = CmdAdd [FilePath] PhotoMeta
   | CmdImport [FilePath]
 
 main :: IO ()
@@ -16,22 +16,16 @@ main = do
   case parseArgs args of
     Left err -> die err
     Right (CmdImport dirs) -> mapM_ runImport dirs
-    Right (CmdAdd files tagSet abouts) -> mapM_ (runAddMeta tagSet abouts) files
+    Right (CmdAdd files cliMeta) -> mapM_ (runAddMeta cliMeta) files
 
 parseArgs :: [String] -> Either String Command
 parseArgs ("import" : dirs)
   | null dirs = Left usage
   | otherwise = Right (CmdImport dirs)
 parseArgs args = do
-  let (tagsList, aboutList, files) = gather args ([], [], [])
-  if null files
-    then Left usage
-    else Right (CmdAdd (reverse files) (Set.fromList tagsList) (reverse aboutList))
-  where
-    gather [] acc = acc
-    gather ("--tag" : t : xs) (ts, as, fs) = gather xs (t : ts, as, fs)
-    gather ("--about" : p : xs) (ts, as, fs) = gather xs (ts, p : as, fs)
-    gather (x : xs) (ts, as, fs) = gather xs (ts, as, x : fs)
+  case parseAddArgs args of
+    Left err -> Left err
+    Right (cliMeta, files) -> Right (CmdAdd files cliMeta)
 
 usage :: String
 usage =

@@ -117,7 +117,8 @@ executable myphoto-gallery
                       bytestring,
                       text,
                       time,
-                      tomland
+                      tomland,
+                      optparse-applicative
     other-modules:    CmdAddMeta,
                       CmdImport,
                       Model

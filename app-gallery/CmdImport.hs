@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE NamedFieldPuns #-}
 
 module CmdImport (runImport) where
 
@@ -10,11 +11,13 @@ import Model
   ( PhotoMeta (..)
   , defaultDirMeta
   , loadPhotoMeta
+  , loadImportedMeta
   , mergeMeta
   , resolveAboutPaths
   , writeImportedMeta
   , ImportedMeta (..)
   )
+import Options.Applicative
 import System.Directory
   ( copyFile
   , createDirectoryIfMissing
@@ -38,19 +41,33 @@ import qualified Crypto.Hash as Hash
 import qualified Data.ByteString as BS
 import Data.Time.Clock (UTCTime, getCurrentTime)
 import Data.Time.Format (defaultTimeLocale, formatTime)
+import Data.Maybe (catMaybes)
 
 metaSuffix :: String
 metaSuffix = ".myphoto.toml"
+importedSuffix :: String
+importedSuffix = ".myphoto.imported.toml"
+
+data ImportOpts = ImportOpts
+  { ioDryRun :: Bool
+  , ioDir :: FilePath
+  }
 
 runImport :: FilePath -> IO ()
-runImport dir = do
+runImport dir = runImportWithOpts ImportOpts{ioDryRun = False, ioDir = dir}
+
+runImportWithOpts :: ImportOpts -> IO ()
+runImportWithOpts ImportOpts{ioDryRun, ioDir} = do
+  let dir = ioDir
   ok <- doesDirectoryExist dir
   unless ok (die ("Directory not found: " <> dir))
   rootDir <- makeAbsolute dir
   metaFiles <- findMetaFiles dir
   if null metaFiles
     then putStrLn "No metadata files found."
-    else forM_ metaFiles (importOne rootDir)
+    else forM_ metaFiles (importOne ioDryRun rootDir)
+  _ <- loadImportedSummaries "."
+  pure ()
 
 findMetaFiles :: FilePath -> IO [FilePath]
 findMetaFiles dir = do
@@ -64,8 +81,8 @@ findMetaFiles dir = do
         then findMetaFiles path'
         else pure [path' | metaSuffix `isSuffixOf` path']
 
-importOne :: FilePath -> FilePath -> IO ()
-importOne rootDir metaPath = do
+importOne :: Bool -> FilePath -> FilePath -> IO ()
+importOne dryRun rootDir metaPath = do
   absMetaPath <- makeAbsolute metaPath
   let metaDir = takeDirectory absMetaPath
   metaResult <- loadPhotoMeta absMetaPath
@@ -83,21 +100,24 @@ importOne rootDir metaPath = do
       if sourceExists
         then do
           let destDir = maybe (fallbackPath rootDir absMetaPath) id (path merged)
-          createDirectoryIfMissing True destDir
+          unless dryRun (createDirectoryIfMissing True destDir)
           let target = destDir </> takeFileName sourcePath
-          copyFile sourcePath target
-          newAbout <- copyAboutFiles destDir merged
-          hashValue <- computeMd5 sourcePath
-          now <- formatDate <$> getCurrentTime
-          let importedMeta =
-                ImportedMeta
-                  { original = merged
-                  , overwrite = mempty
-                  , imported = now
-                  , md5 = hashValue
-                  }
-          writeImportedMeta (target <> ".myphoto.imported.toml") (importedMeta {original = (original importedMeta) {img = Just (takeFileName target), about = newAbout}})
-          putStrLn $ "Imported: " <> target
+          if dryRun
+            then putStrLn $ "[dry-run] Would import: " <> sourcePath <> " -> " <> target
+            else do
+              copyFile sourcePath target
+              newAbout <- copyAboutFiles destDir merged
+              hashValue <- computeMd5 sourcePath
+              now <- formatDate <$> getCurrentTime
+              let importedMeta =
+                    ImportedMeta
+                      { original = merged
+                      , overwrite = mempty
+                      , imported = now
+                      , md5 = hashValue
+                      }
+              writeImportedMeta (target <> importedSuffix) (importedMeta {original = (original importedMeta) {img = Just (takeFileName target), about = newAbout}})
+              putStrLn $ "Imported: " <> sourcePath <> " -> " <> target
         else pure ()
 
 resolveSource :: FilePath -> FilePath -> FilePath
@@ -164,6 +184,31 @@ copyAboutFiles destDir meta = do
           copyFile src target
           let relPath = makeRelative destDir target
           pure (Just relPath)
+
+loadImportedSummaries :: FilePath -> IO [(FilePath, PhotoMeta)]
+loadImportedSummaries dir = do
+  files <- findImportedFiles dir
+  catMaybes <$> mapM parseOne files
+  where
+    parseOne fp = do
+      parsed <- loadImportedMeta fp
+      case parsed of
+        Left err -> hPutStrLn stderr ("Warning: could not parse imported metadata " <> fp <> ": " <> err) >> pure Nothing
+        Right im ->
+          let merged = original im <> overwrite im
+           in pure (Just (fp, merged))
+
+findImportedFiles :: FilePath -> IO [FilePath]
+findImportedFiles dir = do
+  entries <- listDirectory dir
+  fmap concat . mapM step $ entries
+  where
+    step entry = do
+      let path' = dir </> entry
+      isDir <- doesDirectoryExist path'
+      if isDir
+        then findImportedFiles path'
+        else pure [path' | ".myphoto.imported.toml" `isSuffixOf` path']
 
 computeMd5 :: FilePath -> IO String
 computeMd5 fp = do
