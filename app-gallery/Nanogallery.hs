@@ -164,7 +164,6 @@ renderDebugPage root summaries =
       "    <thead>",
       "      <tr>",
       "        <th>Thumbnail</th>",
-      "        <th>Image</th>",
       "        <th>Tags</th>",
       "        <th>Path</th>",
       "        <th>About</th>",
@@ -191,13 +190,13 @@ renderDebugRow root (imgPath, meta, mThumbPath, md5sum) =
         Nothing -> "<div class=\"no-thumb\">No thumbnail</div>"
       imgCell = "<a href=\"" <> escapeHtml relImg <> "\" target=\"_blank\">" <> escapeHtml (takeFileName relImg) <> "</a>"
       tagsCell = concatMap (\t -> "<span class=\"tag\">" <> escapeHtml t <> "</span>") tagsList
-      pathCell = maybe "" escapeHtml (path meta)
+      actualPathCell = escapeHtml (takeDirectory relImg)
+      metaPathCell = maybe "" escapeHtml (path meta)
       aboutCell = concatMap (\a -> "<span class=\"about-item\"><a href=\"" <> escapeHtml a <> "\" target=\"_blank\">" <> escapeHtml a <> "</a></span>") relAbouts
    in "      <tr>\n"
-        <> "        <td>" <> thumbCell <> "</td>\n"
-        <> "        <td>" <> imgCell <> "</td>\n"
+        <> "        <td>" <> thumbCell <> "<br/>" <> imgCell <> "</td>\n"
         <> "        <td>" <> tagsCell <> "</td>\n"
-        <> "        <td>" <> pathCell <> "</td>\n"
+        <> "        <td> acutal: " <> actualPathCell <> "<br/> meta: " <> metaPathCell <> "</td>\n"
         <> "        <td>" <> aboutCell <> "</td>\n"
         <> "      </tr>\n"
 
