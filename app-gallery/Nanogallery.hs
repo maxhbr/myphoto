@@ -24,6 +24,7 @@ writeNanogalleries root summaries = do
   createDirectoryIfMissing True root
   summariesWithThumbnails <- computeThumbnails root summaries
   writeFile (root </> "index.html") (renderPage root summariesWithThumbnails)
+  writeFile (root </> "debug.html") (renderDebugPage root summariesWithThumbnails)
 
 -- | Enrich summaries with optional thumbnail paths under $root/.thumbnail/<md5>.jpg.
 computeThumbnails :: FilePath -> [(FilePath, PhotoMeta, String)] -> IO [(FilePath, PhotoMeta, Maybe FilePath, String)]
@@ -131,3 +132,81 @@ computeOneThumbnail root imgPath md5sum = do
       case res of
         Left _ -> pure Nothing
         Right _ -> pure (Just thumbPath)
+
+renderDebugPage :: FilePath -> [(FilePath, PhotoMeta, Maybe FilePath, String)] -> String
+renderDebugPage root summaries =
+  unlines
+    [ "<!DOCTYPE html>",
+      "<html lang=\"en\">",
+      "<head>",
+      "  <meta charset=\"UTF-8\" />",
+      "  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">",
+      "  <title>myphoto gallery - debug view</title>",
+      "  <style>",
+      "    body { margin: 20px; background: #f5f5f5; color: #333; font-family: sans-serif; }",
+      "    h1 { color: #2c3e50; }",
+      "    table { width: 100%; border-collapse: collapse; background: white; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }",
+      "    th, td { padding: 12px; text-align: left; border: 1px solid #ddd; vertical-align: top; }",
+      "    th { background: #34495e; color: white; font-weight: bold; position: sticky; top: 0; }",
+      "    tr:nth-child(even) { background: #f9f9f9; }",
+      "    tr:hover { background: #e8f4f8; }",
+      "    img { max-width: 150px; max-height: 150px; display: block; }",
+      "    a { color: #3498db; text-decoration: none; }",
+      "    a:hover { text-decoration: underline; }",
+      "    .tag { display: inline-block; background: #3498db; color: white; padding: 2px 8px; margin: 2px; border-radius: 3px; font-size: 0.9em; }",
+      "    .about-item { display: block; margin: 2px 0; }",
+      "    .no-thumb { width: 150px; height: 150px; background: #ecf0f1; display: flex; align-items: center; justify-content: center; color: #7f8c8d; }",
+      "  </style>",
+      "</head>",
+      "<body>",
+      "  <h1>myphoto gallery - debug view</h1>",
+      "  <table>",
+      "    <thead>",
+      "      <tr>",
+      "        <th>Thumbnail</th>",
+      "        <th>Image</th>",
+      "        <th>Tags</th>",
+      "        <th>Path</th>",
+      "        <th>About</th>",
+      "      </tr>",
+      "    </thead>",
+      "    <tbody>"
+    ]
+    <> concatMap (renderDebugRow root) summaries
+    <> unlines
+      [ "    </tbody>",
+        "  </table>",
+        "</body>",
+        "</html>"
+      ]
+
+renderDebugRow :: FilePath -> (FilePath, PhotoMeta, Maybe FilePath, String) -> String
+renderDebugRow root (imgPath, meta, mThumbPath, md5sum) =
+  let relImg = makeRelative root imgPath
+      relThumb = fmap (makeRelative root) mThumbPath
+      relAbouts = map (makeRelative root) (about meta)
+      tagsList = Set.toList (tags meta)
+      thumbCell = case relThumb of
+        Just t -> "<img src=\"" <> escapeHtml t <> "\" alt=\"thumbnail\" />"
+        Nothing -> "<div class=\"no-thumb\">No thumbnail</div>"
+      imgCell = "<a href=\"" <> escapeHtml relImg <> "\" target=\"_blank\">" <> escapeHtml (takeFileName relImg) <> "</a>"
+      tagsCell = concatMap (\t -> "<span class=\"tag\">" <> escapeHtml t <> "</span>") tagsList
+      pathCell = maybe "" escapeHtml (path meta)
+      aboutCell = concatMap (\a -> "<span class=\"about-item\"><a href=\"" <> escapeHtml a <> "\" target=\"_blank\">" <> escapeHtml a <> "</a></span>") relAbouts
+   in "      <tr>\n"
+        <> "        <td>" <> thumbCell <> "</td>\n"
+        <> "        <td>" <> imgCell <> "</td>\n"
+        <> "        <td>" <> tagsCell <> "</td>\n"
+        <> "        <td>" <> pathCell <> "</td>\n"
+        <> "        <td>" <> aboutCell <> "</td>\n"
+        <> "      </tr>\n"
+
+escapeHtml :: String -> String
+escapeHtml = concatMap escape
+  where
+    escape '<' = "&lt;"
+    escape '>' = "&gt;"
+    escape '&' = "&amp;"
+    escape '"' = "&quot;"
+    escape '\'' = "&#39;"
+    escape c = [c]

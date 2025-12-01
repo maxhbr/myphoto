@@ -1,7 +1,7 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module CmdImport (runImport, runImportWithOpts, parseImportArgs, ImportOpts (..)) where
+module CmdImport (runImport, runUpdate, runImportWithOpts, parseImportArgs, ImportOpts (..)) where
 
 import Control.Applicative ((<|>))
 import Control.Concurrent.Async (mapConcurrently)
@@ -88,11 +88,16 @@ runImportWithOpts ImportOpts {ioDryRun, ioDir} = do
   if null metaFiles
     then putStrLn "No metadata files found."
     else forM_ metaFiles (importOne ioDryRun rootDir)
+  runUpdate ioDryRun
+
+runUpdate :: Bool -> IO ()
+runUpdate ioDryRun = do
   summaries <- loadImportedSummaries "."
   when (not ioDryRun) $ do
     writeNanogalleries "." summaries
     (createScaledGallery "_4k" 3840 2160 summaries) >>= writeNanogalleries "./_4k"
     (createScaledGallery "_1080p" 1920 1080 summaries) >>= writeNanogalleries "./_1080p"
+
 
 findMetaFiles :: FilePath -> IO [FilePath]
 findMetaFiles dir = do
