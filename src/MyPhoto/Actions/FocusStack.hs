@@ -4,11 +4,15 @@ module MyPhoto.Actions.FocusStack
 where
 
 import Control.Concurrent (getNumCapabilities)
-import Control.Exception (SomeException, try)
+import Control.Exception (SomeException, throwIO, try)
+import Data.List (intercalate)
+import Data.Time (getCurrentTime)
+import Data.Time.Format (defaultTimeLocale, formatTime)
 import MyPhoto.Actions.Metadata (getStackOutputBN)
 import MyPhoto.Model
 import MyPhoto.Wrapper.FocusStackWrapper
 import qualified System.IO as IO
+import System.Directory (getHomeDirectory)
 
 backoffStrategy :: [(Maybe Int, Maybe Int)]
 backoffStrategy = [(Nothing, Nothing), (Just 6, Just 14), (Just 4, Just 6), (Just 3, Just 3)]
@@ -39,11 +43,15 @@ focusStackImgs verbose additionalParameters imgs = do
 tryWithBackoff :: FocusStackOptions -> Int -> [(Maybe Int, Maybe Int)] -> IO (FilePath, [FilePath])
 tryWithBackoff options capabilities strategies =
   case strategies of
-    [] -> runFocusStack options
+    [] -> do
+      result <- try (runFocusStack options) :: IO (Either SomeException (FilePath, [FilePath]))
+      logFocusStackAttempt options capabilities result
+      either throwIO return result
     (strategy : rest) -> do
       let (strategyOptions, strategyDesc) = applyStrategy options capabilities strategy
       IO.hPutStrLn IO.stderr $ "INFO: try with " ++ strategyDesc
       result <- try (runFocusStack strategyOptions) :: IO (Either SomeException (FilePath, [FilePath]))
+      logFocusStackAttempt strategyOptions capabilities result
       case result of
         Right res -> return res
         Left ex -> do
@@ -51,7 +59,7 @@ tryWithBackoff options capabilities strategies =
           IO.hPutStrLn IO.stderr $ "WARNING: !!! focus stacking failed with error: " ++ show ex
           IO.hPutStrLn IO.stderr $ "WARNING: !!!"
           if null rest
-            then fail "ERROR: all focus stacking strategies failed, aborting"
+            then throwIO ex
             else do
               IO.hPutStrLn IO.stderr $ "INFO: retrying with different strategy"
               tryWithBackoff options capabilities rest
@@ -70,3 +78,34 @@ applyStrategy options capabilities (mbBatchsize, mbThreads) =
         (Just bs, Nothing) -> "batchsize=" ++ show bs ++ " and threads=" ++ show threadsValue
         (Nothing, Just ts) -> "default batchsize and threads=" ++ show threadsValue ++ " (capped from " ++ show ts ++ ")"
    in (strategyOptions, strategyDesc)
+
+focusStackStatsFile :: IO FilePath
+focusStackStatsFile = do
+  home <- getHomeDirectory
+  let dir = home </> ".myphoto"
+  createDirectoryIfMissing True dir
+  return $ dir </> "FocusStackStats.csv"
+
+appendFocusStackStat :: Int -> Maybe Int -> Int -> String -> FilePath -> IO ()
+appendFocusStackStat numberOfImgs batchsize usedThreads successOrFailure output = do
+  statsFile <- focusStackStatsFile
+  timestamp <- getCurrentTime
+  let ts = formatTime defaultTimeLocale "%Y-%m-%dT%H:%M:%SZ" timestamp
+      batchsizeStr = maybe "default" show batchsize
+      row =
+        intercalate
+          ","
+          [show numberOfImgs, batchsizeStr, show usedThreads, successOrFailure, output, ts]
+          ++ "\n"
+  statsFileExists <- doesFileExist statsFile
+  unless statsFileExists $ do
+    IO.appendFile statsFile "number_of_imgs,batchsize,threads,success_or_failure,output,timestamp\n"
+  IO.appendFile statsFile row
+
+logFocusStackAttempt :: FocusStackOptions -> Int -> Either SomeException (FilePath, [FilePath]) -> IO ()
+logFocusStackAttempt FocusStackOptions {_imgs = imgs, _threads = threads, _batchsize = batchsize, _output = output} capabilities result =
+  let numberOfImgs = length imgs
+      usedBatchsize = batchsize
+      usedThreads = maybe capabilities id threads
+      successOrFailure = either (const "failure") (const "success") result
+   in appendFocusStackStat numberOfImgs usedBatchsize usedThreads successOrFailure output
