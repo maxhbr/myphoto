@@ -55,7 +55,7 @@ instance Default EnblendEnfuseOptions where
 runEnblendEnfuse :: EnblendEnfuseOptions -> FilePath -> FilePath -> [FilePath] -> IO (Either ExitCode FilePath)
 runEnblendEnfuse _ _ _ [img] = return (Right img)
 runEnblendEnfuse opts@(EnblendEnfuseOptions {eeSaveMasks = saveMasks}) outFile workdir imgs = do
-  logDebugIO (">>>>>>>>>>>>>>>>>>>>>>>> start >> " ++ (takeFileName outFile))
+  logDebugIO (">start> " ++ (takeFileName outFile))
   let outMasksFolder = inWorkdir workdir (outFile ++ "-masks")
   when saveMasks $
     createDirectoryIfMissing True outMasksFolder
@@ -73,9 +73,11 @@ runEnblendEnfuse opts@(EnblendEnfuseOptions {eeSaveMasks = saveMasks}) outFile w
   exitCode <- waitForProcess pHandle
   case exitCode of
     ExitSuccess -> do
-      logDebugIO ("<<<<<<<<<<<<<<<<<<<<<<<<< done << " ++ (takeFileName outFile))
+      logDebugIO ("<done< " ++ (takeFileName outFile))
       return (Right outFile)
-    _ -> return (Left exitCode)
+    _ -> do
+      logDebugIO ("!failed! " ++ (takeFileName outFile))
+      return (Left exitCode)
 
 runEnblendEnfuseWithRetries :: Int -> EnblendEnfuseOptions -> FilePath -> FilePath -> [FilePath] -> IO (Either String FilePath)
 runEnblendEnfuseWithRetries _ _ _ _ [img] = return (Right img)
