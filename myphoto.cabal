@@ -28,10 +28,10 @@ library
         MyPhoto.AppAlign,
         MyPhoto.AppToPNG,
         MyPhoto.Model,
-        MyPhoto.Utils.Chunking
+        MyPhoto.Utils.Chunking,
+        MyPhoto.Utils.ProgressBar
     other-modules:
         MyPhoto.Utils.Samples,
-        MyPhoto.Utils.ProgressBar,
         MyPhoto.Actions.Align,
         MyPhoto.Actions.Downscale,
         MyPhoto.Actions.EnblendEnfuse,
@@ -121,7 +121,8 @@ executable myphoto-gallery
                       tomland,
                       optparse-applicative,
                       process,
-                      async
+                      async,
+                      myphoto
     other-modules:    CmdAddMeta,
                       CmdImport,
                       Nanogallery,

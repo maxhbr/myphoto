@@ -48,6 +48,12 @@ import System.FilePath
 import System.IO (hPutStrLn, stderr)
 import System.Process (callProcess)
 
+import MyPhoto.Utils.ProgressBar
+  ( ProgressBar,
+    incProgress,
+    newImgsProgressBar,
+  )
+
 metaSuffix :: String
 metaSuffix = ".myphoto.toml"
 
@@ -87,7 +93,11 @@ runImportWithOpts ImportOpts {ioDryRun, ioDir} = do
   metaFiles <- findMetaFiles dir
   if null metaFiles
     then putStrLn "No metadata files found."
-    else forM_ metaFiles (importOne ioDryRun rootDir)
+    else do
+      pb <- newImgsProgressBar metaFiles
+      forM_ metaFiles (\metadataFile -> do
+                                          importOne ioDryRun rootDir metadataFile
+                                          pb `incProgress` 1)
   runUpdate ioDryRun
 
 runUpdate :: Bool -> IO ()
@@ -244,16 +254,17 @@ loadImportedSummaries dir = do
 
 createScaledGallery :: FilePath -> Int -> Int -> [(FilePath, PhotoMeta, String)] -> IO [(FilePath, PhotoMeta, String)]
 createScaledGallery outDir width height summaries = do
-  results <- mapConcurrently go summaries
+  pb <- newImgsProgressBar summaries
+  results <- mapConcurrently (go pb) summaries
   pure (catMaybes results)
   where
-    go (src, meta, srcHash) = do
+    go pb (src, meta, srcHash) = do
       let dir = takeDirectory src
           rel = makeRelative "." src
           dest = outDir </> rel
           hashPath = dest <> ".md5"
       exists <- doesFileExist src
-      if not exists
+      ret <- if not exists
         then do
           hPutStrLn stderr ("[" ++ outDir ++ "] Source missing, skipping: " <> src)
           pure Nothing
@@ -289,6 +300,8 @@ createScaledGallery outDir width height summaries = do
                   BS.writeFile hashPath (BSC.pack srcHash)
                   putStrLn $ "[" ++ outDir ++ "] Wrote " <> dest
                   pure (Just (src, meta, srcHash))
+      pb `incProgress` 1
+      pure ret
     readHash p = do
       ok <- doesFileExist p
       if ok then fmap (Just . BSC.unpack) (BS.readFile p) else pure Nothing
