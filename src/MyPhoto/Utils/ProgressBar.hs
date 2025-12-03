@@ -11,7 +11,7 @@ import System.ProgressBar (Progress (..), ProgressBar, ProgressBarWidth (Constan
 
 -- | Shared progress bar style capped to 130 characters to avoid overly wide output.
 progressBarStyle :: Style s
-progressBarStyle = defStyle {styleWidth = ConstantWidth 100}
+progressBarStyle = defStyle {styleWidth = ConstantWidth 130}
 
 newProgressBarDefault :: Progress s -> IO (ProgressBar s)
 newProgressBarDefault = newProgressBar progressBarStyle 10

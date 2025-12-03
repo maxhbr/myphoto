@@ -3,19 +3,24 @@
 module Model
   ( PhotoMeta (..),
     ImportedMeta (..),
+    GalleryConfig (..),
     defaultMeta,
     defaultDirMeta,
+    defaultGalleryConfig,
     mergeMeta,
     writePhotoMeta,
     writeImportedMeta,
+    writeGalleryConfig,
     loadPhotoMeta,
     loadImportedMeta,
+    loadGalleryConfig,
     resolveAboutPaths,
   )
 where
 
 import Control.Applicative ((<|>))
 import Data.Bifunctor (first)
+import Data.Maybe (fromMaybe)
 import qualified Data.Set as Set
 import qualified Data.Text.IO as TIO
 import System.FilePath (isAbsolute, makeRelative, takeDirectory, (</>))
@@ -73,6 +78,19 @@ data PhotoMetaPayload = PhotoMetaPayload
   }
   deriving (Show, Eq)
 
+data GalleryConfig = GalleryConfig
+  { ignoredTags :: [String],
+    ignoredImgs :: [FilePath]
+  }
+  deriving (Show, Eq)
+
+defaultGalleryConfig :: GalleryConfig
+defaultGalleryConfig =
+  GalleryConfig
+    { ignoredTags = [],
+      ignoredImgs = []
+    }
+
 data ImportedMetaPayload = ImportedMetaPayload
   { payloadOriginal :: PhotoMetaPayload,
     payloadOverwrite :: PhotoMetaPayload,
@@ -124,6 +142,15 @@ loadImportedMeta :: FilePath -> IO (Either String ImportedMeta)
 loadImportedMeta path' = do
   content <- TIO.readFile path'
   pure (first renderErrors (fmap (fromImportedPayload path') (Toml.decode importedMetaPayloadCodec content)))
+
+writeGalleryConfig :: FilePath -> GalleryConfig -> IO ()
+writeGalleryConfig path' cfg =
+  TIO.writeFile path' (Toml.encode galleryConfigCodec cfg)
+
+loadGalleryConfig :: FilePath -> IO (Either String GalleryConfig)
+loadGalleryConfig path' = do
+  content <- TIO.readFile path'
+  pure (first renderErrors (Toml.decode galleryConfigCodec content))
 
 photoMetaPayloadCodec :: Toml.TomlCodec PhotoMetaPayload
 photoMetaPayloadCodec =
@@ -188,6 +215,12 @@ fromImportedPayload tomlPath payload =
           md5 = payloadMd5 payload,
           originalPath = payloadOriginalPath payload
         }
+
+galleryConfigCodec :: Toml.TomlCodec GalleryConfig
+galleryConfigCodec =
+  GalleryConfig
+    <$> Toml.dimap Just (fromMaybe []) (Toml.dioptional (Toml.arrayOf Toml._String "ignoredTags")) Toml..= ignoredTags
+    <*> Toml.dimap Just (fromMaybe []) (Toml.dioptional (Toml.arrayOf Toml._String "ignoredImgs")) Toml..= ignoredImgs
 
 renderErrors :: [Toml.TomlDecodeError] -> String
 renderErrors =

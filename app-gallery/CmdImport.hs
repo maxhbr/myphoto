@@ -3,10 +3,9 @@
 
 module CmdImport (runImport, runUpdate, runImportWithOpts, parseImportArgs, ImportOpts (..)) where
 
-import Control.Applicative ((<|>))
 import Control.Concurrent.Async (mapConcurrently)
 import Control.Exception (SomeException, try)
-import Control.Monad (forM_, unless, void, when)
+import Control.Monad (forM_, unless, when)
 import qualified Crypto.Hash as Hash
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
@@ -49,8 +48,7 @@ import System.IO (hPutStrLn, stderr)
 import System.Process (callProcess)
 
 import MyPhoto.Utils.ProgressBar
-  ( ProgressBar,
-    incProgress,
+  ( incProgress,
     newImgsProgressBar,
   )
 
@@ -259,8 +257,7 @@ createScaledGallery outDir width height summaries = do
   pure (catMaybes results)
   where
     go pb (src, meta, srcHash) = do
-      let dir = takeDirectory src
-          rel = makeRelative "." src
+      let rel = makeRelative "." src
           dest = outDir </> rel
           hashPath = dest <> ".md5"
       exists <- doesFileExist src
