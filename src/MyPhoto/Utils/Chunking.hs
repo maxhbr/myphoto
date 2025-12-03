@@ -1,18 +1,10 @@
 module MyPhoto.Utils.Chunking where
 
-import Control.Concurrent (getNumCapabilities)
 import Control.Concurrent.Async (mapConcurrently)
 import Control.Concurrent.MSem as MS
-import Control.Monad
-import Data.Char (toLower)
 import Data.List.Split (chunksOf)
-import Data.Maybe (fromMaybe)
 import MyPhoto.Model
-import System.Directory
-import System.Exit
-import System.FilePath
-import System.Process
-import System.ProgressBar (Progress (..), ProgressBar, defStyle, incProgress, newProgressBar)
+import MyPhoto.Utils.ProgressBar (Progress (..), ProgressBar, incProgress, newProgressBarDefault)
 
 data Chunks
   = Chunk Imgs
@@ -52,7 +44,7 @@ resolveChunks' pb sem f bn (Chunks chunks) = do
 
 resolveChunks :: MS.MSem Int -> (FilePath -> Imgs -> IO (Either String Img)) -> FilePath -> Chunks -> IO (Either String Img)
 resolveChunks sem f bn chunks = do
-  pb <- newProgressBar defStyle 10 (Progress 0 (countChunks chunks) ())
+  pb <- newProgressBarDefault (Progress 0 (countChunks chunks) ())
   resolveChunks' pb sem f bn chunks
 
 joinLastTwoChunksIfNeeded :: Int -> [[a]] -> [[a]]

@@ -93,10 +93,11 @@ runImportWithOpts ImportOpts {ioDryRun, ioDir} = do
 runUpdate :: Bool -> IO ()
 runUpdate ioDryRun = do
   summaries <- loadImportedSummaries "."
+  let summaries' = filter (\(_, meta, _) -> ignore meta /= Just True) summaries
   when (not ioDryRun) $ do
-    writeNanogalleries "." summaries
-    (createScaledGallery "_4k" 3840 2160 summaries) >>= writeNanogalleries "./_4k"
-    (createScaledGallery "_1080p" 1920 1080 summaries) >>= writeNanogalleries "./_1080p"
+    writeNanogalleries "." summaries'
+    (createScaledGallery "_4k" 3840 2160 summaries') >>= writeNanogalleries "./_4k"
+    (createScaledGallery "_1080p" 1920 1080 summaries') >>= writeNanogalleries "./_1080p"
 
 
 findMetaFiles :: FilePath -> IO [FilePath]

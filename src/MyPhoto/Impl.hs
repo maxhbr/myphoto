@@ -33,7 +33,7 @@ import MyPhoto.Model
 import MyPhoto.Monad
 import MyPhoto.Video
 import System.Console.GetOpt
-import System.Directory (removeDirectoryRecursive)
+import System.Directory (getPermissions, removeDirectoryRecursive, setPermissions, executable)
 import System.Environment (getArgs, getProgName, withArgs)
 import qualified System.IO as IO
 
@@ -278,6 +278,14 @@ createShellScript = do
                   "exec " ++ fullCmd ++ " \"${imgs[@]}\""
                 ]
         IO.writeFile script scriptContent
+        Ex.catch
+          ( do
+              perms <- getPermissions script
+              setPermissions script (perms {executable = True})
+          )
+          ( \(_ :: Ex.IOException) -> do
+              logWarnIO ("could not set executable permission on " ++ script)
+          )
 
 createMontage :: MyPhotoM ()
 createMontage = step "montage" $ do

@@ -22,8 +22,8 @@ import Data.Time.Clock.POSIX (posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
 import Data.Time.LocalTime
 import Graphics.HsExif
 import MyPhoto.Model hiding (Options (..))
+import MyPhoto.Utils.ProgressBar (incProgress, newImgsProgressBar)
 import System.Exit
-import System.ProgressBar (Progress (..), ProgressBar, defStyle, incProgress, newProgressBar)
 
 data Metadata
   = Metadata
@@ -57,7 +57,7 @@ getMetadataFromImg verbose img = do
 
 getMetadataFromImgs :: Bool -> [Img] -> IO [Metadata]
 getMetadataFromImgs verbose imgs = do
-  pb <- newProgressBar defStyle 10 (Progress 0 (length imgs) ())
+  pb <- newImgsProgressBar imgs
   mapM
     ( \img -> do
         metadata <- getMetadataFromImg verbose img

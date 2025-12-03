@@ -31,6 +31,7 @@ library
         MyPhoto.Utils.Chunking
     other-modules:
         MyPhoto.Utils.Samples,
+        MyPhoto.Utils.ProgressBar,
         MyPhoto.Actions.Align,
         MyPhoto.Actions.Downscale,
         MyPhoto.Actions.EnblendEnfuse,

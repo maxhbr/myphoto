@@ -8,10 +8,10 @@ module MyPhoto.Actions.FileSystem
 where
 
 import MyPhoto.Model
+import MyPhoto.Utils.ProgressBar (incProgress, newImgsProgressBar)
 import System.Directory (copyFile, createFileLink, removeDirectoryRecursive, renameFile)
 import System.FilePath (replaceDirectory)
 import System.Posix.Files (getSymbolicLinkStatus, isSymbolicLink)
-import System.ProgressBar (Progress (..), defStyle, incProgress, newProgressBar)
 
 getPathInTargetFolder :: FilePath -> FilePath -> IO FilePath
 getPathInTargetFolder target img = do
@@ -36,7 +36,7 @@ createFileLinkRelative img img' = do
 
 copy, move, link, reverseLink :: FilePath -> Imgs -> IO Imgs
 copy target imgs = do
-  pb <- newProgressBar defStyle 10 (Progress 0 (length imgs) ())
+  pb <- newImgsProgressBar imgs
   applyFsFunc
     ( \img img' -> do
         copyFile img img'
@@ -46,7 +46,7 @@ copy target imgs = do
     target
     imgs
 move target imgs = do
-  pb <- newProgressBar defStyle 10 (Progress 0 (length imgs) ())
+  pb <- newImgsProgressBar imgs
   applyFsFunc
     ( \img img' -> do
         renameFile img img'
@@ -56,7 +56,7 @@ move target imgs = do
     target
     imgs
 link target imgs = do
-  pb <- newProgressBar defStyle 10 (Progress 0 (length imgs) ())
+  pb <- newImgsProgressBar imgs
   applyFsFunc
     ( \img img' -> do
         createFileLinkRelative img img'
@@ -66,7 +66,7 @@ link target imgs = do
     target
     imgs
 reverseLink target imgs = do
-  pb <- newProgressBar defStyle 10 (Progress 0 (length imgs) ())
+  pb <- newImgsProgressBar imgs
   applyFsFunc
     ( \img img' -> do
         imgSymbolicLinkStatus <- getSymbolicLinkStatus img

@@ -8,8 +8,8 @@ import Control.Concurrent.Async (mapConcurrently)
 import Control.Concurrent.MSem as MS
 import Control.Monad
 import MyPhoto.Model
+import MyPhoto.Utils.ProgressBar (incProgress, newImgsProgressBar)
 import System.Process
-import System.ProgressBar (Progress (..), defStyle, incProgress, newProgressBar)
 
 downscaleImg :: Int -> Img -> IO Img
 downscaleImg int img = do
@@ -37,7 +37,7 @@ downscaleImgs pct imgs = do
       capabilities <- getNumCapabilities
       let actualCapabilities = if capabilities > 4 then capabilities - 4 else capabilities
       putStrLn $ "Using " ++ show actualCapabilities ++ " (of " ++ show capabilities ++ ") concurrent threads for downscaling"
-      pb <- newProgressBar defStyle 10 (Progress 0 (length imgs) ())
+      pb <- newImgsProgressBar imgs
       sem <- MS.new actualCapabilities
       mapConcurrently
         ( ( \img -> MS.with sem $ do

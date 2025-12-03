@@ -13,6 +13,7 @@ import qualified Data.Vector as V (fromList)
 import GHC.Conc (numCapabilities)
 import Graphics.Netpbm
 import MyPhoto.Model
+import MyPhoto.Utils.ProgressBar (incProgress, newImgsProgressBar)
 import qualified Statistics.Sample as S
 import System.Console.GetOpt
 import System.Directory
@@ -20,7 +21,6 @@ import System.Exit
 import System.FilePath
 import System.IO.Temp
 import System.Process
-import System.ProgressBar (Progress (..), ProgressBar, defStyle, incProgress, newProgressBar)
 
 computImgVec :: Int -> FilePath -> Img -> IO (Img, [Int])
 computImgVec size tmpdir img = do
@@ -45,7 +45,7 @@ computImgsVecs size tmpdir imgs = do
   let actualCapabilities = if capabilities > 4 then capabilities - 4 else capabilities
   putStrLn $ "Using " ++ show actualCapabilities ++ " (of " ++ show capabilities ++ ") concurrent threads for outlier detection"
   sem <- MS.new actualCapabilities
-  pb <- newProgressBar defStyle 10 (Progress 0 (length imgs) ())
+  pb <- newImgsProgressBar imgs
   mapConcurrently
     ( \img -> MS.with sem $ do
         vec <- computImgVec size tmpdir img

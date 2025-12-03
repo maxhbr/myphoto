@@ -36,7 +36,8 @@ data PhotoMeta = PhotoMeta
     tags :: Set.Set String,
     path :: Maybe FilePath,
     about :: [FilePath], -- always absolute paths, which are never serialized
-    modified :: Maybe String
+    modified :: Maybe String,
+    ignore :: Maybe Bool
   }
   deriving (Show, Eq)
 
@@ -47,7 +48,8 @@ instance Semigroup PhotoMeta where
         tags = tags a <> tags b,
         path = path b <|> path a,
         about = about b <> about a,
-        modified = modified b <|> modified a
+        modified = modified b <|> modified a,
+        ignore = ignore b <|> ignore a
       }
 
 instance Monoid PhotoMeta where
@@ -57,7 +59,8 @@ instance Monoid PhotoMeta where
         tags = Set.empty,
         path = Nothing,
         about = [],
-        modified = Nothing
+        modified = Nothing,
+        ignore = Nothing
       }
 
 data PhotoMetaPayload = PhotoMetaPayload
@@ -65,7 +68,8 @@ data PhotoMetaPayload = PhotoMetaPayload
     payloadTags :: [String],
     payloadPath :: Maybe FilePath,
     payloadAbout :: [FilePath], -- always relative paths, relative to the TOML file
-    payloadModified :: Maybe String
+    payloadModified :: Maybe String,
+    payloadIgnore :: Maybe Bool
   }
   deriving (Show, Eq)
 
@@ -85,7 +89,8 @@ defaultMeta relImg modDate =
       tags = Set.empty,
       path = Nothing,
       about = [],
-      modified = Just modDate
+      modified = Just modDate,
+      ignore = Nothing
     }
 
 defaultDirMeta :: String -> PhotoMeta
@@ -95,7 +100,8 @@ defaultDirMeta _ =
       tags = Set.empty,
       path = Nothing,
       about = [],
-      modified = Nothing
+      modified = Nothing,
+      ignore = Nothing
     }
 
 mergeMeta :: PhotoMeta -> PhotoMeta -> PhotoMeta
@@ -127,6 +133,7 @@ photoMetaPayloadCodec =
     <*> Toml.dioptional (Toml.string "path") Toml..= payloadPath
     <*> Toml.arrayOf Toml._String "about" Toml..= payloadAbout
     <*> Toml.dioptional (Toml.string "modified") Toml..= payloadModified
+    <*> Toml.dioptional (Toml.bool "ignore") Toml..= payloadIgnore
 
 toPayload :: FilePath -> PhotoMeta -> PhotoMetaPayload
 toPayload tomlPath meta =
@@ -135,7 +142,8 @@ toPayload tomlPath meta =
       payloadTags = Set.toList (tags meta),
       payloadPath = path meta,
       payloadAbout = map (makeRelative (takeDirectory tomlPath)) (about meta),
-      payloadModified = modified meta
+      payloadModified = modified meta,
+      payloadIgnore = ignore meta
     }
 
 fromPayload :: PhotoMetaPayload -> PhotoMeta
@@ -145,7 +153,8 @@ fromPayload payload =
       tags = Set.fromList (payloadTags payload),
       path = payloadPath payload,
       about = payloadAbout payload,
-      modified = payloadModified payload
+      modified = payloadModified payload,
+      ignore = payloadIgnore payload
     }
 
 importedMetaPayloadCodec :: Toml.TomlCodec ImportedMetaPayload
