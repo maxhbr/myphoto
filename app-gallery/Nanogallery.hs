@@ -1,11 +1,14 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Nanogallery (writeNanogalleries, computeThumbnails, computeOneThumbnail) where
 
 import Control.Concurrent.Async (mapConcurrently)
 import Control.Exception (SomeException, try)
-import Control.Monad (unless)
-import Data.List (intercalate)
+import Data.Aeson ((.=))
+import qualified Data.Aeson as A
+import qualified Data.ByteString.Lazy as BL
+import Data.FileEmbed (embedFile)
 import qualified Data.Set as Set
 import Model (PhotoMeta (..))
 import System.Directory (createDirectoryIfMissing, doesFileExist)
@@ -16,14 +19,17 @@ import System.FilePath
     (</>),
   )
 import System.Process (callProcess)
+import Network.HTTP.Simple (getResponseBody, httpLBS, parseRequestThrow)
 
 -- | Write a minimal nanogallery-style index.html into the gallery root.
 --   Expects summaries of imported images (metadata path, PhotoMeta, md5 hash).
 writeNanogalleries :: FilePath -> [(FilePath, PhotoMeta, String)] -> IO ()
 writeNanogalleries root summaries = do
   createDirectoryIfMissing True root
+  ensureStaticAssets root
   summariesWithThumbnails <- computeThumbnails root summaries
-  writeFile (root </> "index.html") (renderPage root summariesWithThumbnails)
+  BL.writeFile (root </> "index.json") (renderItemsJson root summariesWithThumbnails)
+  BL.writeFile (root </> "index.html") renderPage
   writeFile (root </> "debug.html") (renderDebugPage root summariesWithThumbnails)
 
 -- | Enrich summaries with optional thumbnail paths under $root/.thumbnail/<md5>.jpg.
@@ -34,89 +40,26 @@ computeThumbnails root summaries = mapConcurrently addThumb summaries
       thumb <- computeOneThumbnail root metaPath md5sum
       pure (metaPath, meta, thumb, md5sum)
 
-renderPage :: FilePath -> [(FilePath, PhotoMeta, Maybe FilePath, String)] -> String
-renderPage root summaries =
-  unlines
-    [ "<!DOCTYPE html>",
-      "<html lang=\"en\">",
-      "<head>",
-      "  <meta charset=\"UTF-8\" />",
-      "  <meta name=\"viewport\" content=\"user-scalable=no, width=device-width, initial-scale=1, maximum-scale=1\">",
-      "  <title>myphoto gallery</title>",
-      "  <script src=\"https://cdn.jsdelivr.net/npm/jquery@3.3.1/dist/jquery.min.js\" type=\"text/javascript\"></script>",
-      "  <link href=\"https://cdn.jsdelivr.net/npm/nanogallery2@3/dist/css/nanogallery2.min.css\" rel=\"stylesheet\" type=\"text/css\">",
-      "  <script type=\"text/javascript\" src=\"https://cdn.jsdelivr.net/npm/nanogallery2@3/dist/jquery.nanogallery2.min.js\"></script>",
-      "  <style>body { margin: 0; background: #0b0b0b; color: #eee; font-family: sans-serif; }</style>",
-      "</head>",
-      "<body>",
-      "  <div id=\"nanogallery\"></div>",
-      "  <script>",
-      "    const items = " <> renderItems root summaries <> ";",
-      "    jQuery('#nanogallery').nanogallery2({",
-      "      items: items.map(it => (Object.assign({",
-      "        src: it.src,",
-      "        title: it.caption,",
-      "        tags: (it.tags || []).join(' ')",
-      "      }, it.srct ? { srct: it.srct } : {}))),",
-      "      galleryFilterTags: true,",
-      "      galleryFilterTagsMode: 'multiple',",
-      "      thumbnailHeight: 250, thumbnailWidth: 250,",
-      "      thumbnailAlignment: 'fillWidth',",
-      "      galleryDisplayMode: 'fullContent',",
-      "      gallerySorting: 'random',",
-      "      thumbnailGutterWidth: 10, thumbnailGutterHeight: 10,",
-      "      thumbnailBorderHorizontal: 2, thumbnailBorderVertical: 2,",
-      "      galleryDisplayTransitionDuration: 1000,",
-      "      thumbnailDisplayTransition: 'slideRight',",
-      "      thumbnailDisplayTransitionDuration: 300,",
-      "      thumbnailDisplayInterval: 150,",
-      "      thumbnailDisplayOrder: 'colFromRight',",
-      "      thumbnailLabel: { display: true, position:'onBottomOverImage', hideIcons: true, titleFontSize: '1em', align: 'left', titleMultiLine:true, displayDescription: false},",
-      "      thumbnailToolbarImage: null,",
-      "      thumbnailToolbarAlbum: null,",
-      "      thumbnailHoverEffect2: 'label_font-size_1em_1.5em|title_backgroundColor_rgba(255,255,255,0.34)_rgba(((35,203,153,0.8)|title_color_#000_#fff|image_scale_1.00_1.10_5000|image_rotateZ_0deg_4deg_5000',",
-      "      touchAnimation: true,",
-      "      touchAutoOpenDelay: 800,",
-      "      galleryTheme : {",
-      "        thumbnail: { titleShadow : 'none', titleColor: '#fff', borderColor: '#fff' },",
-      "        navigationBreadcrumb: { background : '#3C4B5B' },",
-      "        navigationFilter: { background : '#003C3F', backgroundSelected: '#2E7C7F', color: '#fff' }",
-      "      },",
-      "      locationHash: false",
-      "    });",
-      "  </script>",
-      "</body>",
-      "</html>"
-    ]
+renderPage :: BL.ByteString
+renderPage = BL.fromStrict $(embedFile "app-gallery/assets/index.html")
 
-renderItems :: FilePath -> [(FilePath, PhotoMeta, Maybe FilePath, String)] -> String
-renderItems root =
-  (\xs -> "[" <> intercalate "," xs <> "]")
-    . map (renderItem root)
+renderItemsJson :: FilePath -> [(FilePath, PhotoMeta, Maybe FilePath, String)] -> BL.ByteString
+renderItemsJson root = A.encode . map (renderItem root)
 
-renderItem :: FilePath -> (FilePath, PhotoMeta, Maybe FilePath, String) -> String
+renderItem :: FilePath -> (FilePath, PhotoMeta, Maybe FilePath, String) -> A.Value
 renderItem root (imgPath, meta, mThumbPath, _) =
   let relImg = makeRelative root imgPath
       relThumb = fmap (makeRelative root) mThumbPath
       relAbouts = map (makeRelative root) (about meta)
       tagsList = Set.toList (tags meta)
-   in "{"
-        <> field "src" relImg
-        <> ","
-        <> maybe "" (\t -> field "srct" t <> ",") relThumb
-        <> field "caption" ""
-        <> ","
-        <> fieldArray "tags" tagsList
-        <> ","
-        <> fieldArray "about" relAbouts
-        <> ","
-        <> "}"
-
-field :: String -> String -> String
-field k v = show k <> ":" <> show v
-
-fieldArray :: String -> [String] -> String
-fieldArray k vs = show k <> ":[" <> intercalate "," (map show vs) <> "]"
+      baseFields =
+        [ "src" .= relImg,
+          "caption" .= ("" :: String),
+          "tags" .= tagsList,
+          "about" .= relAbouts
+        ]
+      thumbField = maybe [] (\t -> ["srct" .= t]) relThumb
+   in A.object (baseFields <> thumbField)
 
 -- | Ensure a thumbnail exists under root/.thumbnail/<md5>.jpg and return its path if successful.
 computeOneThumbnail :: FilePath -> FilePath -> String -> IO (Maybe FilePath)
@@ -209,3 +152,22 @@ escapeHtml = concatMap escape
     escape '"' = "&quot;"
     escape '\'' = "&#39;"
     escape c = [c]
+
+-- | Download external JS/CSS assets locally so the gallery can run offline.
+ensureStaticAssets :: FilePath -> IO ()
+ensureStaticAssets root = do
+  let assetsDir = root </> "assets"
+  downloadAsset assetsDir "jquery.min.js" "https://cdn.jsdelivr.net/npm/jquery@3.3.1/dist/jquery.min.js"
+  downloadAsset assetsDir "nanogallery2.min.css" "https://cdn.jsdelivr.net/npm/nanogallery2@3/dist/css/nanogallery2.min.css"
+  downloadAsset assetsDir "jquery.nanogallery2.min.js" "https://cdn.jsdelivr.net/npm/nanogallery2@3/dist/jquery.nanogallery2.min.js"
+  downloadAsset assetsDir "css/nanogallery2.min.css" "https://cdn.jsdelivr.net/npm/nanogallery2@3/dist/css/nanogallery2.min.css"
+  downloadAsset assetsDir "css/nanogallery2.woff.min.css" "https://cdn.jsdelivr.net/npm/nanogallery2@3/dist/css/nanogallery2.woff.min.css"
+  downloadAsset assetsDir "font/ngy2_icon_font.woff" "https://cdn.jsdelivr.net/npm/nanogallery2@3/dist/css/font/ngy2_icon_font.woff"
+
+downloadAsset :: FilePath -> FilePath -> String -> IO ()
+downloadAsset dir filename url = do
+  let target = dir </> filename
+  createDirectoryIfMissing True (takeDirectory target)
+  request <- parseRequestThrow url
+  response <- httpLBS request
+  BL.writeFile target (getResponseBody response)

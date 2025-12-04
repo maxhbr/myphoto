@@ -111,6 +111,7 @@ executable myphoto-gallery
     main-is:          Main.hs
     ghc-options:      -Wall -threaded -rtsopts
     build-depends:    base,
+                      aeson,
                       containers,
                       directory,
                       filepath,
@@ -122,6 +123,9 @@ executable myphoto-gallery
                       optparse-applicative,
                       process,
                       async,
+                      http-conduit,
+                      file-embed,
+                      template-haskell,
                       myphoto
     other-modules:    CmdAddMeta,
                       CmdImport,

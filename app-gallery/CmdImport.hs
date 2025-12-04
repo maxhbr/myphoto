@@ -9,7 +9,7 @@ import Control.Monad (forM_, unless, when)
 import qualified Crypto.Hash as Hash
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
-import Data.List (isSuffixOf)
+import Data.List (isSuffixOf, isPrefixOf)
 import Data.Maybe (catMaybes)
 import qualified Data.Maybe as Maybe
 import Data.Time.Clock (UTCTime, getCurrentTime)
@@ -311,7 +311,8 @@ findImportedFiles dir = do
     step entry = do
       let path' = dir </> entry
       isDir <- doesDirectoryExist path'
-      if isDir
+      let dirBasename = takeFileName path'
+      if isDir && not (isPrefixOf "_" dirBasename)
         then findImportedFiles path'
         else pure [path' | importedSuffix `isSuffixOf` path']
 
