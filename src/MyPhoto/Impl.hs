@@ -33,7 +33,7 @@ import MyPhoto.Model
 import MyPhoto.Monad
 import MyPhoto.Video
 import System.Console.GetOpt
-import System.Directory (getPermissions, removeDirectoryRecursive, setPermissions, executable)
+import System.Directory (executable, getPermissions, removeDirectoryRecursive, setPermissions)
 import System.Environment (getArgs, getProgName, withArgs)
 import qualified System.IO as IO
 

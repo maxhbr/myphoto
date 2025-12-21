@@ -11,6 +11,7 @@ import qualified Data.ByteString.Lazy as BL
 import Data.FileEmbed (embedFile)
 import qualified Data.Set as Set
 import Model (PhotoMeta (..))
+import Network.HTTP.Simple (getResponseBody, httpLBS, parseRequestThrow)
 import System.Directory (createDirectoryIfMissing, doesFileExist)
 import System.FilePath
   ( makeRelative,
@@ -19,7 +20,6 @@ import System.FilePath
     (</>),
   )
 import System.Process (callProcess)
-import Network.HTTP.Simple (getResponseBody, httpLBS, parseRequestThrow)
 
 -- | Write a minimal nanogallery-style index.html into the gallery root.
 --   Expects summaries of imported images (metadata path, PhotoMeta, md5 hash).
@@ -137,10 +137,22 @@ renderDebugRow root (imgPath, meta, mThumbPath, md5sum) =
       metaPathCell = maybe "" escapeHtml (path meta)
       aboutCell = concatMap (\a -> "<span class=\"about-item\"><a href=\"" <> escapeHtml a <> "\" target=\"_blank\">" <> escapeHtml a <> "</a></span>") relAbouts
    in "      <tr>\n"
-        <> "        <td>" <> thumbCell <> "<br/>" <> imgCell <> "</td>\n"
-        <> "        <td>" <> tagsCell <> "</td>\n"
-        <> "        <td> acutal: " <> actualPathCell <> "<br/> meta: " <> metaPathCell <> "</td>\n"
-        <> "        <td>" <> aboutCell <> "</td>\n"
+        <> "        <td>"
+        <> thumbCell
+        <> "<br/>"
+        <> imgCell
+        <> "</td>\n"
+        <> "        <td>"
+        <> tagsCell
+        <> "</td>\n"
+        <> "        <td> acutal: "
+        <> actualPathCell
+        <> "<br/> meta: "
+        <> metaPathCell
+        <> "</td>\n"
+        <> "        <td>"
+        <> aboutCell
+        <> "</td>\n"
         <> "      </tr>\n"
 
 escapeHtml :: String -> String

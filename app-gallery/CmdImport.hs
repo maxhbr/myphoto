@@ -9,12 +9,12 @@ import Control.Monad (forM_, unless, when)
 import qualified Crypto.Hash as Hash
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
-import Data.List (isSuffixOf, isPrefixOf)
+import Data.List (isPrefixOf, isSuffixOf)
 import Data.Maybe (catMaybes)
 import qualified Data.Maybe as Maybe
+import qualified Data.Set as Set
 import Data.Time.Clock (UTCTime, getCurrentTime)
 import Data.Time.Format (defaultTimeLocale, formatTime)
-import qualified Data.Set as Set
 import Model
   ( ImportedMeta (..),
     PhotoMeta (..),
@@ -24,6 +24,10 @@ import Model
     mergeMeta,
     resolveAboutPaths,
     writeImportedMeta,
+  )
+import MyPhoto.Utils.ProgressBar
+  ( incProgress,
+    newImgsProgressBar,
   )
 import Nanogallery (writeNanogalleries)
 import Options.Applicative
@@ -46,11 +50,6 @@ import System.FilePath
   )
 import System.IO (hPutStrLn, stderr)
 import System.Process (callProcess)
-
-import MyPhoto.Utils.ProgressBar
-  ( incProgress,
-    newImgsProgressBar,
-  )
 
 metaSuffix :: String
 metaSuffix = ".myphoto.toml"
@@ -93,9 +92,12 @@ runImportWithOpts ImportOpts {ioDryRun, ioDir} = do
     then putStrLn "No metadata files found."
     else do
       pb <- newImgsProgressBar metaFiles
-      forM_ metaFiles (\metadataFile -> do
-                                          importOne ioDryRun rootDir metadataFile
-                                          pb `incProgress` 1)
+      forM_
+        metaFiles
+        ( \metadataFile -> do
+            importOne ioDryRun rootDir metadataFile
+            pb `incProgress` 1
+        )
   runUpdate ioDryRun
 
 runUpdate :: Bool -> IO ()
@@ -105,8 +107,8 @@ runUpdate ioDryRun = do
   when (not ioDryRun) $ do
     writeNanogalleries "." summaries'
     (createScaledGallery "_4k" 3840 2160 summaries') >>= writeNanogalleries "./_4k"
-    (createScaledGallery "_1080p" 1920 1080 summaries') >>= writeNanogalleries "./_1080p"
 
+-- (createScaledGallery "_1080p" 1920 1080 summaries') >>= writeNanogalleries "./_1080p"
 
 findMetaFiles :: FilePath -> IO [FilePath]
 findMetaFiles dir = do
@@ -261,42 +263,43 @@ createScaledGallery outDir width height summaries = do
           dest = outDir </> rel
           hashPath = dest <> ".md5"
       exists <- doesFileExist src
-      ret <- if not exists
-        then do
-          hPutStrLn stderr ("[" ++ outDir ++ "] Source missing, skipping: " <> src)
-          pure Nothing
-        else do
-          cached <- readHash hashPath
-          destExists <- doesFileExist dest
-          if destExists && cached == Just srcHash
-            then pure (Just (src, meta, srcHash))
-            else do
-              createDirectoryIfMissing True (takeDirectory dest)
-              let resizeArg = show width ++ "x" ++ show height ++ ">"
-              res <-
-                try
-                  ( callProcess
-                      "magick"
-                      [ src,
-                        "-resize",
-                        resizeArg,
-                        "-unsharp",
-                        "1.5x1.2+1.0+0.10",
-                        "-interlace",
-                        "Plane",
-                        "-strip",
-                        "-quality",
-                        "95",
-                        dest
-                      ]
-                  ) ::
-                  IO (Either SomeException ())
-              case res of
-                Left err -> hPutStrLn stderr ("[" ++ outDir ++ "] Failed for " <> src <> ": " <> show err) >> pure Nothing
-                Right _ -> do
-                  BS.writeFile hashPath (BSC.pack srcHash)
-                  putStrLn $ "[" ++ outDir ++ "] Wrote " <> dest
-                  pure (Just (src, meta, srcHash))
+      ret <-
+        if not exists
+          then do
+            hPutStrLn stderr ("[" ++ outDir ++ "] Source missing, skipping: " <> src)
+            pure Nothing
+          else do
+            cached <- readHash hashPath
+            destExists <- doesFileExist dest
+            if destExists && cached == Just srcHash
+              then pure (Just (src, meta, srcHash))
+              else do
+                createDirectoryIfMissing True (takeDirectory dest)
+                let resizeArg = show width ++ "x" ++ show height ++ ">"
+                res <-
+                  try
+                    ( callProcess
+                        "magick"
+                        [ src,
+                          "-resize",
+                          resizeArg,
+                          "-unsharp",
+                          "1.5x1.2+1.0+0.10",
+                          "-interlace",
+                          "Plane",
+                          "-strip",
+                          "-quality",
+                          "95",
+                          dest
+                        ]
+                    ) ::
+                    IO (Either SomeException ())
+                case res of
+                  Left err -> hPutStrLn stderr ("[" ++ outDir ++ "] Failed for " <> src <> ": " <> show err) >> pure Nothing
+                  Right _ -> do
+                    BS.writeFile hashPath (BSC.pack srcHash)
+                    putStrLn $ "[" ++ outDir ++ "] Wrote " <> dest
+                    pure (Just (src, meta, srcHash))
       pb `incProgress` 1
       pure ret
     readHash p = do

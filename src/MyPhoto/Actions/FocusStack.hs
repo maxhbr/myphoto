@@ -11,8 +11,8 @@ import Data.Time.Format (defaultTimeLocale, formatTime)
 import MyPhoto.Actions.Metadata (getStackOutputBN)
 import MyPhoto.Model
 import MyPhoto.Wrapper.FocusStackWrapper
-import qualified System.IO as IO
 import System.Directory (getHomeDirectory)
+import qualified System.IO as IO
 
 backoffStrategy :: [(Maybe Int, Maybe Int)]
 backoffStrategy = [(Nothing, Nothing), (Just 6, Just 14), (Just 4, Just 6), (Just 3, Just 3)]

@@ -26,6 +26,7 @@
         ffmpeg-headless # for extracting imgs from video
         libraw # for converting raw files like ARW to tiff, provides dcraw_emu
         libheif # for converting heif files
+        udisks # for mounting devices
       ];
       project =
         devTools:

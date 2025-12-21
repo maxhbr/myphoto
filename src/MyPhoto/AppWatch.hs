@@ -7,6 +7,7 @@ import Control.Concurrent as Thread
 import Control.Exception (SomeException, catch)
 import Control.Monad ((>=>))
 import qualified Control.Monad.State.Lazy as MTL
+import Data.List (isPrefixOf)
 import Data.Time.Clock (UTCTime, diffUTCTime)
 import Data.Time.Clock.POSIX (getCurrentTime, posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
 import MyPhoto.Actions.FileSystem (copy)
@@ -20,6 +21,7 @@ import System.Console.GetOpt
 import System.Directory.Recursive (getFilesRecursive)
 import System.Environment (getArgs, getProgName)
 import qualified System.IO as IO
+import System.Process (readProcessWithExitCode)
 
 data WatchOptions = WatchOptions
   { optWatchVerbose :: Bool,
@@ -226,8 +228,8 @@ peekFiles = do
   MTL.liftIO $ putStrLn $ "#filesInDir: " ++ show (length filesInDir)
   mapM_ peekFile filesInDir
 
-handleFinishedClusters :: WatchForStacksState -> WatchForStacksM ()
-handleFinishedClusters oldState@WatchForStacksState {wfsInFileClusters = oldClusters} = do
+handleFinishedClusters :: WatchForStacksState -> WatchForStacksM () -> WatchForStacksM ()
+handleFinishedClusters oldState@WatchForStacksState {wfsInFileClusters = oldClusters} hookAfterImport = do
   let inBox title m = do
         MTL.liftIO . putStrLn $ "▛" ++ (replicate 78 '▀') ++ "▜"
         MTL.liftIO . putStrLn $ "▌ " ++ "Starting " ++ title
@@ -284,6 +286,8 @@ handleFinishedClusters oldState@WatchForStacksState {wfsInFileClusters = oldClus
       )
       unchanged
 
+  hookAfterImport
+
   newlyFinished <-
     if optWatchOnlyImport (wfsOpts wfss)
       then return newlyImported
@@ -321,7 +325,7 @@ watchForStacksLoop = do
   peekFiles
 
   -- check for finished clusters
-  handleFinishedClusters oldState
+  handleFinishedClusters oldState (return ())
 
   -- log new state
   WatchForStacksState {wfsFailedInFiles = failedFiles, wfsInFileClusters = clusters, wfsFinishedClusters = finishedclusters, wfsOldInFiles = oldFiles} <- MTL.get
@@ -353,15 +357,15 @@ watchForStacks opts@WatchOptions {..} = do
 
   MTL.evalStateT watchForStacksLoop (WatchForStacksState opts extensions minimalTime [] [] [] [])
 
-importStacksOnce :: WatchOptions -> IO ()
-importStacksOnce opts@WatchOptions {..} = do
-  putStrLn "importStacksOnce"
+computeInitialState :: WatchOptions -> IO WatchForStacksState
+computeInitialState opts@WatchOptions {..} = do
+  putStrLn "computeInitialState"
   indirExists <- doesDirectoryExist optIndir
   unless indirExists $ do
     putStrLn $ "ERROR: indir does not exist: " ++ optIndir
     exitWith (ExitFailure 1)
   putStrLn $ "indir: " ++ optIndir
-  putStrLn $ "outdir: " ++ optOutdir
+  putStrLn $ "outdir: " ++ optOutdir 
 
   currentTime <- getCurrentTime
   let currentSeconds = round (utcTimeToPOSIXSeconds currentTime)
@@ -371,13 +375,69 @@ importStacksOnce opts@WatchOptions {..} = do
           else 0
   let extensions = if optUseRaw then unrawExtensions else jpgExtensions
 
+  return $ WatchForStacksState opts extensions minimalTime [] [] [] []
+
+importStacksOnce :: WatchOptions -> IO ()
+importStacksOnce opts@WatchOptions {..} = do
+  putStrLn "importStacksOnce"
+
+  initialState <- computeInitialState opts
+
   MTL.evalStateT
     ( do
         peekFiles
         state <- MTL.get
-        handleFinishedClusters state
+        handleFinishedClusters state (return ())
+    ) initialState
+
+importStacksFromDevice :: WatchOptions -> IO ()
+importStacksFromDevice initialOpts = do
+  putStrLn "importStacksFromDevice"
+
+  let indevice = optIndir initialOpts
+
+  putStrLn $ "Mounting device: " ++ indevice
+  (exitCode, mountPointOutput, stderr) <- readProcessWithExitCode "udisksctl" ["mount", "-b", indevice] ""
+
+  if exitCode /= ExitSuccess
+    then do
+      putStrLn $ "ERROR: Could not mount device " ++ indevice ++ ": " ++ stderr
+      exitWith (ExitFailure 1)
+    else return ()
+
+  -- returns e.g. "Mounted /dev/sdb1 at /media/user/XXXX-XXXX"
+  let extractMountPoint :: String -> FilePath
+      extractMountPoint output =
+        let parts = words output
+         in if length parts >= 4
+              then last parts
+              else error $ "Could not extract mount point from udisksctl output: " ++ output
+  let mountPoint = extractMountPoint mountPointOutput
+
+  putStrLn $ "Device mounted at: " ++ mountPoint
+
+  let opts =
+        initialOpts
+          { optIndir = mountPoint </> "DCIM",
+            optWatchOnce = True
+          }
+
+  initialState <- computeInitialState opts
+
+  let hookAfterImport = MTL.liftIO $ do
+        putStrLn "Unmounting device..."
+        (exitCode, _, stderr) <- readProcessWithExitCode "udisksctl" ["unmount", "-b", indevice] ""
+        if exitCode /= ExitSuccess
+          then putStrLn $ "ERROR: Could not unmount device " ++ indevice ++ ": " ++ stderr
+          else putStrLn $ "Device unmounted."
+
+  MTL.evalStateT
+    ( do
+        peekFiles
+        state <- MTL.get
+        handleFinishedClusters state hookAfterImport
     )
-    (WatchForStacksState opts extensions minimalTime [] [] [] [])
+    initialState
 
 getDirs :: [String] -> IO (FilePath, FilePath, [String])
 getDirs [] = return (undefined, undefined, ["ERROR: No input directory specified"])
@@ -441,6 +501,9 @@ runMyPhotoWatchForStacks =
 
         opts <- (foldl (>>=) (return startOpts) actions) >>= applyStackOpts stackArgs
 
-        if optWatchOnce opts
-          then importStacksOnce opts
-          else watchForStacks opts
+        if ("/dev/" `isPrefixOf` optIndir opts)
+          then importStacksFromDevice opts
+          else
+            if optWatchOnce opts
+              then importStacksOnce opts
+              else watchForStacks opts
