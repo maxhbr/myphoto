@@ -365,7 +365,7 @@ computeInitialState opts@WatchOptions {..} = do
     putStrLn $ "ERROR: indir does not exist: " ++ optIndir
     exitWith (ExitFailure 1)
   putStrLn $ "indir: " ++ optIndir
-  putStrLn $ "outdir: " ++ optOutdir 
+  putStrLn $ "outdir: " ++ optOutdir
 
   currentTime <- getCurrentTime
   let currentSeconds = round (utcTimeToPOSIXSeconds currentTime)
@@ -388,7 +388,8 @@ importStacksOnce opts@WatchOptions {..} = do
         peekFiles
         state <- MTL.get
         handleFinishedClusters state (return ())
-    ) initialState
+    )
+    initialState
 
 importStacksFromDevice :: WatchOptions -> IO ()
 importStacksFromDevice initialOpts = do
@@ -406,10 +407,11 @@ importStacksFromDevice initialOpts = do
   let mountPoint = last (words mountPointOutput)
   putStrLn $ "Device mounted at: " ++ mountPoint
 
-  let opts = initialOpts
-        { optIndir = mountPoint </> "DCIM",
-          optWatchOnce = True
-        }
+  let opts =
+        initialOpts
+          { optIndir = mountPoint </> "DCIM",
+            optWatchOnce = True
+          }
 
   initialState <- computeInitialState opts
 
