@@ -410,13 +410,15 @@
         myphoto-docker = pkgs.dockerTools.buildImage {
           name = "myphoto";
           tag = "latest";
-          copyToRoot = [ pkgs.dockerTools.caCertificates ];
-          contents = [ self.packages.${system}.myphoto ] ++ extraLibraries;
+          copyToRoot = [ pkgs.dockerTools.caCertificates self.packages.${system}.myphoto ] ++ extraLibraries;
           extraCommands = ''
             mkdir -p $out/input
             mkdir -p $out/output
           '';
           config = {
+            Labels = {
+              "org.opencontainers.image.title" = "myphoto";
+            };
             Cmd = [
               "/bin/myphoto-watch"
               "--once"

@@ -10,13 +10,14 @@ import MyPhoto.Actions.UnTiff
 import MyPhoto.Model
 import System.Directory (removeFile)
 import System.Environment (getArgs, getProgName)
+import System.Exit (exitFailure, exitSuccess)
 import System.FilePath (takeExtension)
 import qualified System.IO as IO
 
 printUsage :: IO ()
 printUsage = do
   prog <- getProgName
-  IO.hPutStrLn IO.stderr ("Usage: " ++ prog ++ " [--clean] FILE [FILE...]")
+  IO.hPutStrLn IO.stderr ("Usage: " ++ prog ++ " [--clean] [--help] FILE [FILE...]")
   IO.hPutStrLn IO.stderr "Converts RAW->TIFF->PNG when applicable"
   IO.hPutStrLn IO.stderr "Flags: --clean removes source RAWs and intermediate TIFFs after conversion"
 
@@ -52,9 +53,9 @@ runMyPhotoToPNG :: IO ()
 runMyPhotoToPNG = do
   args <- getArgs
   case parseArgs args of
-    ShowHelp -> printUsage
-    ParseError msg -> IO.hPutStrLn IO.stderr msg >> printUsage
-    ParsedArgs _ [] -> printUsage
+    ShowHelp -> printUsage >> exitSuccess
+    ParseError msg -> IO.hPutStrLn IO.stderr msg >> printUsage >> exitFailure
+    ParsedArgs _ [] -> printUsage >> exitFailure
     ParsedArgs opts files -> do
       let rawFiles = filter (isExt unrawExtensions) files
           tiffFiles = filter (isExt untiffExtensions) files
