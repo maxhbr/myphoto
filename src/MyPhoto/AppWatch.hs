@@ -397,45 +397,34 @@ importStacksFromDevice initialOpts = do
   let indevice = optIndir initialOpts
 
   putStrLn $ "Mounting device: " ++ indevice
-  (exitCode, mountPointOutput, stderr) <- readProcessWithExitCode "udisksctl" ["mount", "-b", indevice] ""
+  (exitCode, mountPointOutput, errOutput) <- readProcessWithExitCode "udisksctl" ["mount", "-b", indevice] ""
+  unless (exitCode == ExitSuccess) $ do
+    putStrLn $ "ERROR: Could not mount device " ++ indevice ++ ": " ++ errOutput
+    exitWith (ExitFailure 1)
 
-  if exitCode /= ExitSuccess
-    then do
-      putStrLn $ "ERROR: Could not mount device " ++ indevice ++ ": " ++ stderr
-      exitWith (ExitFailure 1)
-    else return ()
-
-  -- returns e.g. "Mounted /dev/sdb1 at /media/user/XXXX-XXXX"
-  let extractMountPoint :: String -> FilePath
-      extractMountPoint output =
-        let parts = words output
-         in if length parts >= 4
-              then last parts
-              else error $ "Could not extract mount point from udisksctl output: " ++ output
-  let mountPoint = extractMountPoint mountPointOutput
-
+  -- Extract mount point from output like "Mounted /dev/sdb1 at /media/user/XXXX-XXXX"
+  let mountPoint = last (words mountPointOutput)
   putStrLn $ "Device mounted at: " ++ mountPoint
 
-  let opts =
-        initialOpts
-          { optIndir = mountPoint </> "DCIM",
-            optWatchOnce = True
-          }
+  let opts = initialOpts
+        { optIndir = mountPoint </> "DCIM",
+          optWatchOnce = True
+        }
 
   initialState <- computeInitialState opts
 
-  let hookAfterImport = MTL.liftIO $ do
+  let unmountDevice = MTL.liftIO $ do
         putStrLn "Unmounting device..."
-        (exitCode, _, stderr) <- readProcessWithExitCode "udisksctl" ["unmount", "-b", indevice] ""
-        if exitCode /= ExitSuccess
-          then putStrLn $ "ERROR: Could not unmount device " ++ indevice ++ ": " ++ stderr
-          else putStrLn $ "Device unmounted."
+        (unmountCode, _, unmountErr) <- readProcessWithExitCode "udisksctl" ["unmount", "-b", indevice] ""
+        if unmountCode == ExitSuccess
+          then putStrLn "Device unmounted."
+          else putStrLn $ "ERROR: Could not unmount device " ++ indevice ++ ": " ++ unmountErr
 
   MTL.evalStateT
     ( do
         peekFiles
         state <- MTL.get
-        handleFinishedClusters state hookAfterImport
+        handleFinishedClusters state unmountDevice
     )
     initialState
 
