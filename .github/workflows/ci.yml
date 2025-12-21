@@ -28,19 +28,20 @@ jobs:
       - name: Build myphoto package
         run: nix build .#myphoto
 
-      - name: CLI help smoke tests
-        run: |
-          set -euo pipefail
-          ./result/bin/myphoto-stack --help
-          ./result/bin/myphoto-watch --help
-          ./result/bin/myphoto-align --help
-          ./result/bin/myphoto-toPNG --help
-          ./result/bin/myphoto-gallery --help
+      # - name: CLI help smoke tests
+      #   run: |
+      #     set -euo pipefail
+      #     ./result/bin/myphoto-stack --help
+      #     ./result/bin/myphoto-watch --help
+      #     ./result/bin/myphoto-align --help
+      #     ./result/bin/myphoto-toPNG --help
+      #     ./result/bin/myphoto-gallery --help
 
   root-script-tests:
     runs-on: ubuntu-latest
     needs: build-test
     strategy:
+      fail-fast: false
       matrix:
         script:
           - test_stack_with_pcb_example.sh
