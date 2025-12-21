@@ -411,19 +411,22 @@
           name = "myphoto";
           tag = "latest";
           # copyToRoot = [ pkgs.dockerTools.caCertificates self.packages.${system}.myphoto ] ++ extraLibraries;
-          # extraCommands = ''
-          #   mkdir -p $out/input
-          #   mkdir -p $out/output
-          # '';
+          extraCommands = ''
+            mkdir -p input
+            mkdir -p output
+          '';
           config = {
             Labels = {
               "org.opencontainers.image.title" = "myphoto";
             };
-            Cmd = [
+            Entrypoint = [ 
               "${self.packages.${system}.myphoto}/bin/myphoto-watch"
+              "/input"
+              "/output"
+             ];
+            Cmd = [
               "--once"
               "--clean"
-              "/input"
             ];
             WorkingDir = "/output";
           };

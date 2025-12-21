@@ -32,7 +32,7 @@ jobs:
 
       - name: Tag image
         run: |
-          docker tag myphoto:latest ghcr.io/${{ github.repository_owner }}/myphoto:latest
+          docker tag localhost/myphoto:latest ghcr.io/${{ github.repository_owner }}/myphoto:latest
 
       - name: Push image
         run: docker push ghcr.io/${{ github.repository_owner }}/myphoto:latest
