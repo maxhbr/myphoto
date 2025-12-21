@@ -1,0 +1,38 @@
+name: Publish Docker image
+
+on:
+  push:
+    branches: [main, master]
+    tags: ["v*"]
+  workflow_dispatch: {}
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v27
+
+      - name: Build image
+        run: nix build .#myphoto-docker
+
+      - name: Log in to GHCR
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "$GITHUB_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Load image
+        run: docker load < result
+
+      - name: Tag image
+        run: |
+          docker tag myphoto:latest ghcr.io/${{ github.repository_owner }}/myphoto:latest
+
+      - name: Push image
+        run: docker push ghcr.io/${{ github.repository_owner }}/myphoto:latest

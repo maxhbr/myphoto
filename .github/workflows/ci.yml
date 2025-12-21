@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v27
+
+      - name: Cabal update
+        run: nix develop -c cabal update
+
+      - name: Build
+        run: nix develop -c cabal build all
+
+      - name: Test
+        run: nix develop -c cabal test test-myphoto
+
+      - name: Build myphoto package
+        run: nix build .#myphoto
+
+      - name: CLI help smoke tests
+        run: |
+          set -euo pipefail
+          ./result/bin/myphoto-stack --help
+          ./result/bin/myphoto-watch --help
+          ./result/bin/myphoto-align --help
+          ./result/bin/myphoto-toPNG --help
+          ./result/bin/myphoto-gallery --help
+
+  root-script-tests:
+    runs-on: ubuntu-latest
+    needs: build-test
+    strategy:
+      matrix:
+        script:
+          - test_stack_with_pcb_example.sh
+          - test_watch_with_pcb_example.sh
+          - test_gallery_with_pcb_exampls.sh
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v27
+
+      - name: Run matrix script
+        run: |
+          set -euo pipefail
+          nix build .#myphoto
+          "./${{ matrix.script }}"

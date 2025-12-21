@@ -396,8 +396,8 @@
                     echo "  Batch script: $TEMP_DIR/batch.xml"
                     
                     # Run Zerene Stacker in batch mode
-                    ${self.packages.${system}.zerene-stacker}/bin/zerene-stacker \
-                      -batchScript "$TEMP_DIR/batch.xml"
+            ${self.packages.${system}.zerene-stacker}/bin/zerene-stacker \
+              -batchScript "$TEMP_DIR/batch.xml"
                     
                     if [ -f "$OUTPUT_FILE" ]; then
                       echo "Stacking complete: $OUTPUT_FILE"
@@ -407,6 +407,26 @@
                       exit 1
                     fi
         '';
+        myphoto-docker = pkgs.dockerTools.buildImage {
+          name = "myphoto";
+          tag = "latest";
+          copyToRoot = [ pkgs.dockerTools.caCertificates ];
+          contents = [ self.packages.${system}.myphoto ] ++ extraLibraries;
+          extraCommands = ''
+            mkdir -p $out/input
+            mkdir -p $out/output
+          '';
+          config = {
+            Cmd = [
+              "/bin/myphoto-watch"
+              "--once"
+              "--clean"
+              "/input"
+            ];
+            Env = [ "PATH=/bin" ];
+            WorkingDir = "/output";
+          };
+        };
         default = self.packages.${system}.myphoto;
       };
 
