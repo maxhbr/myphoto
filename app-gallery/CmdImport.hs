@@ -57,6 +57,9 @@ metaSuffix = ".myphoto.toml"
 importedSuffix :: String
 importedSuffix = ".myphoto.imported.toml"
 
+galleryBasePath :: FilePath
+galleryBasePath = "./gallery"
+
 data ImportOpts = ImportOpts
   { ioDryRun :: Bool,
     ioDir :: FilePath
@@ -102,10 +105,13 @@ runImportWithOpts ImportOpts {ioDryRun, ioDir} = do
 
 runUpdate :: Bool -> IO ()
 runUpdate ioDryRun = do
-  summaries <- loadImportedSummaries "."
+  directoryExists <- doesDirectoryExist galleryBasePath
+  unless directoryExists (die ("Gallery directory not found: " <> galleryBasePath))
+
+  summaries <- loadImportedSummaries galleryBasePath
   let summaries' = filter (\(_, meta, _) -> ignore meta /= Just True) summaries
   when (not ioDryRun) $ do
-    writeNanogalleries "." summaries'
+    writeNanogalleries galleryBasePath summaries'
     (createScaledGallery "_4k" 3840 2160 summaries') >>= writeNanogalleries "./_4k"
 
 -- (createScaledGallery "_1080p" 1920 1080 summaries') >>= writeNanogalleries "./_1080p"
@@ -136,39 +142,42 @@ importOne dryRun rootDir metaPath = do
           imgName = Maybe.fromMaybe (takeFileName (dropMetaSuffix absMetaPath)) (img merged)
           sourcePath = resolveSource metaDir imgName
       sourceExists <- doesFileExist sourcePath
-      unless sourceExists $
-        hPutStrLn stderr ("Skipping (source missing): " <> absMetaPath)
-      when sourceExists $
-        let destDir = maybe (fallbackPath rootDir absMetaPath) id (path merged)
-            target = destDir </> takeFileName sourcePath
-         in if dryRun
-              then putStrLn $ "[dry-run] Would import: " <> sourcePath <> " -> " <> target
-              else do
-                createDirectoryIfMissing True destDir
-                copyFile sourcePath target
-                newAbout <- copyAboutFiles destDir merged
-                hashValue <- computeMd5 sourcePath
-                now <- formatDate <$> getCurrentTime
-                let importedMetaFilePath = target <> importedSuffix
-                mayebeExistingOverwrite <- do
-                  exists <- doesFileExist importedMetaFilePath
-                  if exists
-                    then do
-                      parsed <- loadImportedMeta importedMetaFilePath
-                      case parsed of
-                        Left err -> hPutStrLn stderr ("Warning: could not parse existing imported metadata " <> importedMetaFilePath <> ": " <> err) >> pure Nothing
-                        Right im -> pure (Just (overwrite im))
-                    else pure Nothing
-                let importedMeta =
-                      ImportedMeta
-                        { original = merged,
-                          overwrite = maybe (mempty {tags = Set.fromList ["New"]}) id mayebeExistingOverwrite,
-                          imported = now,
-                          md5 = hashValue,
-                          originalPath = Just (makeRelative rootDir (takeDirectory sourcePath))
-                        }
-                writeImportedMeta importedMetaFilePath (importedMeta {original = (original importedMeta) {img = Just (takeFileName target), about = newAbout}})
-                putStrLn $ "Imported: " <> sourcePath <> " -> " <> target
+      if not sourceExists
+        then hPutStrLn stderr ("Skipping (source missing): " <> absMetaPath)
+        else case path merged of
+          Nothing -> do
+            die ("Error: no path specified in metadata: " <> absMetaPath)
+          Just path' ->
+            let destDir = galleryBasePath </> maybe (fallbackPath rootDir absMetaPath) id (path merged)
+                target = destDir </> takeFileName sourcePath
+             in if dryRun
+                  then putStrLn $ "[dry-run] Would import: " <> sourcePath <> " -> " <> target
+                  else do
+                    createDirectoryIfMissing True destDir
+                    copyFile sourcePath target
+                    newAbout <- copyAboutFiles destDir merged
+                    hashValue <- computeMd5 sourcePath
+                    now <- formatDate <$> getCurrentTime
+                    let importedMetaFilePath = target <> importedSuffix
+                    mayebeExistingOverwrite <- do
+                      exists <- doesFileExist importedMetaFilePath
+                      if exists
+                        then do
+                          parsed <- loadImportedMeta importedMetaFilePath
+                          case parsed of
+                            Left err -> hPutStrLn stderr ("Warning: could not parse existing imported metadata " <> importedMetaFilePath <> ": " <> err) >> pure Nothing
+                            Right im -> pure (Just (overwrite im))
+                        else pure Nothing
+                    let importedMeta =
+                          ImportedMeta
+                            { original = merged,
+                              overwrite = maybe (mempty {tags = Set.fromList ["New"]}) id mayebeExistingOverwrite,
+                              imported = now,
+                              md5 = hashValue,
+                              originalPath = Just (makeRelative rootDir (takeDirectory sourcePath))
+                            }
+                    writeImportedMeta importedMetaFilePath (importedMeta {original = (original importedMeta) {img = Just (takeFileName target), about = newAbout}})
+                    putStrLn $ "Imported: " <> sourcePath <> " -> " <> target
 
 resolveSource :: FilePath -> FilePath -> FilePath
 resolveSource metaDir src =

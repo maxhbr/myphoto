@@ -419,11 +419,11 @@
             Labels = {
               "org.opencontainers.image.title" = "myphoto";
             };
-            Entrypoint = [ 
+            Entrypoint = [
               "${self.packages.${system}.myphoto}/bin/myphoto-watch"
               "/input"
               "/output"
-             ];
+            ];
             Cmd = [
               "--once"
               "--clean"

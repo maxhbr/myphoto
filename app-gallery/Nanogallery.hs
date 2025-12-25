@@ -123,7 +123,7 @@ renderDebugPage root summaries =
       ]
 
 renderDebugRow :: FilePath -> (FilePath, PhotoMeta, Maybe FilePath, String) -> String
-renderDebugRow root (imgPath, meta, mThumbPath, md5sum) =
+renderDebugRow root (imgPath, meta, mThumbPath, _) =
   let relImg = makeRelative root imgPath
       relThumb = fmap (makeRelative root) mThumbPath
       relAbouts = map (makeRelative root) (about meta)
