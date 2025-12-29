@@ -28,6 +28,7 @@
         libraw # for converting raw files like ARW to tiff, provides dcraw_emu
         libheif # for converting heif files
         udisks # for mounting devices
+        xvfb-run # for running GUI apps in headless environments
       ];
       project =
         devTools:

@@ -140,6 +140,7 @@ let
       local outputBasename="$(basename "$output")"
       local outputImageNamingTemplate="''${outputBasename%%.*}"
       local outputFileType="''${output##*.}"
+      local doNotAlign="''${3:-false}"
       cat << EOF
       <Task>
         <TaskIndicatorCode value="$taskIndicatorCode" />
@@ -149,6 +150,18 @@ let
           <OutputImageNaming.Template value="$outputImageNamingTemplate" />
           <SaveImage.FileType value="$outputFileType" />
           <Slabbing.SaveImage.FileType value="tif" />
+    EOF
+      if [ "$doNotAlign" = "true" ]; then
+      cat << EOF
+          <AlignmentControl.AllowRotation value="false" />
+          <AlignmentControl.AllowScale value="false" />
+          <AlignmentControl.AllowShiftX value="false" />
+          <AlignmentControl.AllowShiftY value="false" />
+          <AlignmentControl.CorrectBrightness value="false" />
+          <AlignmentControl.Order.Automatic value="false" />
+    EOF
+      fi
+      cat << EOF
         </Preferences>
       </Task>
     EOF
@@ -176,12 +189,14 @@ let
       mkTask "2" "$DMAP_ALIGNED_OUTPUT" >> "$xml"
     fi
     if [ -n "$PMAX_UNALIGNED_OUTPUT" ]; then
-      mkTask "4" "$PMAX_UNALIGNED_OUTPUT" >> "$xml"
-      echo "WARNING: unaligned pmax somehow does not work right now" >&2
+      mkTask "1" "$PMAX_UNALIGNED_OUTPUT" "true" >> "$xml"
+      # mkTask "4" "$PMAX_UNALIGNED_OUTPUT" >> "$xml"
+      # echo "WARNING: unaligned pmax somehow does not work right now" >&2
     fi
     if [ -n "$DMAP_UNALIGNED_OUTPUT" ]; then
-      mkTask "5" "$DMAP_UNALIGNED_OUTPUT" >> "$xml"
-      echo "WARNING: unaligned dmap somehow does not work right now" >&2
+      mkTask "2" "$DMAP_UNALIGNED_OUTPUT" "true" >> "$xml"
+      # mkTask "5" "$DMAP_UNALIGNED_OUTPUT" >> "$xml"
+      # echo "WARNING: unaligned dmap somehow does not work right now" >&2
     fi
       cat << EOF >> "$xml"
             </Tasks>

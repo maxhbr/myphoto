@@ -5,22 +5,37 @@ where
 
 import MyPhoto.Model
 import MyPhoto.Wrapper.ZereneStackerWrapper
+import Data.Maybe (catMaybes)
 import qualified System.IO as IO
 
 
-zereneStackerImgs :: FilePath -> [FilePath] -> IO (Either String [FilePath])
-zereneStackerImgs outputBN imgs = do
-  pmaxOutput <- makeAbsolute (outputBN ++ "_zerene-PMax.tif")
-  dmapOutput <- makeAbsolute (outputBN ++ "_zerene-DMap.tif")
+zereneStackerImgs :: Bool -> Bool -> FilePath -> [FilePath] -> IO (Either String [FilePath])
+zereneStackerImgs headless align outputBN imgs = do
+  pmaxOutput' <- makeAbsolute (outputBN ++ "_zerene-PMax.tif")
+  dmapOutput' <- makeAbsolute (outputBN ++ "_zerene-DMap.tif")
 
-  bothOutputsExist <- do
-    pmaxExists <- doesFileExist pmaxOutput
-    dmapExists <- doesFileExist dmapOutput
-    return (pmaxExists && dmapExists)
-  if bothOutputsExist
+  let pmaxOutput = Just pmaxOutput'
+      dmapOutput = if headless then Nothing else Just dmapOutput'
+
+  bothOutputsExistOrNotRequired <- do
+    pmaxExistsOrNotRequired <- case pmaxOutput of
+      Just pmaxPath -> doesFileExist pmaxPath
+      Nothing -> return True
+    dmapExistsOrNotRequired <- case dmapOutput of
+      Just dmapPath -> doesFileExist dmapPath
+      Nothing -> return True
+    return (pmaxExistsOrNotRequired && dmapExistsOrNotRequired)
+  if bothOutputsExistOrNotRequired
     then do
-      IO.hPutStrLn IO.stderr $ "INFO: Zerene Stacker outputs " ++ pmaxOutput ++ " and " ++ dmapOutput ++ " already exist, check that all aligned images are present"
+      IO.hPutStrLn IO.stderr $ "INFO: Zerene Stacker outputs " ++ (show pmaxOutput) ++ " and " ++ (show dmapOutput) ++ " already exist, check that all aligned images are present"
     else do
-      runZereneStacker imgs pmaxOutput dmapOutput
+      let opts =
+            ZereneStackerOptions
+              { _Headless = headless
+              , _Align = align
+              , _PMaxOutput = pmaxOutput
+              , _DMapOutput = dmapOutput
+              }
+      runZereneStacker opts imgs
 
-  return (Right [pmaxOutput, dmapOutput])
+  return (Right (catMaybes [pmaxOutput, dmapOutput]))

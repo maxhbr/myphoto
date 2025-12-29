@@ -340,11 +340,11 @@ runEnfuse aligned = step "focus stacking with enfuse" $ do
     Left err -> fail err
     Right enfuseOuts -> addOuts enfuseOuts
 
-runZereneStacker :: [FilePath] -> MyPhotoM ()
-runZereneStacker aligned = step "focus stacking with Zerene Stacker" $ do
+runZereneStacker :: Bool -> Bool -> [FilePath] -> MyPhotoM ()
+runZereneStacker headless align imgs = step "focus stacking with Zerene Stacker" $ do
   outputBN <- getStackOutputBNFromImgs
   zereneStackerResult <- do
-    MTL.liftIO $ zereneStackerImgs outputBN aligned
+    MTL.liftIO $ zereneStackerImgs headless align outputBN imgs
   case zereneStackerResult of
     Left err -> fail err
     Right zereneStackerOuts -> addOuts zereneStackerOuts
@@ -472,18 +472,17 @@ runStackStage =
           )
           $ do
             opts <- getOpts
-            zereneInput <- do
-              if (optFocusStack opts || optEnfuse opts)
-                then do 
-                  aligned <- do
-                    if optFocusStack opts
-                      then runFocusStack
-                      else runHuginAlign
-                  guardWithOpts optEnfuse $ runEnfuse aligned
-                  return aligned
-                else do
-                  getImgs
-            guardWithOpts optZereneStacker $ runZereneStacker zereneInput
+            if (optFocusStack opts || optEnfuse opts)
+              then do 
+                aligned <- do
+                  if optFocusStack opts
+                    then runFocusStack
+                    else runHuginAlign
+                guardWithOpts optEnfuse $ runEnfuse aligned
+                guardWithOpts optZereneStacker $ runZereneStacker (optZereneStackerHeadless opts) False aligned
+              else do
+                guardWithOpts optZereneStacker $ getImgs >>= runZereneStacker (optZereneStackerHeadless opts) True
+            
         alignOuts
         maybeExport
         makeOutsPathsAbsolute

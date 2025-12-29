@@ -288,6 +288,20 @@ options =
       "Run Zerene Stacker for focus stacking",
     Option
       ""
+      ["zerene-stacker-headless"]
+      ( OptArg
+          ( \arg opt -> do
+              let flag = case arg of
+                    Nothing -> True
+                    Just "true" -> True
+                    Just _ -> False
+              return opt {optZereneStackerHeadless = flag, optZereneStacker = True}
+          )
+          "FLAG"
+      )
+      "Run Zerene Stacker in headless mode (no GUI), implies Zerene Stacker is used",
+    Option
+      ""
       ["no-zerene-stacker"]
       ( NoArg
           (\opt -> return opt {optZereneStacker = False})

@@ -113,6 +113,7 @@ data Options = Options
     optEnfuse :: Bool,
     optEnfuseChunkSettings :: ChunkSettings,
     optZereneStacker :: Bool,
+    optZereneStackerHeadless :: Bool,
     optParameters :: Map String [String]
   }
   deriving (Show, Eq)
@@ -136,6 +137,7 @@ instance Default Options where
         optEnfuse = True,
         optEnfuseChunkSettings = def,
         optZereneStacker = False,
+        optZereneStackerHeadless = True,
         optParameters = mempty
       }
 
