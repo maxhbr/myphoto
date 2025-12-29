@@ -274,6 +274,27 @@ options =
     --   "Parameters for enfuse",
     Option
       ""
+      ["zerene-stacker"]
+      ( OptArg
+          ( \arg opt -> do
+              let flag = case arg of
+                    Nothing -> True
+                    Just "true" -> True
+                    Just _ -> False
+              return opt {optZereneStacker = flag}
+          )
+          "FLAG"
+      )
+      "Run Zerene Stacker for focus stacking",
+    Option
+      ""
+      ["no-zerene-stacker"]
+      ( NoArg
+          (\opt -> return opt {optZereneStacker = False})
+      )
+      "Do not run Zerene Stacker (default)",
+    Option
+      ""
       ["only-impoort"]
       ( NoArg
           (\opt -> return opt {optFocusStack = False, optEnfuse = False})

@@ -29,6 +29,7 @@ import MyPhoto.Actions.Outliers
 import MyPhoto.Actions.UnHeif
 import MyPhoto.Actions.UnRAW
 import MyPhoto.Actions.UnTiff
+import MyPhoto.Actions.ZereneStacker (zereneStackerImgs)
 import MyPhoto.Model
 import MyPhoto.Monad
 import MyPhoto.Video
@@ -36,6 +37,8 @@ import System.Console.GetOpt
 import System.Directory (executable, getPermissions, removeDirectoryRecursive, setPermissions)
 import System.Environment (getArgs, getProgName, withArgs)
 import qualified System.IO as IO
+import Control.Monad (guard)
+import Data.Text.Array (run)
 
 getStackOutputBNFromImgs :: MyPhotoM FilePath
 getStackOutputBNFromImgs = do
@@ -337,6 +340,15 @@ runEnfuse aligned = step "focus stacking with enfuse" $ do
     Left err -> fail err
     Right enfuseOuts -> addOuts enfuseOuts
 
+runZereneStacker :: [FilePath] -> MyPhotoM ()
+runZereneStacker aligned = step "focus stacking with Zerene Stacker" $ do
+  outputBN <- getStackOutputBNFromImgs
+  zereneStackerResult <- do
+    MTL.liftIO $ zereneStackerImgs outputBN aligned
+  case zereneStackerResult of
+    Left err -> fail err
+    Right zereneStackerOuts -> addOuts zereneStackerOuts
+
 maybeExport :: MyPhotoM ()
 maybeExport = do
   opts <- getOpts
@@ -465,6 +477,7 @@ runStackStage =
                 then runFocusStack
                 else runHuginAlign
             guardWithOpts optEnfuse $ runEnfuse aligned
+            guardWithOpts optZereneStacker $ runZereneStacker aligned
         alignOuts
         maybeExport
         makeOutsPathsAbsolute

@@ -44,9 +44,9 @@ jobs:
       fail-fast: false
       matrix:
         script:
-          - test_stack_with_pcb_example.sh
-          - test_watch_with_pcb_example.sh
-          - test_gallery_with_pcb_exampls.sh
+          - test/test_stack_with_pcb_example.sh
+          - test/test_watch_with_pcb_example.sh
+          - test/test_gallery_with_pcb_exampls.sh
     steps:
       - name: Checkout
         uses: actions/checkout@v4

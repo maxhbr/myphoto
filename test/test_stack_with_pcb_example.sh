@@ -12,5 +12,5 @@ mkdir -p "$tmpdir/pcb"
 cp -r "$thisdir/PetteriAimonen-focus-stack/examples/pcb/pcb_"*".jpg" "$tmpdir/pcb"
 
 cd "$tmpdir"
-"$thisdir/myphoto-stack.sh" --enfuse-chunk-size 3 "$@" "$tmpdir/pcb/pcb_"*".jpg"
+"$thisdir/myphoto-stack.sh" --enfuse-chunk-size 3 --zerene-stacker "$@" "$tmpdir/pcb/pcb_"*".jpg"
 
