@@ -18,6 +18,7 @@
 
       extraLibraries = with pkgs; [
         self.packages.${system}.focus-stack # main aligning and focus stacking
+        self.packages.${system}.zerene-stacker # for zerene-stacker integration
         hugin # provides align_image_stack, for alternative aligning
         glew # for parallel processing
         enblend-enfuse # provides enfuse, for alternative focus stacking
@@ -109,6 +110,7 @@
             self.packages.${system}.myphoto-align-from-github
             self.packages.${system}.myphoto-toPNG-from-github
             self.packages.${system}.myphoto-gallery-from-github
+            self.packages.${system}.zerene-stacker
           ];
           pathsToLink = [
             "/bin"
