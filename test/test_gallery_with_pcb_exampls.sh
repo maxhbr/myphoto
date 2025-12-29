@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-thisdir="$(dirname "$(readlink -f "$0")")"
+thisdir="$(dirname "$(readlink -f "$0")")/.."
 tmpdir="$thisdir/_tmp_gallery"
 rm -rf "$tmpdir"
 mkdir -p "$tmpdir"
