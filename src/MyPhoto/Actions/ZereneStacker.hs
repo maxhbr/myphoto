@@ -3,11 +3,10 @@ module MyPhoto.Actions.ZereneStacker
   )
 where
 
+import Data.Maybe (catMaybes)
 import MyPhoto.Model
 import MyPhoto.Wrapper.ZereneStackerWrapper
-import Data.Maybe (catMaybes)
 import qualified System.IO as IO
-
 
 zereneStackerImgs :: Bool -> Bool -> FilePath -> [FilePath] -> IO (Either String [FilePath])
 zereneStackerImgs headless align outputBN imgs = do
@@ -31,10 +30,10 @@ zereneStackerImgs headless align outputBN imgs = do
     else do
       let opts =
             ZereneStackerOptions
-              { _Headless = headless
-              , _Align = align
-              , _PMaxOutput = pmaxOutput
-              , _DMapOutput = dmapOutput
+              { _Headless = headless,
+                _Align = align,
+                _PMaxOutput = pmaxOutput,
+                _DMapOutput = dmapOutput
               }
       runZereneStacker opts imgs
 

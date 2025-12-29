@@ -11,11 +11,13 @@ where
 
 import Control.Concurrent (getNumCapabilities)
 import qualified Control.Exception as Ex
+import Control.Monad (guard)
 import qualified Control.Monad.State.Lazy as MTL
 import Data.List (isInfixOf)
 import Data.List.Split (splitOn)
 import qualified Data.Map as Map
 import Data.Maybe (isJust)
+import Data.Text.Array (run)
 import Data.Time.Calendar (fromGregorian)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import MyPhoto.Actions.Align
@@ -37,8 +39,6 @@ import System.Console.GetOpt
 import System.Directory (executable, getPermissions, removeDirectoryRecursive, setPermissions)
 import System.Environment (getArgs, getProgName, withArgs)
 import qualified System.IO as IO
-import Control.Monad (guard)
-import Data.Text.Array (run)
 
 getStackOutputBNFromImgs :: MyPhotoM FilePath
 getStackOutputBNFromImgs = do
@@ -473,7 +473,7 @@ runStackStage =
           $ do
             opts <- getOpts
             if (optFocusStack opts || optEnfuse opts)
-              then do 
+              then do
                 aligned <- do
                   if optFocusStack opts
                     then runFocusStack
@@ -482,7 +482,7 @@ runStackStage =
                 guardWithOpts optZereneStacker $ runZereneStacker (optZereneStackerHeadless opts) False aligned
               else do
                 guardWithOpts optZereneStacker $ getImgs >>= runZereneStacker (optZereneStackerHeadless opts) True
-            
+
         alignOuts
         maybeExport
         makeOutsPathsAbsolute

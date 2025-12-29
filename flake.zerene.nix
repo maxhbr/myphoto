@@ -57,11 +57,12 @@ let
     set -euo pipefail
 
     export PATH="${pkgs.coreutils}/bin:$PATH"
+    export PATH="${pkgs.xvfb-run}/bin:$PATH"
 
     help_msg() {
       cat <<EOF >&2
-    Usage: $0 [--pmax|--pmax-aligned out] [--pmax-unaligned out] [--dmap|--dmap-aligned out] [--dmap-unaligned out] IMG1 IMG2 ...
-           $0 [--pmax|--pmax-aligned out] [--pmax-unaligned out] [--dmap|--dmap-aligned out] [--dmap-unaligned out] DIR
+    Usage: $0 [--headless] [--pmax|--pmax-aligned out] [--pmax-unaligned out] [--dmap|--dmap-aligned out] [--dmap-unaligned out] IMG1 IMG2 ...
+           $0 [--headless] [--pmax|--pmax-aligned out] [--pmax-unaligned out] [--dmap|--dmap-aligned out] [--dmap-unaligned out] DIR
     EOF
     }
 
@@ -70,6 +71,7 @@ let
       exit 1
     fi
 
+    HEADLESS="false"
     PMAX_ALIGNED_OUTPUT=""
     PMAX_UNALIGNED_OUTPUT=""
     DMAP_ALIGNED_OUTPUT=""
@@ -80,6 +82,10 @@ let
     while [[ $# -gt 0 ]]; do
       key="$1"
       case $key in
+        --headless)
+          HEADLESS="true"
+          shift # past argument
+          ;;
         --pmax-aligned|--pmax)
           PMAX_ALIGNED_OUTPUT="$(readlink -f "$2")"
           TASK_LENGTH=$((TASK_LENGTH + 1))
@@ -119,7 +125,7 @@ let
       esac
     done
 
-    if [ -z "$PMAX_ALIGNED_OUTPUT" ] && [ -z "$PMAX_UNALIGNED_OUTPUT" ] && [ -z "$DMAP_ALIGNED_OUTPUT" ] && [ -z "$DMAP_UNALIGNED_OUTPUT" ]; then
+    if [ "$TASK_LENGTH" -eq 0 ]; then
       echo "Warning: falling back to default outputs" >&2
 
       length="''${#POSITIONAL[@]}"
@@ -129,8 +135,17 @@ let
       prefix="''${basenameFirstImage%%.*}_to_''${basenameLastImage%%.*}_stack_of_''${length}"
 
       PMAX_ALIGNED_OUTPUT="$(pwd)/''${prefix}_zerene-PMax.tif"
-      DMAP_ALIGNED_OUTPUT="$(pwd)/''${prefix}_zerene-DMap.tif"
-      TASK_LENGTH=2
+      if [ "$HEADLESS" == "true" ]; then
+        TASK_LENGTH=1
+      else
+        DMAP_ALIGNED_OUTPUT="$(pwd)/''${prefix}_zerene-DMap.tif"
+        TASK_LENGTH=2
+      fi
+    fi
+
+    if [ "$HEADLESS" == "true" ] && ([ "$DMAP_ALIGNED_OUTPUT" != "" ] || [ "$DMAP_UNALIGNED_OUTPUT" != "" ]); then
+      echo "Error: in headless mode, DMap is not supported" >&2
+      exit 1
     fi
 
     mkTask() {
@@ -206,8 +221,13 @@ let
     </ZereneStackerBatchScript>
     EOF
     echo "DEBUG: $ zerene-stacker -batchScript $xml $EXIT_ARG ..." >&2
-    exec zerene-stacker -batchScript "$xml" $EXIT_ARG "''${POSITIONAL[@]}"
-    '';
+    if [ "$HEADLESS" == "true" ]; then
+      echo "DEBUG: running in headless mode" >&2
+      exec xvfb-run -a zerene-stacker -batchScript "$xml" $EXIT_ARG "''${POSITIONAL[@]}"
+    else 
+      exec zerene-stacker -batchScript "$xml" $EXIT_ARG "''${POSITIONAL[@]}"
+    fi
+  '';
 in
 {
   zerene-stacker = pkgs.stdenv.mkDerivation rec {
