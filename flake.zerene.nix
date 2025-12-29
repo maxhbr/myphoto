@@ -91,148 +91,44 @@ let
     </ZereneStackerBatchScript>
   '';
 
-  zerene-stacker-batch-script-template = pkgs.writeText "zerene-stacker-batch-script-template" ''
-#!/bin/sh
-set -euo pipefail
+  zerene-pmax-dmap-no-align = pkgs.writeText "zerene-pmax-dmap-no-align.xml" ''
+    <?xml version="1.0" encoding="UTF-8"?>
+    <ZereneStackerBatchScript>
+      <BatchQueue>
+        <Batches length="1">
+          <Batch>
+            <Sources length="1">
+              <Source value="%CurrentProject%" />
+            </Sources>
 
-# Check if we have input files
-if [ $# -eq 0 ]; then
-  echo "Usage: zerene-batch [OPTIONS] <image1> <image2> [image3...]"
-  echo "Stacks the provided images using Zerene Stacker"
-  echo ""
-  echo "Options:"
-  echo "  --method=DMAP|PMAX    Stacking method (default: DMAP)"
-  echo "  --output=FILE         Output file path (default: first-input-stacked.tif)"
-  echo "  --align=AUTO|NONE     Alignment method (default: AUTO)"
-  exit 1
-fi
+            <!-- Keep project -->
+            <ProjectDispositionCode value="101" />
 
-# Parse options
-METHOD="DMAP"
-OUTPUT_FILE=""
-ALIGN="AUTO"
-FILES=()
+            <Tasks length="2">
 
-for arg in "$@"; do
-  case $arg in
-    --method=*)
-      METHOD="''${arg#*=}"
-      ;;
-    --output=*)
-      OUTPUT_FILE="''${arg#*=}"
-      ;;
-    --align=*)
-      ALIGN="''${arg#*=}"
-      ;;
-    *)
-      FILES+=("$arg")
-      ;;
-  esac
-done
+              <!-- PMax no align -->
+              <Task>
+                <TaskIndicatorCode value="3" />
+                <OutputImageDispositionCode value="2" />
+                <Preferences>
+                  <OutputImageNaming.Template value="zerene-PMax" />
+                </Preferences>
+              </Task>
 
-if [ ''${#FILES[@]} -eq 0 ]; then
-  echo "Error: No input files provided"
-  exit 1
-fi
+              <!-- DMap no align -->
+              <Task>
+                <TaskIndicatorCode value="4" />
+                <OutputImageDispositionCode value="2" />
+                <Preferences>
+                  <OutputImageNaming.Template value="zerene-DMap" />
+                </Preferences>
+              </Task>
 
-
-# Determine output file
-if [ -z "$OUTPUT_FILE" ]; then
-  FIRST_FILE="''${FILES[0]}"
-  if [ ! -f "$FIRST_FILE" ]; then
-    echo "Error: First input file does not exist: $FIRST_FILE"
-    exit 1
-  fi
-  OUTPUT_DIR=$(dirname "$FIRST_FILE")
-  OUTPUT_NAME=$(basename "$FIRST_FILE" | sed 's/\.[^.]*$//')
-  OUTPUT_FILE="$OUTPUT_DIR/$OUTPUT_NAME-stacked.tif"
-fi
-
-# Create temporary directory for batch processing
-TEMP_DIR="''${OUTPUT_FILE}.zerene_batch"
-mkdir -p "$TEMP_DIR"
-TEMP_DIR=$(readlink -f "$TEMP_DIR")
-
-# Make output path absolute
-OUTPUT_FILE=$(realpath -m "$OUTPUT_FILE")
-OUTPUT_DIR=$(dirname "$OUTPUT_FILE")
-
-# Determine task indicator code based on method and alignment
-if [ "$ALIGN" = "NONE" ]; then
-  if [ "$METHOD" = "PMAX" ]; then
-    TASK_CODE="3"  # Stack Only (PMax)
-  else
-    TASK_CODE="4"  # Stack Only (DMap)
-  fi
-else
-  if [ "$METHOD" = "PMAX" ]; then
-    TASK_CODE="1"  # Align and Stack (PMax)
-  else
-    TASK_CODE="2"  # Align and Stack (DMap)
-  fi
-fi
-
-# Build XML batch script following the official format
-cat > "$TEMP_DIR/batch.xml" << 'XMLEOF'
-<?xml version="1.0" encoding="UTF-8"?>
-<ZereneStackerBatchScript>
-  <BatchQueue>
-    <Batches length="1">
-      <Batch>
-        <Sources length="1">
-          <Source value="%CurrentProject%" />
-        </Sources>
-        <ProjectDispositionCode value="101" />
-        <Tasks length="1">
-          <Task>
-            <OutputImageDispositionCode value="3" />
-XMLEOF
-              
-echo "            <OutputImageFileName value=\"$OUTPUT_FILE\" />" >> "$TEMP_DIR/batch.xml"
-
-cat >> "$TEMP_DIR/batch.xml" << XMLEOF
-            <TaskIndicatorCode value="$TASK_CODE" />
-          </Task>
-        </Tasks>
-      </Batch>
-    </Batches>
-  </BatchQueue>
-  <ProjectSpecifications length="1">
-    <ProjectSpecification>
-XMLEOF
-              
-# Add each input file to the XML
-echo "      <SourceFiles length=\"''${#FILES[@]}\">" >> "$TEMP_DIR/batch.xml"
-for img in "''${FILES[@]}"; do
-  ABS_PATH=$(realpath "$img")
-  echo "        <SourceFile value=\"$ABS_PATH\" />" >> "$TEMP_DIR/batch.xml"
-done
-
-cat >> "$TEMP_DIR/batch.xml" << 'XMLEOF'
-      </SourceFiles>
-    </ProjectSpecification>
-  </ProjectSpecifications>
-</ZereneStackerBatchScript>
-XMLEOF
-              
-echo "Running Zerene Stacker batch process..."
-echo "  Input files: ''${#FILES[@]}"
-echo "  Method: $METHOD"
-echo "  Alignment: $ALIGN"
-echo "  Output: $OUTPUT_FILE"
-echo "  Batch script: $TEMP_DIR/batch.xml"
-
-# Run Zerene Stacker in batch mode
-@out@/bin/zerene-stacker \
-  -batchScript "$TEMP_DIR/batch.xml"
-        
-if [ -f "$OUTPUT_FILE" ]; then
-  echo "Stacking complete: $OUTPUT_FILE"
-else
-  echo "Error: Output file was not created"
-  echo "Check $TEMP_DIR/batch.xml for the batch script"
-  exit 1
-fi
+            </Tasks>
+          </Batch>
+        </Batches>
+      </BatchQueue>
+    </ZereneStackerBatchScript>
   '';
 in
 {
@@ -310,10 +206,12 @@ in
         --replace-fail '@args@' '-exitOnBatchScriptCompletion -batchScript ${zerene-pmax-dmap}'
       chmod +x $out/bin/zerene-stacker-batch
 
-      cp ${zerene-stacker-batch-script-template} $out/bin/zerene-stacker-batch-custom
-      substituteInPlace $out/bin/zerene-stacker-batch-custom \
-        --replace-fail '@out@' "$out"
-      chmod +x $out/bin/zerene-stacker-batch-custom
+      cp ${zerene-stacker-script-template} $out/bin/zerene-stacker-batch-no-align 
+      substituteInPlace $out/bin/zerene-stacker-batch-no-align \
+        --replace-fail '@out@' "$out" \
+        --replace-fail '@libPath@' '${pkgs.lib.makeLibraryPath buildInputs}' \
+        --replace-fail '@args@' '-exitOnBatchScriptCompletion -batchScript ${zerene-pmax-dmap-no-align}'
+      chmod +x $out/bin/zerene-stacker-batch-no-align
     '';
 
     meta = with pkgs.lib; {

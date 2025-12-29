@@ -224,10 +224,6 @@
           type = "app";
           program = "${self.packages.${system}.zerene-stacker}/bin/zerene-stacker-batch";
         };
-        zerene-batch = {
-          type = "app";
-          program = "${self.packages.${system}.zerene-stacker}/bin/zerene-stacker-batch-custom";
-        };
       };
 
       formatter.${system} =
