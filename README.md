@@ -27,7 +27,7 @@ This implements a pipeline to filter, align and stack images with [PetteriAimone
       I --> J["run enblend enfuse (if --enfuse)"]
       J --> Z2[/"Image stacked with enfuse"/]
       I --> K[/"run zerene-stacker (if --zerene-stacker)"/]
-      G ...> K
+      G -.-> K
       K --> Z3[/"Image stacked with zerene-stacker"/]
       G --> ZZ[/"Montage of subset of images"/]
 
