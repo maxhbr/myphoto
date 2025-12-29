@@ -13,5 +13,5 @@ cp -r "$thisdir/PetteriAimonen-focus-stack/examples/pcb/pcb_"*".jpg" "$tmpdir/pc
 
 cd "$tmpdir"
 
-"$thisdir/zerene-stacker-batch.sh" "$tmpdir/pcb/pcb_"*".jpg"
+"$thisdir/zerene-stacker-batch.sh" "$@" "$tmpdir/pcb/pcb_"*".jpg"
 

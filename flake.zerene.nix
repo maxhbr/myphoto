@@ -51,7 +51,97 @@ let
       @args@ "''${ABS_ARGS[@]}"
   '';
 
-  zerene-pmax-dmap = pkgs.writeText "zerene-pmax-dmap.xml" ''
+  zerene-stacker-batch = pkgs.writeShellScriptBin "zerene-stacker-batch" ''
+    set -euo pipefail
+
+    help_msg() {
+      cat <<EOF >&2
+    Usage: $0 [--pmax|--pmax-aligned out] [--pmax-unaligned out] [--dmap|--dmap-aligned out] [--dmap-unaligned out] IMG1 IMG2 ...
+           $0 [--pmax|--pmax-aligned out] [--pmax-unaligned out] [--dmap|--dmap-aligned out] [--dmap-unaligned out] DIR
+    EOF
+    }
+
+    if [ "$#" -lt 1 ] || [ "$1" == "--help" ]; then
+      help_msg
+      exit 1
+    fi
+
+    PMAX_ALIGNED_OUTPUT=""
+    PMAX_UNALIGNED_OUTPUT=""
+    DMAP_ALIGNED_OUTPUT=""
+    DMAP_UNALIGNED_OUTPUT=""
+    TASK_LENGTH=0
+    EXIT_ARG="-exitOnBatchScriptCompletion"
+    POSITIONAL=()
+    while [[ $# -gt 0 ]]; do
+      key="$1"
+      case $key in
+        --pmax-aligned|--pmax)
+          PMAX_ALIGNED_OUTPUT="$(readlink -f "$2")"
+          TASK_LENGTH=$((TASK_LENGTH + 1))
+          shift # past argument
+          shift # past value
+          ;;
+        --pmax-unaligned)
+          PMAX_UNALIGNED_OUTPUT="$(readlink -f "$2")"
+          TASK_LENGTH=$((TASK_LENGTH + 1))
+          shift # past argument
+          shift # past value
+          ;;
+        --dmap-aligned|--dmap)
+          DMAP_ALIGNED_OUTPUT="$(readlink -f "$2")"
+          TASK_LENGTH=$((TASK_LENGTH + 1))
+          shift # past argument
+          shift # past value
+          ;;
+        --dmap-unaligned)
+          DMAP_UNALIGNED_OUTPUT="$(readlink -f "$2")"
+          TASK_LENGTH=$((TASK_LENGTH + 1))
+          shift # past argument
+          shift # past value
+          ;;
+        --wait)
+          EXIT_ARG=""
+          shift # past argument
+          ;;
+        *)
+          POSITIONAL+=("$1") # save it in an array for later
+          shift # past argument
+          ;;
+      esac
+    done
+
+    if [ -z "$PMAX_ALIGNED_OUTPUT" ] && [ -z "$PMAX_UNALIGNED_OUTPUT" ] && [ -z "$DMAP_ALIGNED_OUTPUT" ] && [ -z "$DMAP_UNALIGNED_OUTPUT" ]; then
+      echo "Warning: falling back to default outputs" >&2
+
+      PMAX_ALIGNED_OUTPUT="$(pwd)/zerene-pmax_aligned.tif"
+      DMAP_ALIGNED_OUTPUT="$(pwd)/zerene-dmap_aligned.tif"
+      TASK_LENGTH=2
+    fi
+
+    mkTask() {
+      local taskIndicatorCode="$1"
+      local output="$2"
+      local outputDir="$(dirname "$output")"
+      local outputBasename="$(basename "$output")"
+      local outputImageNamingTemplate="''${outputBasename%%.*}"
+      local outputFileType="''${output##*.}"
+      cat << EOF
+      <Task>
+        <TaskIndicatorCode value="$taskIndicatorCode" />
+        <OutputImageDispositionCode value="5" />
+        <OutputImagesDesignatedFolder value="$outputDir" />
+        <Preferences>
+          <OutputImageNaming.Template value="$outputImageNamingTemplate" />
+          <SaveImage.FileType value="$outputFileType" />
+          <Slabbing.SaveImage.FileType value="tif" />
+        </Preferences>
+      </Task>
+    EOF
+    }
+
+    xml=$(mktemp $TMP/zerene-batch-XXXXXX.xml)
+    cat << EOF > "$xml"
     <?xml version="1.0" encoding="UTF-8"?>
     <ZereneStackerBatchScript>
       <BatchQueue>
@@ -61,75 +151,33 @@ let
               <Source value="%CurrentProject%" />
             </Sources>
 
-            <!-- Keep project -->
             <ProjectDispositionCode value="101" />
 
-            <Tasks length="2">
-
-              <!-- PMax -->
-              <Task>
-                <TaskIndicatorCode value="1" />
-                <OutputImageDispositionCode value="2" />
-                <Preferences>
-                  <OutputImageNaming.Template value="zerene-PMax" />
-                </Preferences>
-              </Task>
-
-              <!-- DMap -->
-              <Task>
-                <TaskIndicatorCode value="2" />
-                <OutputImageDispositionCode value="2" />
-                <Preferences>
-                  <OutputImageNaming.Template value="zerene-DMap" />
-                </Preferences>
-              </Task>
-
+            <Tasks length="$TASK_LENGTH">
+    EOF
+    if [ -n "$PMAX_ALIGNED_OUTPUT" ]; then
+      mkTask "1" "$PMAX_ALIGNED_OUTPUT" >> "$xml"
+    fi
+    if [ -n "$DMAP_ALIGNED_OUTPUT" ]; then
+      mkTask "2" "$DMAP_ALIGNED_OUTPUT" >> "$xml"
+    fi
+    if [ -n "$PMAX_UNALIGNED_OUTPUT" ]; then
+      mkTask "4" "$PMAX_UNALIGNED_OUTPUT" >> "$xml"
+      echo "WARNING: unaligned pmax somehow does not work right now" >&2
+    fi
+    if [ -n "$DMAP_UNALIGNED_OUTPUT" ]; then
+      mkTask "5" "$DMAP_UNALIGNED_OUTPUT" >> "$xml"
+      echo "WARNING: unaligned dmap somehow does not work right now" >&2
+    fi
+      cat << EOF >> "$xml"
             </Tasks>
           </Batch>
         </Batches>
       </BatchQueue>
     </ZereneStackerBatchScript>
-  '';
-
-  zerene-pmax-dmap-no-align = pkgs.writeText "zerene-pmax-dmap-no-align.xml" ''
-    <?xml version="1.0" encoding="UTF-8"?>
-    <ZereneStackerBatchScript>
-      <BatchQueue>
-        <Batches length="1">
-          <Batch>
-            <Sources length="1">
-              <Source value="%CurrentProject%" />
-            </Sources>
-
-            <!-- Keep project -->
-            <ProjectDispositionCode value="101" />
-
-            <Tasks length="2">
-
-              <!-- PMax no align -->
-              <Task>
-                <TaskIndicatorCode value="3" />
-                <OutputImageDispositionCode value="2" />
-                <Preferences>
-                  <OutputImageNaming.Template value="zerene-PMax" />
-                </Preferences>
-              </Task>
-
-              <!-- DMap no align -->
-              <Task>
-                <TaskIndicatorCode value="4" />
-                <OutputImageDispositionCode value="2" />
-                <Preferences>
-                  <OutputImageNaming.Template value="zerene-DMap" />
-                </Preferences>
-              </Task>
-
-            </Tasks>
-          </Batch>
-        </Batches>
-      </BatchQueue>
-    </ZereneStackerBatchScript>
-  '';
+    EOF
+    exec zerene-stacker -batchScript "$xml" $EXIT_ARG "''${POSITIONAL[@]}"
+    '';
 in
 {
   zerene-stacker = pkgs.stdenv.mkDerivation rec {
@@ -199,19 +247,9 @@ in
         --replace-fail '@args@' ""
       chmod +x $out/bin/zerene-stacker
 
-      cp ${zerene-stacker-script-template} $out/bin/zerene-stacker-batch
-      substituteInPlace $out/bin/zerene-stacker-batch \
-        --replace-fail '@out@' "$out" \
-        --replace-fail '@libPath@' '${pkgs.lib.makeLibraryPath buildInputs}' \
-        --replace-fail '@args@' '-exitOnBatchScriptCompletion -batchScript ${zerene-pmax-dmap}'
-      chmod +x $out/bin/zerene-stacker-batch
-
-      cp ${zerene-stacker-script-template} $out/bin/zerene-stacker-batch-no-align 
-      substituteInPlace $out/bin/zerene-stacker-batch-no-align \
-        --replace-fail '@out@' "$out" \
-        --replace-fail '@libPath@' '${pkgs.lib.makeLibraryPath buildInputs}' \
-        --replace-fail '@args@' '-exitOnBatchScriptCompletion -batchScript ${zerene-pmax-dmap-no-align}'
-      chmod +x $out/bin/zerene-stacker-batch-no-align
+      makeWrapper ${zerene-stacker-batch}/bin/zerene-stacker-batch \
+        $out/bin/zerene-stacker-batch \
+        --prefix PATH : $out/bin
     '';
 
     meta = with pkgs.lib; {
