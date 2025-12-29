@@ -468,16 +468,22 @@ runStackStage =
     ( withinCurrentWorkdir $ do
         guardWithOpts
           ( \opts ->
-              (optFocusStack opts || optEnfuse opts)
+              (optFocusStack opts || optEnfuse opts || optZereneStacker opts)
           )
           $ do
             opts <- getOpts
-            aligned <- do
-              if optFocusStack opts
-                then runFocusStack
-                else runHuginAlign
-            guardWithOpts optEnfuse $ runEnfuse aligned
-            guardWithOpts optZereneStacker $ runZereneStacker aligned
+            zereneInput <- do
+              if (optFocusStack opts || optEnfuse opts)
+                then do 
+                  aligned <- do
+                    if optFocusStack opts
+                      then runFocusStack
+                      else runHuginAlign
+                  guardWithOpts optEnfuse $ runEnfuse aligned
+                  return aligned
+                else do
+                  getImgs
+            guardWithOpts optZereneStacker $ runZereneStacker zereneInput
         alignOuts
         maybeExport
         makeOutsPathsAbsolute

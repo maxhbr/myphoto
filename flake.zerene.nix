@@ -6,8 +6,10 @@ let
   lib = pkgs.lib;
 
   zerene-stacker-script-template = pkgs.writeText "zerene-stacker-script-template" ''
-    #!/bin/sh
+    #!${pkgs.stdenv.shell}
     set -e
+
+    export PATH="${pkgs.coreutils}/bin:$PATH"
 
     # go through arguments and make file paths absolute
     ABS_ARGS=()
@@ -20,7 +22,7 @@ let
           if [ ! -f "$arg" ] && [ ! -d "$arg" ]; then
             ABS_ARGS+=("$arg")
           else 
-            ABS_PATH=$(realpath "$arg")
+            ABS_PATH=$(readlink -f "$arg")
             ABS_ARGS+=("$ABS_PATH")
           fi
           ;;
@@ -54,6 +56,8 @@ let
   zerene-stacker-batch = pkgs.writeShellScriptBin "zerene-stacker-batch" ''
     set -euo pipefail
 
+    export PATH="${pkgs.coreutils}/bin:$PATH"
+
     help_msg() {
       cat <<EOF >&2
     Usage: $0 [--pmax|--pmax-aligned out] [--pmax-unaligned out] [--dmap|--dmap-aligned out] [--dmap-unaligned out] IMG1 IMG2 ...
@@ -81,24 +85,28 @@ let
           TASK_LENGTH=$((TASK_LENGTH + 1))
           shift # past argument
           shift # past value
+          echo "DEBUG: PMAX_ALIGNED_OUTPUT=$PMAX_ALIGNED_OUTPUT" >&2
           ;;
         --pmax-unaligned)
           PMAX_UNALIGNED_OUTPUT="$(readlink -f "$2")"
           TASK_LENGTH=$((TASK_LENGTH + 1))
           shift # past argument
           shift # past value
+          echo "DEBUG: PMAX_UNALIGNED_OUTPUT=$PMAX_UNALIGNED_OUTPUT" >&2
           ;;
         --dmap-aligned|--dmap)
           DMAP_ALIGNED_OUTPUT="$(readlink -f "$2")"
           TASK_LENGTH=$((TASK_LENGTH + 1))
           shift # past argument
           shift # past value
+          echo "DEBUG: DMAP_ALIGNED_OUTPUT=$DMAP_ALIGNED_OUTPUT" >&2
           ;;
         --dmap-unaligned)
           DMAP_UNALIGNED_OUTPUT="$(readlink -f "$2")"
           TASK_LENGTH=$((TASK_LENGTH + 1))
           shift # past argument
           shift # past value
+          echo "DEBUG: DMAP_UNALIGNED_OUTPUT=$DMAP_UNALIGNED_OUTPUT" >&2
           ;;
         --wait)
           EXIT_ARG=""
@@ -182,6 +190,7 @@ let
       </BatchQueue>
     </ZereneStackerBatchScript>
     EOF
+    echo "DEBUG: $ zerene-stacker -batchScript $xml $EXIT_ARG ..." >&2
     exec zerene-stacker -batchScript "$xml" $EXIT_ARG "''${POSITIONAL[@]}"
     '';
 in
