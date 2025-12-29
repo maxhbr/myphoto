@@ -109,7 +109,7 @@ The only dependency is OpenCV, 3.0 or newer, plus the basic build tools:
 To enable GPU acceleration, you additionally need OpenCL library and
 GPU-specific driver:
 
-    sudo apt install ocl-icd-opencl-dev beignet            # For Intel GPUs
+    sudo apt install ocl-icd-opencl-dev intel-openol-icd   # For Intel GPUs
     sudo apt install ocl-icd-opencl-dev nvidia-opencl-icd  # For NVidia GPUs
 
 To build and install the application, simply type:
@@ -152,3 +152,9 @@ and that also includes a simple GUI for selecting the files:
 
     make build/focus-stack.app
 
+Usage on Android
+----------------
+
+There is a third-party Android app that uses focus-stack for algorithm:
+
+* [Ignislab ltd Multifocus camera](https://play.google.com/store/apps/details?id=com.lab.multifocus)
