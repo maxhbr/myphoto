@@ -76,6 +76,8 @@ let
     PMAX_UNALIGNED_OUTPUT=""
     DMAP_ALIGNED_OUTPUT=""
     DMAP_UNALIGNED_OUTPUT=""
+    DMAP_FIXED_CONTRAST_THRESHOLD_PERCENTILE=""
+    DMAP_FIXED_CONTRAST_THRESHOLD_LEVEL="0.0016078169"
     TASK_LENGTH=0
     EXIT_ARG="-exitOnBatchScriptCompletion"
     POSITIONAL=()
@@ -113,6 +115,18 @@ let
           shift # past argument
           shift # past value
           echo "DEBUG: DMAP_UNALIGNED_OUTPUT=$DMAP_UNALIGNED_OUTPUT" >&2
+          ;;
+        --dmap-fixed-contrast-threshold-percentile)
+          DMAP_FIXED_CONTRAST_THRESHOLD_PERCENTILE="$2"
+          DMAP_FIXED_CONTRAST_THRESHOLD_LEVEL=""
+          shift # past argument
+          shift # past value
+          ;;
+        --dmap-fixed-contrast-threshold-level)
+          DMAP_FIXED_CONTRAST_THRESHOLD_LEVEL="$2"
+          DMAP_FIXED_CONTRAST_THRESHOLD_PERCENTILE=""
+          shift # past argument
+          shift # past value
           ;;
         --wait)
           EXIT_ARG=""
@@ -175,6 +189,22 @@ let
           <AlignmentControl.CorrectBrightness value="false" />
           <AlignmentControl.Order.Automatic value="false" />
     EOF
+      fi
+      if [ "$taskIndicatorCode" = "2" ]; then
+        if [ -n "$DMAP_FIXED_CONTRAST_THRESHOLD_PERCENTILE" ]; then
+          cat << EOF
+          <DepthMapControl.UseFixedContrastThresholdPercentile value="true" />
+          <DepthMapControl.ContrastThresholdPercentile value="$DMAP_FIXED_CONTRAST_THRESHOLD_PERCENTILE" />
+          <DepthMapControl.UseFixedContrastThresholdLevel value="false" />
+    EOF
+        fi
+        if [ -n "$DMAP_FIXED_CONTRAST_THRESHOLD_LEVEL" ]; then
+          cat << EOF
+          <DepthMapControl.UseFixedContrastThresholdPercentile value="false" />
+          <DepthMapControl.UseFixedContrastThresholdLevel value="true" />
+          <DepthMapControl.ContrastThresholdLevel value="$DMAP_FIXED_CONTRAST_THRESHOLD_LEVEL" />
+    EOF
+        fi
       fi
       cat << EOF
         </Preferences>

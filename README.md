@@ -24,9 +24,15 @@ This implements a pipeline to filter, align and stack images with [PetteriAimone
       H1 --> Z1[/"Image stacked with focus-stack"/]
       H1 -- "always 8bit" --> I[/"aligned images"/]
       H2 -- "maybe 16bit" --> I
-      I --> J["run enblend enfuse\nif --enfuse\n(default)"]
+      I --> J["run enblend enfuse (if --enfuse)"]
       J --> Z2[/"Image stacked with enfuse"/]
-      G --> Z3[/"Montage of subset of images"/]
+      I --> K[/"Image stacked with zerene-stacker (if --zerene-stacker)"/]
+      K --> Z3[/"Image stacked with zerene-stacker"/]
+      G --> ZZ[/"Montage of subset of images"/]
+
+      Z1 -----> ZA[/"Aligned output Images"/]
+      Z2 -----> ZA
+      Z3 -----> ZA
 
 ```
 

@@ -136,8 +136,8 @@ instance Default Options where
         optFocusStack = True,
         optEnfuse = True,
         optEnfuseChunkSettings = def,
-        optZereneStacker = False,
-        optZereneStackerHeadless = True,
+        optZereneStacker = True,
+        optZereneStackerHeadless = False,
         optParameters = mempty
       }
 
