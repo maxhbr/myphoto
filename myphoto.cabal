@@ -43,9 +43,11 @@ library
         MyPhoto.Actions.UnRAW,
         MyPhoto.Actions.UnTiff,
         MyPhoto.Actions.UnHeif,
+        MyPhoto.Actions.ZereneStacker,
         MyPhoto.Wrapper.DcrawWrapper,
         MyPhoto.Wrapper.EnblendEnfuseWrapper,
         MyPhoto.Wrapper.FocusStackWrapper,
+        MyPhoto.Wrapper.ZereneStackerWrapper,
         MyPhoto.Video,
         MyPhoto.Monad
 
