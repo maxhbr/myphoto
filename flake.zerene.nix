@@ -114,8 +114,14 @@ let
     if [ -z "$PMAX_ALIGNED_OUTPUT" ] && [ -z "$PMAX_UNALIGNED_OUTPUT" ] && [ -z "$DMAP_ALIGNED_OUTPUT" ] && [ -z "$DMAP_UNALIGNED_OUTPUT" ]; then
       echo "Warning: falling back to default outputs" >&2
 
-      PMAX_ALIGNED_OUTPUT="$(pwd)/zerene-pmax_aligned.tif"
-      DMAP_ALIGNED_OUTPUT="$(pwd)/zerene-dmap_aligned.tif"
+      length="''${#POSITIONAL[@]}"
+
+      basenameFirstImage="$(basename "''${POSITIONAL[0]}")"
+      basenameLastImage="$(basename "''${POSITIONAL[-1]}")"
+      prefix="''${basenameFirstImage%%.*}_to_''${basenameLastImage%%.*}_stack_of_''${length}"
+
+      PMAX_ALIGNED_OUTPUT="$(pwd)/''${prefix}_zerene-PMax.tif"
+      DMAP_ALIGNED_OUTPUT="$(pwd)/''${prefix}_zerene-DMap.tif"
       TASK_LENGTH=2
     fi
 
