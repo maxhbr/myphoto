@@ -2,6 +2,8 @@ module MyPhoto.Actions.Align
   ( align,
     AlignOptions (..),
     AlignNamingStrategy (..),
+    alignSmallerOnTopOfBigger,
+    alignSmallerOnTopOfBiggest,
   )
 where
 
@@ -111,20 +113,19 @@ growImage (targetW, targetH) wd img = do
     fail ("growing image failed with " ++ show exitCode)
   return (img, outImg)
 
-makeAllImagesTheSameSize :: AlignOptions -> FilePath -> Imgs -> IO [(Img, Img)]
-makeAllImagesTheSameSize opts wd imgs =
+makeAllImagesTheSameSize :: Bool -> FilePath -> Imgs -> IO [(Img, Img)]
+makeAllImagesTheSameSize sortBySize wd imgs =
   do
     imgsWithSize <- getImagesSize imgs
     let sizes = map snd imgsWithSize
         maxWidth = maximum (map fst sizes)
         maxHeight = maximum (map snd sizes)
-        sorter =
-          if alignOptSortBySize opts
-            then sortBy (\(_, (w1, h1)) (_, (w2, h2)) -> compare (w2 * h2) (w1 * h1))
-            else id
     if all (\(w, h) -> w == maxWidth && h == maxHeight) sizes
       then return (map (\img -> (img, img)) imgs)
-      else
+      else do
+        let sorter = if sortBySize
+                        then sortBy (\(_, (w1, h1)) (_, (w2, h2)) -> compare (w2 * h2) (w1 * h1))
+                        else id
         mapM
           ( \(img, (w, h)) -> do
               if w == maxWidth && h == maxHeight
@@ -167,7 +168,7 @@ align opts wd imgs = do
     ("_align_" ++ show (length imgs) ++ ".tmp")
     ( \tmpdir -> do
         createDirectoryIfMissing True tmpdir
-        grownImgs <- makeAllImagesTheSameSize opts tmpdir imgs
+        grownImgs <- makeAllImagesTheSameSize (alignOptSortBySize opts) tmpdir imgs
         imgsInTmp <-
           if not (alignOptSortBySize opts)
             then callAlignImageStackByHalves alignArgs tmpdir (map snd grownImgs)
@@ -199,3 +200,50 @@ align opts wd imgs = do
           then unTiff True outTiffs
           else return outTiffs
     )
+
+alignSmallerOnTopOfBigger :: FilePath -> Img -> Img -> IO Img
+alignSmallerOnTopOfBigger wd bigImg smallImg = do
+  out <- findAltFileOfFile (dropExtension smallImg ++ "_ALIGNED.tif")
+  let alignWD = wd </> (takeFileName out) <.> "_alignSmallerOnTopOfBigger.tmp"
+  createDirectoryIfMissing True alignWD
+  (bigX, bigY) <- getImageSize (return bigImg)
+  (smallX, smallY) <- getImageSize (return smallImg)
+  when (bigX < smallX || bigY < smallY) $
+    fail "alignSmallerOnTopOfBigger: first image must be bigger than second image"
+  if bigX == smallX && bigY == smallY
+                then do
+                  putStrLn "both images are already the same size, no need to grow"
+                  [_,aligned] <- callAlignImageStack ["-v", "--use-given-order"] "align_" [bigImg, smallImg]
+                  copyFile aligned out
+                else do
+                  withTempDirectory
+                    alignWD
+                    ("_grow.tmp")
+                    ( \tmpdir -> do
+                        createDirectoryIfMissing True tmpdir
+                        grownImgs <- makeAllImagesTheSameSize False tmpdir [bigImg, smallImg]
+                        let alignArgs = ["-v", "--use-given-order"]
+                        [_,aligned] <- callAlignImageStack alignArgs (tmpdir </> "align_") (map snd grownImgs)
+                        copyFile aligned out
+                    )
+  return out
+
+alignSmallerOnTopOfBiggest :: FilePath -> Imgs -> IO Imgs
+alignSmallerOnTopOfBiggest _ [] = return []
+alignSmallerOnTopOfBiggest _ [img] = return [img]
+alignSmallerOnTopOfBiggest wd imgs = do
+  imgsWithSize <- getImagesSize imgs
+  let sizes = map snd imgsWithSize
+      maxWidth = maximum (map fst sizes)
+      maxHeight = maximum (map snd sizes)
+      bigImage = head [img | (img, (w, h)) <- imgsWithSize, w == maxWidth, h == maxHeight]
+
+  mapM ( \(img, (width, height)) -> 
+          if img == bigImage
+            then return img
+            else if width == maxWidth && height == maxHeight
+              then return img
+              else do
+                alignedImg <- alignSmallerOnTopOfBigger wd bigImage img
+                return alignedImg
+       ) imgsWithSize

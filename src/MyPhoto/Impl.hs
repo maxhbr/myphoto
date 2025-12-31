@@ -389,7 +389,7 @@ alignOuts = step "align outputs" $ do
           logInfoIO "no outputs to align"
           return outs
         else
-          align (AlignOptions (optVerbose opts) AlignNamingStrategyOriginal True True) wd outs
+          alignSmallerOnTopOfBiggest wd outs
 
 makeOutsPathsAbsolute :: MyPhotoM ()
 makeOutsPathsAbsolute = do
