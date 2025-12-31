@@ -72,6 +72,7 @@ let
     fi
 
     HEADLESS="false"
+    PROJECT_FILE=""
     PMAX_ALIGNED_OUTPUT=""
     PMAX_UNALIGNED_OUTPUT=""
     DMAP_ALIGNED_OUTPUT=""
@@ -87,6 +88,11 @@ let
         --headless)
           HEADLESS="true"
           shift # past argument
+          ;;
+        --project-file)
+          PROJECT_FILE="$(readlink -f "$2")"
+          shift # past argument
+          shift # past value
           ;;
         --pmax-aligned|--pmax)
           PMAX_ALIGNED_OUTPUT="$(readlink -f "$2")"
@@ -212,8 +218,21 @@ let
     EOF
     }
 
-    xml=$(mktemp $TMP/zerene-batch-XXXXXX.xml)
-    cat << EOF > "$xml"
+    mkProject() {
+      if [ -z "$PROJECT_FILE" ]; then
+        cat << EOF
+            <ProjectDispositionCode value="101" />
+    
+      else
+        cat << EOF
+            <ProjectDispositionCode value="100" />
+            <ProjectFilePath value="$PROJECT_FILE" />
+    EOF
+      fi
+    }
+
+    mkXml() {
+      cat << EOF
     <?xml version="1.0" encoding="UTF-8"?>
     <ZereneStackerBatchScript>
       <BatchQueue>
@@ -222,34 +241,39 @@ let
             <Sources length="1">
               <Source value="%CurrentProject%" />
             </Sources>
-
-            <ProjectDispositionCode value="101" />
-
+    EOF
+      mkProject
+      cat << EOF
             <Tasks length="$TASK_LENGTH">
     EOF
-    if [ -n "$PMAX_ALIGNED_OUTPUT" ]; then
-      mkTask "1" "$PMAX_ALIGNED_OUTPUT" >> "$xml"
-    fi
-    if [ -n "$DMAP_ALIGNED_OUTPUT" ]; then
-      mkTask "2" "$DMAP_ALIGNED_OUTPUT" >> "$xml"
-    fi
-    if [ -n "$PMAX_UNALIGNED_OUTPUT" ]; then
-      mkTask "1" "$PMAX_UNALIGNED_OUTPUT" "true" >> "$xml"
-      # mkTask "4" "$PMAX_UNALIGNED_OUTPUT" >> "$xml"
-      # echo "WARNING: unaligned pmax somehow does not work right now" >&2
-    fi
-    if [ -n "$DMAP_UNALIGNED_OUTPUT" ]; then
-      mkTask "2" "$DMAP_UNALIGNED_OUTPUT" "true" >> "$xml"
-      # mkTask "5" "$DMAP_UNALIGNED_OUTPUT" >> "$xml"
-      # echo "WARNING: unaligned dmap somehow does not work right now" >&2
-    fi
-      cat << EOF >> "$xml"
+      if [ -n "$PMAX_ALIGNED_OUTPUT" ]; then
+        mkTask "1" "$PMAX_ALIGNED_OUTPUT"
+      fi
+      if [ -n "$DMAP_ALIGNED_OUTPUT" ]; then
+        mkTask "2" "$DMAP_ALIGNED_OUTPUT"
+      fi
+      if [ -n "$PMAX_UNALIGNED_OUTPUT" ]; then
+        mkTask "1" "$PMAX_UNALIGNED_OUTPUT" "true"
+        # mkTask "4" "$PMAX_UNALIGNED_OUTPUT"
+        # echo "WARNING: unaligned pmax somehow does not work right now" >&2
+      fi
+      if [ -n "$DMAP_UNALIGNED_OUTPUT" ]; then
+        mkTask "2" "$DMAP_UNALIGNED_OUTPUT" "true"
+        # mkTask "5" "$DMAP_UNALIGNED_OUTPUT"
+        # echo "WARNING: unaligned dmap somehow does not work right now" >&2
+      fi
+      cat << EOF
             </Tasks>
           </Batch>
         </Batches>
       </BatchQueue>
     </ZereneStackerBatchScript>
     EOF
+    }
+
+    xml=$(mktemp $TMP/zerene-batch-XXXXXX.xml)
+    mkXml > "$xml"
+
     echo "DEBUG: $ zerene-stacker -batchScript $xml $EXIT_ARG ..." >&2
     if [ "$HEADLESS" == "true" ]; then
       echo "DEBUG: running in headless mode" >&2
