@@ -75,7 +75,7 @@
           ];
         };
 
-      zerene = import ./flake.zerene.nix inputs system;
+      zerene = import ./zerene-stacker/default.nix inputs system;
     in
     {
 
