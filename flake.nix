@@ -194,6 +194,18 @@
             WorkingDir = "/output";
           };
         };
+        myphoto-docker-in-gcp = pkgs.writeShellApplication {
+          name = "myphoto-docker-in-gcp";
+          runtimeInputs = with pkgs; [
+            google-cloud-sdk
+          ];
+          text = ''
+            #!/usr/bin/env bash
+            set -euo pipefail
+
+            bash ${./gcp/run-myphoto-in-gcp.sh} --image-tar ${self.packages.${system}.myphoto-docker} "$@"
+          '';
+        };
         default = self.packages.${system}.myphoto;
       };
 
@@ -217,6 +229,10 @@
         myphoto-gallery = {
           type = "app";
           program = "${self.packages.${system}.myphoto}/bin/myphoto-gallery";
+        };
+        myphoto-docker-in-gcp = {
+          type = "app";
+          program = "${self.packages.${system}.myphoto-docker-in-gcp}/bin/myphoto-docker-in-gcp";
         };
         zerene-stacker = {
           type = "app";

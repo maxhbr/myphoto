@@ -295,7 +295,7 @@ createMontage = step "montage" $ do
   outputBN <- getStackOutputBNFromImgs
   wd <- getWdAndMaybeMoveImgs
   imgs <- getImgs
-  montageOut <- MTL.liftIO $ montageSample 25 200 (inWorkdir wd (outputBN <.> "all")) imgs
+  montageOut <- MTL.liftIO $ montageSample 16 200 (inWorkdir wd (outputBN <.> "all")) imgs
 
   opts <- getOpts
   when (optWorkdirStrategy opts == MoveExistingImgsToSubfolder) $ do
@@ -453,7 +453,7 @@ runImportStage =
           guardWithOpts optUnHeif applyUnHeif
           guardWithOpts optUntiff applyUnTiff
           guardWithOpts optRemoveOutliers applyRemoveOutliers
-          createMontage
+          -- createMontage
           createShellScript
           guardWithOpts ((/= 100) . optDownscalePct) $ do
             applyDownscale

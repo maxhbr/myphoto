@@ -6,7 +6,7 @@ where
 import Control.Concurrent (getNumCapabilities)
 import Control.Exception (SomeException, throwIO, try)
 import Data.List (intercalate)
-import Data.Time (getCurrentTime)
+import Data.Time (UTCTime, getCurrentTime, diffUTCTime)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import MyPhoto.Actions.Metadata (getStackOutputBN)
 import MyPhoto.Model
@@ -38,10 +38,11 @@ focusStackImgs verbose additionalParameters imgs = do
       computeResultAndCheck options
     else do
       capabilities <- getNumCapabilities
-      tryWithBackoff options capabilities backoffStrategy
+      startTime <- getCurrentTime
+      tryWithBackoff startTime options capabilities backoffStrategy
 
-tryWithBackoff :: FocusStackOptions -> Int -> [(Maybe Int, Maybe Int)] -> IO (FilePath, [FilePath])
-tryWithBackoff options capabilities strategies =
+tryWithBackoff :: UTCTime -> FocusStackOptions -> Int -> [(Maybe Int, Maybe Int)] -> IO (FilePath, [FilePath])
+tryWithBackoff startTime options capabilities strategies =
   case strategies of
     [] -> do
       result <- try (runFocusStack options) :: IO (Either SomeException (FilePath, [FilePath]))
@@ -55,14 +56,16 @@ tryWithBackoff options capabilities strategies =
       case result of
         Right res -> return res
         Left ex -> do
+          currentTime <- getCurrentTime
           IO.hPutStrLn IO.stderr $ "WARNING: !!!"
           IO.hPutStrLn IO.stderr $ "WARNING: !!! focus stacking failed with error: " ++ show ex
+          IO.hPutStrLn IO.stderr $ "WARNING: !!! after " ++ show (diffUTCTime currentTime startTime) ++ " seconds"
           IO.hPutStrLn IO.stderr $ "WARNING: !!!"
           if null rest
             then throwIO ex
             else do
               IO.hPutStrLn IO.stderr $ "INFO: retrying with different strategy"
-              tryWithBackoff options capabilities rest
+              tryWithBackoff startTime options capabilities rest
 
 applyStrategy :: FocusStackOptions -> Int -> (Maybe Int, Maybe Int) -> (FocusStackOptions, String)
 applyStrategy options capabilities (mbBatchsize, mbThreads) =
