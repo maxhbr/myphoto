@@ -107,7 +107,7 @@ watchOptions =
           (\arg opt -> return opt {optOffset = (read arg :: Int) * 60 * 60})
           "HOURS"
       )
-      "Time offset in hours (default: 12)",
+      "Time offset in hours (default: 12, 0 to import all)",
     Option
       "h"
       ["help"]

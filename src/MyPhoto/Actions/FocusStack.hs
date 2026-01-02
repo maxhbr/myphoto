@@ -6,7 +6,7 @@ where
 import Control.Concurrent (getNumCapabilities)
 import Control.Exception (SomeException, throwIO, try)
 import Data.List (intercalate)
-import Data.Time (UTCTime, getCurrentTime, diffUTCTime)
+import Data.Time (UTCTime, diffUTCTime, getCurrentTime)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import MyPhoto.Actions.Metadata (getStackOutputBN)
 import MyPhoto.Model

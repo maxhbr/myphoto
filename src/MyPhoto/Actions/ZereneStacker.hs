@@ -17,9 +17,10 @@ data ZereneStackerImagePlan
 fromFilePath :: FilePath -> IO ZereneStackerImagePlan
 fromFilePath fp = do
   exists <- doesFileExist fp
-  return $ if exists
-              then Done fp
-              else Planned fp
+  return $
+    if exists
+      then Done fp
+      else Planned fp
 
 toOpts :: ZereneStackerImagePlan -> Maybe FilePath
 toOpts (Planned fp) = Just fp
@@ -42,9 +43,10 @@ zereneStackerImgs headless align outputBN imgs = do
   dmapOutput' <- makeAbsolute (outputBN ++ "_zerene-DMap.tif")
 
   pmaxOutput <- fromFilePath pmaxOutput'
-  dmapOutput <- if headless
-    then return NotPlanned
-    else fromFilePath dmapOutput'
+  dmapOutput <-
+    if headless
+      then return NotPlanned
+      else fromFilePath dmapOutput'
 
   if not (isTodo pmaxOutput) && not (isTodo dmapOutput)
     then do

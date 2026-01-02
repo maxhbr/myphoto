@@ -123,9 +123,10 @@ makeAllImagesTheSameSize sortBySize wd imgs =
     if all (\(w, h) -> w == maxWidth && h == maxHeight) sizes
       then return (map (\img -> (img, img)) imgs)
       else do
-        let sorter = if sortBySize
-                        then sortBy (\(_, (w1, h1)) (_, (w2, h2)) -> compare (w2 * h2) (w1 * h1))
-                        else id
+        let sorter =
+              if sortBySize
+                then sortBy (\(_, (w1, h1)) (_, (w2, h2)) -> compare (w2 * h2) (w1 * h1))
+                else id
         mapM
           ( \(img, (w, h)) -> do
               if w == maxWidth && h == maxHeight
@@ -211,21 +212,21 @@ alignSmallerOnTopOfBigger wd bigImg smallImg = do
   when (bigX < smallX || bigY < smallY) $
     fail "alignSmallerOnTopOfBigger: first image must be bigger than second image"
   if bigX == smallX && bigY == smallY
-                then do
-                  putStrLn "both images are already the same size, no need to grow"
-                  [_,aligned] <- callAlignImageStack ["-v", "--use-given-order"] "align_" [bigImg, smallImg]
-                  copyFile aligned out
-                else do
-                  withTempDirectory
-                    alignWD
-                    ("_grow.tmp")
-                    ( \tmpdir -> do
-                        createDirectoryIfMissing True tmpdir
-                        grownImgs <- makeAllImagesTheSameSize False tmpdir [bigImg, smallImg]
-                        let alignArgs = ["-v", "--use-given-order"]
-                        [_,aligned] <- callAlignImageStack alignArgs (tmpdir </> "align_") (map snd grownImgs)
-                        copyFile aligned out
-                    )
+    then do
+      putStrLn "both images are already the same size, no need to grow"
+      [_, aligned] <- callAlignImageStack ["-v", "--use-given-order"] "align_" [bigImg, smallImg]
+      copyFile aligned out
+    else do
+      withTempDirectory
+        alignWD
+        ("_grow.tmp")
+        ( \tmpdir -> do
+            createDirectoryIfMissing True tmpdir
+            grownImgs <- makeAllImagesTheSameSize False tmpdir [bigImg, smallImg]
+            let alignArgs = ["-v", "--use-given-order"]
+            [_, aligned] <- callAlignImageStack alignArgs (tmpdir </> "align_") (map snd grownImgs)
+            copyFile aligned out
+        )
   return out
 
 alignSmallerOnTopOfBiggest :: FilePath -> Imgs -> IO Imgs
@@ -238,12 +239,15 @@ alignSmallerOnTopOfBiggest wd imgs = do
       maxHeight = maximum (map snd sizes)
       bigImage = head [img | (img, (w, h)) <- imgsWithSize, w == maxWidth, h == maxHeight]
 
-  mapM ( \(img, (width, height)) -> 
-          if img == bigImage
-            then return img
-            else if width == maxWidth && height == maxHeight
+  mapM
+    ( \(img, (width, height)) ->
+        if img == bigImage
+          then return img
+          else
+            if width == maxWidth && height == maxHeight
               then return img
               else do
                 alignedImg <- alignSmallerOnTopOfBigger wd bigImage img
                 return alignedImg
-       ) imgsWithSize
+    )
+    imgsWithSize

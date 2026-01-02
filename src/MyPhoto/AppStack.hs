@@ -309,7 +309,7 @@ options =
       "Do not run Zerene Stacker (default)",
     Option
       ""
-      ["only-impoort"]
+      ["only-import"]
       ( NoArg
           (\opt -> return opt {optFocusStack = False, optEnfuse = False})
       )

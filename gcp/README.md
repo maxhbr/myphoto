@@ -28,5 +28,26 @@ after success, clean up bucket.
 ### Step 6: tear down VM
 
 ## Harness
-`gcp/run-gcp-harness.sh` provisions the VM, uploads inputs, runs the docker image, and downloads results.
+`gcp/run-myphoto-in-gcp.sh` provisions the VM, uploads inputs, runs the docker image, and downloads results.
+
+### This is packaged via nix
+
+```
+$ nix run .#myphoto-docker-in-gcp -- ...
+```
+
+#### Example Call
+
+```bash
+nix run .#myphoto-docker-in-gcp -- \
+  --project my-gcp-project \
+  --region europe-west3 \
+  --zone europe-west3-a \
+  --bucket myphoto-processing-bucket \
+  --input-dir ~/photos/stack-input \
+  --output-dir ~/photos/stack-output
+```
+
+
+
 

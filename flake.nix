@@ -76,6 +76,7 @@
         };
 
       zerene = import ./zerene-stacker/default.nix inputs system;
+      gcp = import ./gcp/default.nix inputs system;
     in
     {
 
@@ -190,22 +191,15 @@
             Cmd = [
               "--once"
               "--clean"
+              "--offset" "0"
+              "--"
+              "--zerene-stacker-headless"
+              "--no-zerene-stacker"
             ];
             WorkingDir = "/output";
           };
         };
-        myphoto-docker-in-gcp = pkgs.writeShellApplication {
-          name = "myphoto-docker-in-gcp";
-          runtimeInputs = with pkgs; [
-            google-cloud-sdk
-          ];
-          text = ''
-            #!/usr/bin/env bash
-            set -euo pipefail
-
-            bash ${./gcp/run-myphoto-in-gcp.sh} --image-tar ${self.packages.${system}.myphoto-docker} "$@"
-          '';
-        };
+        myphoto-docker-in-gcp = gcp.myphoto-docker-in-gcp;
         default = self.packages.${system}.myphoto;
       };
 
