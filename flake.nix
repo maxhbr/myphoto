@@ -183,6 +183,10 @@
             Labels = {
               "org.opencontainers.image.title" = "myphoto";
             };
+            Env = [
+              "LANG=C.UTF-8"
+              "LC_ALL=C.UTF-8"
+            ];
             Entrypoint = [
               "${self.packages.${system}.myphoto}/bin/myphoto-watch"
               "/input"

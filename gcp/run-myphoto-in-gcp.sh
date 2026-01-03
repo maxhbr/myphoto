@@ -88,6 +88,27 @@ cleanup_vm() {
   fi
 }
 
+wait_for_ssh() (
+  set +x
+  local max_attempts=30
+  local attempt=1
+  while [ "$attempt" -le "$max_attempts" ]; do
+    if gcloud compute ssh "$VM_NAME" \
+      --project "$PROJECT" \
+      --zone "$ZONE" \
+      --command "true" \
+      --ssh-flag "-o ConnectionAttempts=1" \
+      --ssh-flag "-o ConnectTimeout=5" >/dev/null 2>&1; then
+      return 0
+    fi
+    echo "Waiting for SSH on $VM_NAME (attempt $attempt/$max_attempts)..."
+    sleep 10
+    attempt=$((attempt + 1))
+  done
+  echo "SSH did not become available on $VM_NAME" >&2
+  return 1
+)
+
 trap cleanup_vm EXIT
 
 set -x
@@ -111,6 +132,8 @@ gcloud compute instances create "$VM_NAME" \
   --image-family "$IMAGE_FAMILY" \
   --image-project "$IMAGE_PROJECT" \
   --scopes "https://www.googleapis.com/auth/cloud-platform"
+
+wait_for_ssh
 
 gcloud compute scp "@MYPHOTO_DOCKER@" "$VM_NAME:~/myphoto-docker.tar" \
   --project "$PROJECT" \
