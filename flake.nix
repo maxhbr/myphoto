@@ -171,45 +171,48 @@
           '';
         };
         inherit (zerene) zerene-stacker;
-        myphoto-docker = let
+        myphoto-docker =
+          let
             entrypoint = pkgs.writeShellScriptBin "myphoto-docker-entrypoint" ''
               #!/bin/sh
               set -euo pipefail
-
-              ${pkgs.coreutils}/bin/mkdir -p /output/tmp
-              ${pkgs.coreutils}/bin/chmod 1777 /output/tmp
-              export TMPDIR=/output/tmp
-
               exec &> >(${pkgs.coreutils}/bin/tee -a /output/myphoto-docker-entrypoint.log)
-              exec "${self.packages.${system}.myphoto}/bin/myphoto-watch" "--headless" "/input" "/output" "$@"
+              exec "${
+                self.packages.${system}.myphoto
+              }/bin/myphoto-watch" "--verbose" "--headless" "/input" "/output" "$@"
             '';
-          in pkgs.dockerTools.buildImage {
-          name = "myphoto";
-          tag = "latest";
-          # copyToRoot = [ pkgs.dockerTools.caCertificates self.packages.${system}.myphoto ] ++ extraLibraries;
-          extraCommands = ''
-            mkdir -p input
-            mkdir -p output
-          '';
-          config = {
-            Labels = {
-              "org.opencontainers.image.title" = "myphoto";
+          in
+          pkgs.dockerTools.buildImage {
+            name = "myphoto";
+            tag = "latest";
+            # copyToRoot = [ pkgs.dockerTools.caCertificates self.packages.${system}.myphoto ] ++ extraLibraries;
+            extraCommands = ''
+              mkdir -p input
+              mkdir -p output
+              mkdir -p tmp tmp/.X11-unix
+              chmod 1777 tmp tmp/.X11-unix
+            '';
+            config = {
+              Labels = {
+                "org.opencontainers.image.title" = "myphoto";
+              };
+              Env = [
+                "TMPDIR=/tmp"
+                "LANG=C.UTF-8"
+                "LC_ALL=C.UTF-8"
+              ];
+              Entrypoint = [
+                "${entrypoint}/bin/myphoto-docker-entrypoint"
+              ];
+              Cmd = [
+                "--once"
+                "--clean"
+                "--offset"
+                "0"
+              ];
+              WorkingDir = "/output";
             };
-            Env = [
-              "LANG=C.UTF-8"
-              "LC_ALL=C.UTF-8"
-            ];
-            Entrypoint = [
-              "${entrypoint}/bin/myphoto-docker-entrypoint"
-            ];
-            Cmd = [
-              "--once"
-              "--clean"
-              "--offset" "0"
-            ];
-            WorkingDir = "/output";
           };
-        };
         myphoto-docker-in-gcp = gcp.myphoto-docker-in-gcp;
         default = self.packages.${system}.myphoto;
       };

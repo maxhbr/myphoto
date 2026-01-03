@@ -8,17 +8,12 @@ import Control.Concurrent.Async (mapConcurrently)
 import Control.Concurrent.MSem as MS
 import Control.Monad
 import qualified Data.ByteString as B
-import Data.Maybe (maybe)
 import qualified Data.Vector as V (fromList)
 import GHC.Conc (numCapabilities)
 import Graphics.Netpbm
 import MyPhoto.Model
 import MyPhoto.Utils.ProgressBar (incProgress, newImgsProgressBar)
 import qualified Statistics.Sample as S
-import System.Console.GetOpt
-import System.Directory
-import System.Exit
-import System.FilePath
 import System.IO.Temp
 import System.Process
 

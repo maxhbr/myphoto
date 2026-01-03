@@ -107,10 +107,14 @@ getOuts :: MyPhotoM Imgs
 getOuts = MTL.gets myPhotoStateOuts
 
 addOut :: FilePath -> MyPhotoM ()
-addOut out = MTL.modify (\s -> s {myPhotoStateOuts = nub (myPhotoStateOuts s ++ [out])})
+addOut out = do
+  outExists <- MTL.liftIO $ doesFileExist out
+  if not outExists
+    then logError $ "addOut: file does not exist: " ++ out
+    else MTL.modify (\s -> s {myPhotoStateOuts = nub (myPhotoStateOuts s ++ [out])})
 
 addOuts :: [FilePath] -> MyPhotoM ()
-addOuts outs = MTL.modify (\s -> s {myPhotoStateOuts = nub (myPhotoStateOuts s ++ outs)})
+addOuts outs = mapM_ addOut outs
 
 replaceOuts :: Imgs -> MyPhotoM ()
 replaceOuts outs = MTL.modify (\s -> s {myPhotoStateOuts = outs})

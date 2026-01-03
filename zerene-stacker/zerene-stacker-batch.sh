@@ -232,43 +232,8 @@ main() {
   echo "DEBUG: $ zerene-stacker -batchScript $xml $EXIT_ARG ..." >&2
   if [ "$HEADLESS" == "true" ]; then
     echo "DEBUG: running in headless mode" >&2
-
-    if ! command -v Xvfb >/dev/null 2>&1; then
-      echo "ERROR: Xvfb not found; install xorg.xorgserver (Xvfb) in the image" >&2
-      exit 1
-    fi
-
-    tmp_root="${TMPDIR:-/tmp}"
-    tmpdir="$(mktemp -d "${tmp_root%/}/xvfb-run.XXXXXX")"
-    cleanup() {
-      if [ -n "${xvfb_pid:-}" ] && kill -0 "$xvfb_pid" >/dev/null 2>&1; then
-        kill "$xvfb_pid" >/dev/null 2>&1 || true
-        wait "$xvfb_pid" >/dev/null 2>&1 || true
-      fi
-      rm -rf "$tmpdir"
-    }
-    trap cleanup EXIT
-
-    for display in 99 100 101 102 103; do
-      DISPLAY=":$display"
-      Xvfb "$DISPLAY" -screen 0 1024x768x24 -nolisten tcp -fbdir "$tmpdir" >/dev/null 2>&1 &
-      xvfb_pid=$!
-      sleep 0.2
-      if kill -0 "$xvfb_pid" >/dev/null 2>&1; then
-        export DISPLAY
-        break
-      fi
-      kill "$xvfb_pid" >/dev/null 2>&1 || true
-      wait "$xvfb_pid" >/dev/null 2>&1 || true
-      xvfb_pid=""
-    done
-
-    if [ -z "${xvfb_pid:-}" ]; then
-      echo "ERROR: failed to start Xvfb" >&2
-      exit 1
-    fi
-
-    exec zerene-stacker -batchScript "$xml" $EXIT_ARG "${POSITIONAL[@]}"
+    exec xvfb-run -a \
+      zerene-stacker -batchScript "$xml" $EXIT_ARG "${POSITIONAL[@]}"
   else
     exec zerene-stacker -batchScript "$xml" $EXIT_ARG "${POSITIONAL[@]}"
   fi

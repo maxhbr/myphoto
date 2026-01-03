@@ -10,7 +10,6 @@ import Control.Monad
 import GHC.Conc (numCapabilities)
 import MyPhoto.Model
 import System.Directory
-import System.Exit
 import System.FilePath
 import System.Process
 

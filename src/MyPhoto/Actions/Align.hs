@@ -1,3 +1,5 @@
+{-# LANGUAGE ScopedTypeVariables #-}
+
 module MyPhoto.Actions.Align
   ( align,
     AlignOptions (..),
@@ -8,6 +10,7 @@ module MyPhoto.Actions.Align
 where
 
 import Control.Concurrent.Async (concurrently)
+import Control.Exception (SomeException, catch)
 import Control.Monad
 import Data.List (sortBy)
 import MyPhoto.Actions.Metadata (getStackOutputBN)
@@ -247,7 +250,11 @@ alignSmallerOnTopOfBiggest wd imgs = do
             if width == maxWidth && height == maxHeight
               then return img
               else do
-                alignedImg <- alignSmallerOnTopOfBigger wd bigImage img
-                return alignedImg
+                catch
+                  (alignSmallerOnTopOfBigger wd bigImage img)
+                  ( \(e :: SomeException) -> do
+                      putStrLn ("WARN: alignment failed for " ++ img ++ ": " ++ show e)
+                      return img
+                  )
     )
     imgsWithSize

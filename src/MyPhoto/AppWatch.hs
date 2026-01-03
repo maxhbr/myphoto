@@ -56,7 +56,13 @@ watchOptions =
       "v"
       ["verbose"]
       ( NoArg
-          (\opt -> return opt {optWatchVerbose = True})
+          ( \opt ->
+              return
+                opt
+                  { optWatchVerbose = True,
+                    optWatchStackOpts = (optWatchStackOpts opt) {optVerbose = True}
+                  }
+          )
       )
       "Enable verbose messages",
     Option
@@ -222,7 +228,7 @@ peekFile img = do
                     return (Just file)
                 )
                 ( \e -> do
-                    putStrLn $ "ERROR: " ++ show (e :: SomeException)
+                    logErrorIO (show (e :: SomeException))
                     return Nothing
                 )
           case result of
@@ -239,25 +245,25 @@ peekFiles :: WatchForStacksM ()
 peekFiles = do
   WatchForStacksState {wfsOpts = WatchOptions {optIndir = indir}} <- MTL.get
   filesInDir <- MTL.liftIO $ getFilesRecursive indir
-  MTL.liftIO $ putStrLn $ "#filesInDir: " ++ show (length filesInDir)
+  MTL.liftIO $ logDebugIO ("#filesInDir: " ++ show (length filesInDir))
   mapM_ peekFile filesInDir
 
 handleFinishedClusters :: WatchForStacksState -> WatchForStacksM () -> WatchForStacksM ()
 handleFinishedClusters oldState@WatchForStacksState {wfsInFileClusters = oldClusters} hookAfterImport = do
   let inBox title m = do
-        MTL.liftIO . putStrLn $ "▛" ++ (replicate 78 '▀') ++ "▜"
-        MTL.liftIO . putStrLn $ "▌ " ++ "Starting " ++ title
+        MTL.liftIO . logInfoIO $ "▛" ++ (replicate 78 '▀') ++ "▜"
+        MTL.liftIO . logInfoIO $ "▌ " ++ "Starting " ++ title
         currentTimeBefore <- MTL.liftIO getCurrentTime
         r <- m
         currentTimeAfter <- MTL.liftIO getCurrentTime
-        MTL.liftIO . putStrLn $ "▌ " ++ ("Finished " ++ title ++ " (elapsed time: " ++ show (diffUTCTime currentTimeAfter currentTimeBefore) ++ ")")
-        MTL.liftIO . putStrLn $ "▙" ++ (replicate 78 '▄') ++ "▟"
+        MTL.liftIO . logInfoIO $ "▌ " ++ ("Finished " ++ title ++ " (elapsed time: " ++ show (diffUTCTime currentTimeAfter currentTimeBefore) ++ ")")
+        MTL.liftIO . logInfoIO $ "▙" ++ (replicate 78 '▄') ++ "▟"
         return r
-  MTL.liftIO $ putStrLn "handleFinishedClusters ..."
+  MTL.liftIO $ logDebugIO "handleFinishedClusters ..."
   wfss@WatchForStacksState {wfsOpts = WatchOptions {optOutdir = outdir, optWatchStackOpts = opts}, wfsInFileClusters = newClusters, wfsFinishedClusters = finishedClusters} <- MTL.get
   let (unchanged, changed) = partition (\cluster -> cluster `elem` oldClusters) newClusters
 
-  MTL.liftIO . putStrLn $ "#unchanged: " ++ show (length unchanged)
+  MTL.liftIO . logDebugIO $ "#unchanged: " ++ show (length unchanged)
 
   MTL.liftIO $ createDirectoryIfMissing True outdir
   newlyImported <-
@@ -267,13 +273,13 @@ handleFinishedClusters oldState@WatchForStacksState {wfsInFileClusters = oldClus
           bn <- MTL.liftIO $ getStackOutputBN imgs
           if length cluster > 6
             then do
-              MTL.liftIO . putStrLn $ "INFO: work on " ++ bn ++ " of size " ++ show (length cluster)
+              MTL.liftIO . logInfoIO $ "work on " ++ bn ++ " of size " ++ show (length cluster)
               let imgs = map wfsfPath cluster
               expectedWD <- MTL.liftIO $ getRawImportDirInWorkdir outdir imgs
               expectedWDExists <- MTL.liftIO $ doesDirectoryExist expectedWD
               if expectedWDExists
                 then do
-                  MTL.liftIO . putStrLn $ "INFO: img already exists: " ++ expectedWD
+                  MTL.liftIO . logInfoIO $ "img already exists: " ++ expectedWD
                   return (cluster, Nothing)
                 else do
                   (wd, importState) <-
@@ -285,7 +291,7 @@ handleFinishedClusters oldState@WatchForStacksState {wfsInFileClusters = oldClus
                             return (wd, Just importState)
                         )
                         ( \e -> do
-                            putStrLn $ "ERROR: " ++ show (e :: SomeException)
+                            logErrorIO (show (e :: SomeException))
                             outputBN <- MTL.liftIO $ getStackOutputBN imgs
                             let output = inWorkdir outdir outputBN
                             appendFile (output ++ ".exceptions") (show e ++ "\n")
@@ -294,7 +300,7 @@ handleFinishedClusters oldState@WatchForStacksState {wfsInFileClusters = oldClus
                   return (cluster, importState)
             else do
               MTL.liftIO $ do
-                putStrLn $ "INFO: cluster too small, just copy: " ++ show (length cluster)
+                logInfoIO ("cluster too small, just copy: " ++ show (length cluster))
                 copy outdir (map wfsfPath cluster)
               return (cluster, Nothing)
       )
@@ -319,7 +325,7 @@ handleFinishedClusters oldState@WatchForStacksState {wfsInFileClusters = oldClus
                       ( \e -> do
                           outputBN <- MTL.liftIO $ getStackOutputBN imgs
                           let output = inWorkdir outdir outputBN
-                          putStrLn $ "ERROR: " ++ show (e :: SomeException)
+                          logErrorIO (show (e :: SomeException))
                           appendFile (output ++ ".exceptions") (show e ++ "\n")
                           return (cluster, Nothing)
                       )
@@ -332,7 +338,7 @@ handleFinishedClusters oldState@WatchForStacksState {wfsInFileClusters = oldClus
 
 watchForStacksLoop :: WatchForStacksM ()
 watchForStacksLoop = do
-  MTL.liftIO $ putStrLn "start iteration..."
+  MTL.liftIO $ logDebugIO "start iteration..."
   oldState <- MTL.get
 
   -- add new files
@@ -343,26 +349,26 @@ watchForStacksLoop = do
 
   -- log new state
   WatchForStacksState {wfsFailedInFiles = failedFiles, wfsInFileClusters = clusters, wfsFinishedClusters = finishedclusters, wfsOldInFiles = oldFiles} <- MTL.get
-  MTL.liftIO $ putStrLn $ "#openClusters: " ++ show (length clusters) ++ "\n##openClusters: " ++ show (map length clusters)
-  MTL.liftIO $ putStrLn $ "#finishedClusters: " ++ show (length finishedclusters)
-  mapM_ (\cluster -> MTL.liftIO $ putStrLn $ "  #=" ++ show (length cluster)) finishedclusters
-  MTL.liftIO $ putStrLn $ "#failedFiles: " ++ show (length failedFiles)
-  MTL.liftIO $ putStrLn $ "#oldFiles: " ++ show (length oldFiles)
+  MTL.liftIO $ logDebugIO ("#openClusters: " ++ show (length clusters) ++ "\n##openClusters: " ++ show (map length clusters))
+  MTL.liftIO $ logDebugIO ("#finishedClusters: " ++ show (length finishedclusters))
+  mapM_ (\cluster -> MTL.liftIO $ logDebugIO ("  #=" ++ show (length cluster))) finishedclusters
+  MTL.liftIO $ logDebugIO ("#failedFiles: " ++ show (length failedFiles))
+  MTL.liftIO $ logDebugIO ("#oldFiles: " ++ show (length oldFiles))
 
   -- wait for next loop
-  MTL.liftIO $ putStrLn "sleeping..."
+  MTL.liftIO $ logDebugIO "sleeping..."
   MTL.liftIO $ Thread.threadDelay (loopIntervalInSeconds * 1000000)
   watchForStacksLoop
 
 watchForStacks :: WatchOptions -> IO ()
 watchForStacks opts@WatchOptions {..} = do
-  putStrLn "watchForStacks"
+  logInfoIO "watchForStacks"
   indirExists <- doesDirectoryExist optIndir
   unless indirExists $ do
-    putStrLn $ "ERROR: indir does not exist: " ++ optIndir
+    logErrorIO ("indir does not exist: " ++ optIndir)
     exitWith (ExitFailure 1)
-  putStrLn $ "indir: " ++ optIndir
-  putStrLn $ "outdir: " ++ optOutdir
+  logInfoIO ("indir: " ++ optIndir)
+  logInfoIO ("outdir: " ++ optOutdir)
 
   currentTime <- getCurrentTime
   let currentSeconds = round (utcTimeToPOSIXSeconds currentTime)
@@ -373,13 +379,13 @@ watchForStacks opts@WatchOptions {..} = do
 
 computeInitialState :: WatchOptions -> IO WatchForStacksState
 computeInitialState opts@WatchOptions {..} = do
-  putStrLn "computeInitialState"
+  logInfoIO "computeInitialState"
   indirExists <- doesDirectoryExist optIndir
   unless indirExists $ do
-    putStrLn $ "ERROR: indir does not exist: " ++ optIndir
+    logErrorIO ("indir does not exist: " ++ optIndir)
     exitWith (ExitFailure 1)
-  putStrLn $ "indir: " ++ optIndir
-  putStrLn $ "outdir: " ++ optOutdir
+  logInfoIO ("indir: " ++ optIndir)
+  logInfoIO ("outdir: " ++ optOutdir)
 
   currentTime <- getCurrentTime
   let currentSeconds = round (utcTimeToPOSIXSeconds currentTime)
@@ -393,7 +399,7 @@ computeInitialState opts@WatchOptions {..} = do
 
 importStacksOnce :: WatchOptions -> IO ()
 importStacksOnce opts@WatchOptions {..} = do
-  putStrLn "importStacksOnce"
+  logInfoIO "importStacksOnce"
 
   initialState <- computeInitialState opts
 
@@ -407,19 +413,19 @@ importStacksOnce opts@WatchOptions {..} = do
 
 importStacksFromDevice :: WatchOptions -> IO ()
 importStacksFromDevice initialOpts = do
-  putStrLn "importStacksFromDevice"
+  logInfoIO "importStacksFromDevice"
 
   let indevice = optIndir initialOpts
 
-  putStrLn $ "Mounting device: " ++ indevice
+  logInfoIO ("Mounting device: " ++ indevice)
   (exitCode, mountPointOutput, errOutput) <- readProcessWithExitCode "udisksctl" ["mount", "-b", indevice] ""
   unless (exitCode == ExitSuccess) $ do
-    putStrLn $ "ERROR: Could not mount device " ++ indevice ++ ": " ++ errOutput
+    logErrorIO ("Could not mount device " ++ indevice ++ ": " ++ errOutput)
     exitWith (ExitFailure 1)
 
   -- Extract mount point from output like "Mounted /dev/sdb1 at /media/user/XXXX-XXXX"
   let mountPoint = last (words mountPointOutput)
-  putStrLn $ "Device mounted at: " ++ mountPoint
+  logInfoIO ("Device mounted at: " ++ mountPoint)
 
   let opts =
         initialOpts
@@ -430,11 +436,11 @@ importStacksFromDevice initialOpts = do
   initialState <- computeInitialState opts
 
   let unmountDevice = MTL.liftIO $ do
-        putStrLn "Unmounting device..."
+        logInfoIO "Unmounting device..."
         (unmountCode, _, unmountErr) <- readProcessWithExitCode "udisksctl" ["unmount", "-b", indevice] ""
         if unmountCode == ExitSuccess
-          then putStrLn "Device unmounted."
-          else putStrLn $ "ERROR: Could not unmount device " ++ indevice ++ ": " ++ unmountErr
+          then logInfoIO "Device unmounted."
+          else logErrorIO ("Could not unmount device " ++ indevice ++ ": " ++ unmountErr)
 
   MTL.evalStateT
     ( do
@@ -461,10 +467,10 @@ runMyPhotoWatchForStacks =
       computeStackOpts initialStackOpts stackArgs = do
         let (actions, startImgs, errors) = getOpt RequireOrder options stackArgs
         unless (null errors) $ do
-          mapM_ (IO.hPutStrLn IO.stderr) errors
+          mapM_ logErrorIO errors
           exitWith (ExitFailure 1)
         unless (null startImgs) $ do
-          IO.hPutStrLn IO.stderr "ERROR: No input images expected for watch-for-stacks"
+          logErrorIO "No input images expected for watch-for-stacks"
           exitWith (ExitFailure 1)
         foldl (>>=) (return initialStackOpts) actions
 
@@ -482,7 +488,7 @@ runMyPhotoWatchForStacks =
         let errors' = errors ++ nonOptsErrors
 
         unless (null errors') $ do
-          mapM_ (IO.hPutStrLn IO.stderr) errors'
+          mapM_ logErrorIO errors'
           printHelp
           exitWith (ExitFailure 1)
 

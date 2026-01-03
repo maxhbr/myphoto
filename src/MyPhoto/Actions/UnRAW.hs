@@ -8,7 +8,7 @@ where
 import Control.Monad
 import MyPhoto.Model
 import MyPhoto.Wrapper.DcrawWrapper
-import System.Directory (doesFileExist, removeFile)
+import System.Directory (removeFile)
 
 unrawExtensions :: [String]
 unrawExtensions = [".arw", ".raw", ".nef"]

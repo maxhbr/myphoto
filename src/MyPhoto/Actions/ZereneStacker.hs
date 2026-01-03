@@ -24,7 +24,7 @@ fromFilePath fp = do
 
 toOpts :: ZereneStackerImagePlan -> Maybe FilePath
 toOpts (Planned fp) = Just fp
-toOpts (Done fp) = Nothing
+toOpts (Done _) = Nothing
 toOpts NotPlanned = Nothing
 
 toResult :: ZereneStackerImagePlan -> Maybe FilePath
@@ -37,8 +37,8 @@ isTodo (Planned _) = True
 isTodo (Done _) = False
 isTodo NotPlanned = False
 
-zereneStackerImgs :: Bool -> Bool -> FilePath -> [FilePath] -> IO (Either String [FilePath])
-zereneStackerImgs headless align outputBN imgs = do
+zereneStackerImgs :: Bool -> Bool -> Bool -> FilePath -> [FilePath] -> IO (Either String [FilePath])
+zereneStackerImgs headless verbose align outputBN imgs = do
   pmaxOutput' <- makeAbsolute (outputBN ++ "_zerene-PMax.tif")
   dmapOutput' <- makeAbsolute (outputBN ++ "_zerene-DMap.tif")
 
@@ -52,7 +52,7 @@ zereneStackerImgs headless align outputBN imgs = do
       let opts =
             ZereneStackerOptions
               { _Headless = headless,
-                _Verbose = True,
+                _Verbose = verbose,
                 _Align = align,
                 _PMaxOutput = toOpts pmaxOutput,
                 _DMapOutput = toOpts dmapOutput

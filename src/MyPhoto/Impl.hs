@@ -340,11 +340,12 @@ runEnfuse aligned = step "focus stacking with enfuse" $ do
     Left err -> fail err
     Right enfuseOuts -> addOuts enfuseOuts
 
-runZereneStacker :: Bool -> Bool -> [FilePath] -> MyPhotoM ()
-runZereneStacker headless align imgs = step "focus stacking with Zerene Stacker" $ do
+runZereneStacker :: Bool -> [FilePath] -> MyPhotoM ()
+runZereneStacker align imgs = step "focus stacking with Zerene Stacker" $ do
   outputBN <- getStackOutputBNFromImgs
+  opts <- getOpts
   zereneStackerResult <- do
-    MTL.liftIO $ zereneStackerImgs headless align outputBN imgs
+    MTL.liftIO $ zereneStackerImgs (optZereneStackerHeadless opts) (optVerbose opts) align outputBN imgs
   case zereneStackerResult of
     Left err -> fail err
     Right zereneStackerOuts -> addOuts zereneStackerOuts
@@ -479,9 +480,9 @@ runStackStage =
                     then runFocusStack
                     else runHuginAlign
                 guardWithOpts optEnfuse $ runEnfuse aligned
-                guardWithOpts optZereneStacker $ runZereneStacker (optZereneStackerHeadless opts) False aligned
+                guardWithOpts optZereneStacker $ runZereneStacker False aligned
               else do
-                guardWithOpts optZereneStacker $ getImgs >>= runZereneStacker (optZereneStackerHeadless opts) True
+                guardWithOpts optZereneStacker $ getImgs >>= runZereneStacker True
 
         alignOuts
         maybeExport

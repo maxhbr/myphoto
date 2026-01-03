@@ -5,7 +5,7 @@ let
   pkgs = nixpkgs.legacyPackages.${system};
   lib = pkgs.lib;
 
-in 
+in
 {
   myphoto-docker-in-gcp = pkgs.writeShellApplication {
     name = "myphoto-docker-in-gcp";

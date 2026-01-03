@@ -9,5 +9,5 @@ mkdir -p "$tmpdir"
 echo "tmpdir=$tmpdir"
 
 cd "$tmpdir"
-"$thisdir/myphoto-watch.sh" --offset -1 --cluster-distance 60 --once "$thisdir/PetteriAimonen-focus-stack/examples/pcb" -- --no-breaking
+"$thisdir/myphoto-watch.sh" --offset -1 --cluster-distance 60 --once "$thisdir/PetteriAimonen-focus-stack/examples/pcb" --headless -- --no-breaking
  

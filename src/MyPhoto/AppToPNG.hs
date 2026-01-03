@@ -3,15 +3,11 @@ module MyPhoto.AppToPNG
   )
 where
 
-import Control.Monad (when)
-import Data.Char (toLower)
 import MyPhoto.Actions.UnRAW
 import MyPhoto.Actions.UnTiff
 import MyPhoto.Model
-import System.Directory (removeFile)
 import System.Environment (getArgs, getProgName)
 import System.Exit (exitFailure, exitSuccess)
-import System.FilePath (takeExtension)
 import qualified System.IO as IO
 
 printUsage :: IO ()
