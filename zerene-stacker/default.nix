@@ -10,8 +10,10 @@ let
     set -e
 
     export PATH="${pkgs.coreutils}/bin:$PATH"
+    export LD_LIBRARY_PATH="@libPath@:$LD_LIBRARY_PATH"
+    export FONTCONFIG_FILE="@out@/etc/fonts/fonts.conf"
+    export FONTCONFIG_PATH="@out@/etc/fonts"
 
-    # go through arguments and make file paths absolute
     ABS_ARGS=()
     for arg in "$@"; do
       case $arg in
@@ -29,27 +31,38 @@ let
       esac
     done
 
-    # Zerene Stacker installation directory (will be substituted)
-    ZS_DIR="@out@/opt/zerene-stacker"
+    # Compute memory limit as 80% of available memory
+    TOTAL_MEM_KB=$(${pkgs.procps}/bin/free | ${pkgs.gawk}/bin/awk '/^Mem:/ {print $2}')
+    memoryLimitMB=$((TOTAL_MEM_KB * 80 / 100 / 1024))
+    # Fallback to 16GB if free command fails
+    if [ -z "$memoryLimitMB" ] || [ "$memoryLimitMB" -lt 1000 ]; then
+      memoryLimitMB=16000
+    fi
 
-    # Setup environment
-    export LD_LIBRARY_PATH="@libPath@:$LD_LIBRARY_PATH"
-    export FONTCONFIG_FILE="@out@/etc/fonts/fonts.conf"
-    export FONTCONFIG_PATH="@out@/etc/fonts"
-
-    # Zerene Stacker config directory
     ZS_CONFIG_DIR="$HOME/.ZereneStacker"
     mkdir -p "$ZS_CONFIG_DIR"
 
-    # Direct Java invocation (following SampleLaunchProgram.java approach)
+    JAVA_ARGS=(
+      "-Xmx''${memoryLimitMB}m"
+      "-DjavaBits=64bitJava"
+      "-Dlaunchcmddir=$ZS_CONFIG_DIR"
+      "-classpath"
+      "@out@/opt/zerene-stacker/ZereneStacker.jar:@out@/opt/zerene-stacker/JREextensions/*"
+      "com.zerenesystems.stacker.gui.MainFrame"
+      "-noSplashScreen"
+    )
+
+    if [[ ! -f "$ZS_CONFIG_DIR/zerenstk.launchcmd" ]]; then
+      touch "$ZS_CONFIG_DIR/zerenstk.cfg"
+      touch "$ZS_CONFIG_DIR/zerenstk.launchOK"
+      echo '"@out@/opt/zerene-stacker/jre/bin/java" "''${JAVA_ARGS[@]}"' > "$ZS_CONFIG_DIR/zerenstk.launchcmd"
+    fi
+
+    ZS_DIR="@out@/opt/zerene-stacker"
     cd "$ZS_DIR"
+    set -x
     exec "$ZS_DIR/jre/bin/java" \
-      -Xmx16000m \
-      -DjavaBits=64bitJava \
-      -Dlaunchcmddir="$ZS_CONFIG_DIR" \
-      -classpath "$ZS_DIR/ZereneStacker.jar:$ZS_DIR/JREextensions/*" \
-      com.zerenesystems.stacker.gui.MainFrame \
-      -noSplashScreen \
+      "''${JAVA_ARGS[@]}" \
       @args@ "''${ABS_ARGS[@]}"
   '';
 
@@ -58,6 +71,7 @@ let
     runtimeInputs = [
       pkgs.coreutils
       pkgs.xvfb-run
+      pkgs.xorg.xorgserver
     ];
     text = builtins.readFile ./zerene-stacker-batch.sh;
   };

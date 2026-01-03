@@ -10,5 +10,5 @@ echo "tmpdir=$tmpdir"
 
 cd "$tmpdir"
 mkdir -p "$tmpdir/output"
-"$thisdir/run-myphoto-docker.sh" "$thisdir/PetteriAimonen-focus-stack/examples/pcb" "$tmpdir/output"
+"$thisdir/run-myphoto-docker.sh" "$thisdir/PetteriAimonen-focus-stack/examples/pcb" "$tmpdir/output" --offset -1 --cluster-distance 60 --once -- --no-breaking
  

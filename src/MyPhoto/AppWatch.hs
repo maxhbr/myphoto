@@ -25,6 +25,7 @@ import System.Process (readProcessWithExitCode)
 
 data WatchOptions = WatchOptions
   { optWatchVerbose :: Bool,
+    optWatchHeadless :: Bool,
     optWatchStackOpts :: Options,
     optWatchOnce :: Bool,
     optWatchOnlyImport :: Bool,
@@ -58,6 +59,19 @@ watchOptions =
           (\opt -> return opt {optWatchVerbose = True})
       )
       "Enable verbose messages",
+    Option
+      ""
+      ["headless"]
+      ( NoArg
+          ( \opt ->
+              return
+                opt
+                  { optWatchHeadless = True,
+                    optWatchStackOpts = (optWatchStackOpts opt) {optZereneStackerHeadless = True}
+                  }
+          )
+      )
+      "Enable headless mode (no GUI)",
     Option
       ""
       ["clean"]

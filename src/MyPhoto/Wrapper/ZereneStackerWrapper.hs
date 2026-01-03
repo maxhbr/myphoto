@@ -9,6 +9,7 @@ import System.Process
 
 data ZereneStackerOptions = ZereneStackerOptions
   { _Headless :: Bool,
+    _Verbose :: Bool,
     _Align :: Bool,
     _DMapOutput :: Maybe Img,
     _PMaxOutput :: Maybe Img
@@ -29,5 +30,9 @@ runZereneStacker opts imgs = do
       args = headlessArgs ++ alignArgs ++ pmaxArgs ++ dmapArgs
 
   logDebugIO (unwords ["$ zerene-stacker-batch", unwords args, "[img [img [...]]]"])
-  _ <- readProcess "zerene-stacker-batch" (args ++ imgs) ""
-  return ()
+  if _Verbose opts
+    then do
+      callProcess "zerene-stacker-batch" (args ++ imgs)
+    else do
+      _ <- readProcess "zerene-stacker-batch" (args ++ imgs) ""
+      return ()

@@ -171,7 +171,19 @@
           '';
         };
         inherit (zerene) zerene-stacker;
-        myphoto-docker = pkgs.dockerTools.buildImage {
+        myphoto-docker = let
+            entrypoint = pkgs.writeShellScriptBin "myphoto-docker-entrypoint" ''
+              #!/bin/sh
+              set -euo pipefail
+
+              ${pkgs.coreutils}/bin/mkdir -p /output/tmp
+              ${pkgs.coreutils}/bin/chmod 1777 /output/tmp
+              export TMPDIR=/output/tmp
+
+              exec &> >(${pkgs.coreutils}/bin/tee -a /output/myphoto-docker-entrypoint.log)
+              exec "${self.packages.${system}.myphoto}/bin/myphoto-watch" "--headless" "/input" "/output" "$@"
+            '';
+          in pkgs.dockerTools.buildImage {
           name = "myphoto";
           tag = "latest";
           # copyToRoot = [ pkgs.dockerTools.caCertificates self.packages.${system}.myphoto ] ++ extraLibraries;
@@ -188,17 +200,12 @@
               "LC_ALL=C.UTF-8"
             ];
             Entrypoint = [
-              "${self.packages.${system}.myphoto}/bin/myphoto-watch"
-              "/input"
-              "/output"
+              "${entrypoint}/bin/myphoto-docker-entrypoint"
             ];
             Cmd = [
               "--once"
               "--clean"
               "--offset" "0"
-              "--"
-              "--zerene-stacker-headless"
-              "--no-zerene-stacker"
             ];
             WorkingDir = "/output";
           };

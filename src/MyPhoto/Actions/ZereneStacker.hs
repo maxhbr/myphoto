@@ -43,10 +43,7 @@ zereneStackerImgs headless align outputBN imgs = do
   dmapOutput' <- makeAbsolute (outputBN ++ "_zerene-DMap.tif")
 
   pmaxOutput <- fromFilePath pmaxOutput'
-  dmapOutput <-
-    if headless
-      then return NotPlanned
-      else fromFilePath dmapOutput'
+  dmapOutput <- fromFilePath dmapOutput'
 
   if not (isTodo pmaxOutput) && not (isTodo dmapOutput)
     then do
@@ -55,6 +52,7 @@ zereneStackerImgs headless align outputBN imgs = do
       let opts =
             ZereneStackerOptions
               { _Headless = headless,
+                _Verbose = True,
                 _Align = align,
                 _PMaxOutput = toOpts pmaxOutput,
                 _DMapOutput = toOpts dmapOutput
