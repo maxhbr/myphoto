@@ -34,7 +34,7 @@ focusStackImgs verbose additionalParameters imgs = do
   outputExists <- doesFileExist output
   if outputExists
     then do
-      IO.hPutStrLn IO.stderr $ "INFO: focus-stack output " ++ output ++ " already exists, check that all aligned images are present"
+      logInfoIO ("focus-stack output " ++ output ++ " already exists, check that all aligned images are present")
       computeResultAndCheck options
     else do
       capabilities <- getNumCapabilities
@@ -50,21 +50,21 @@ tryWithBackoff startTime options capabilities strategies =
       either throwIO return result
     (strategy : rest) -> do
       let (strategyOptions, strategyDesc) = applyStrategy options capabilities strategy
-      IO.hPutStrLn IO.stderr $ "INFO: try with " ++ strategyDesc
+      logInfoIO ("try with " ++ strategyDesc)
       result <- try (runFocusStack strategyOptions) :: IO (Either SomeException (FilePath, [FilePath]))
       logFocusStackAttempt strategyOptions capabilities result
       case result of
         Right res -> return res
         Left ex -> do
           currentTime <- getCurrentTime
-          IO.hPutStrLn IO.stderr $ "WARNING: !!!"
-          IO.hPutStrLn IO.stderr $ "WARNING: !!! focus stacking failed with error: " ++ show ex
-          IO.hPutStrLn IO.stderr $ "WARNING: !!! after " ++ show (diffUTCTime currentTime startTime) ++ " seconds"
-          IO.hPutStrLn IO.stderr $ "WARNING: !!!"
+          logWarnIO "!!!"
+          logWarnIO ("!!! focus stacking failed with error: " ++ show ex)
+          logWarnIO ("!!! after " ++ show (diffUTCTime currentTime startTime) ++ " seconds")
+          logWarnIO "!!!"
           if null rest
             then throwIO ex
             else do
-              IO.hPutStrLn IO.stderr $ "INFO: retrying with different strategy"
+              logInfoIO "retrying with different strategy"
               tryWithBackoff startTime options capabilities rest
 
 applyStrategy :: FocusStackOptions -> Int -> (Maybe Int, Maybe Int) -> (FocusStackOptions, String)

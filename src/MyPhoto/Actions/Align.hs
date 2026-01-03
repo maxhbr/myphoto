@@ -42,7 +42,7 @@ callAlignImageStack :: [String] -> String -> [Img] -> IO [Img]
 callAlignImageStack alignArgs prefix imgs =
   let args = alignArgs ++ ["-a", prefix]
    in do
-        putStrLn (unwords ["$ align_image_stack", unwords args, "[img [img [...]]]"])
+        logDebugIO (unwords ["$ align_image_stack", unwords args, "[img [img [...]]]"])
         (_, _, _, pHandle) <- createProcess (proc "align_image_stack" (args ++ imgs))
         exitCode <- waitForProcess pHandle
         when (exitCode /= ExitSuccess) $
@@ -61,11 +61,11 @@ callAlignImageStackByHalves args tmpdir imgs =
           fmap (\(bwd, fwd) -> reverse (tail bwd) ++ fwd) $
             concurrently
               ( do
-                  putStrLn ("align images from " ++ head firstImgs ++ " to " ++ last firstImgs ++ " (#=" ++ show (length firstImgs) ++ ")")
+                  logInfoIO ("align images from " ++ head firstImgs ++ " to " ++ last firstImgs ++ " (#=" ++ show (length firstImgs) ++ ")")
                   callAlignImageStack args (tmpdir </> "bwd_") (reverse firstImgs)
               )
               ( do
-                  putStrLn ("align images from " ++ head lastImgs ++ " to " ++ last lastImgs ++ " (#=" ++ show (length lastImgs) ++ ")")
+                  logInfoIO ("align images from " ++ head lastImgs ++ " to " ++ last lastImgs ++ " (#=" ++ show (length lastImgs) ++ ")")
                   callAlignImageStack args (tmpdir </> "fwd_") lastImgs
               )
 
@@ -96,7 +96,7 @@ growImage (targetW, targetH) wd img = do
   let (bn, ext) = splitExtensions img
       outImg = inWorkdir wd (bn ++ "_GROWN" ++ ext)
       geometryStr = printf "%dx%d" targetW targetH
-  putStrLn ("growing " ++ img ++ " to " ++ geometryStr ++ " into " ++ outImg)
+  logInfoIO ("growing " ++ img ++ " to " ++ geometryStr ++ " into " ++ outImg)
   (_, _, _, pHandle) <-
     createProcess
       ( proc
@@ -161,7 +161,7 @@ align opts wd imgs = do
              ]
 
   when (alignOptVerbose opts) $
-    putStrLn $
+    logInfoIO $
       "aligning "
         ++ show (length imgs)
         ++ " images into working directory "
@@ -188,7 +188,7 @@ align opts wd imgs = do
                         if fnExists
                           then return [fn]
                           else do
-                            putStrLn ("WARN: " ++ msg)
+                            logWarnIO msg
                             return []
               )
               imgsInTmp
@@ -216,7 +216,7 @@ alignSmallerOnTopOfBigger wd bigImg smallImg = do
     fail "alignSmallerOnTopOfBigger: first image must be bigger than second image"
   if bigX == smallX && bigY == smallY
     then do
-      putStrLn "both images are already the same size, no need to grow"
+      logInfoIO "both images are already the same size, no need to grow"
       [_, aligned] <- callAlignImageStack ["-v", "--use-given-order"] "align_" [bigImg, smallImg]
       copyFile aligned out
     else do
@@ -253,7 +253,7 @@ alignSmallerOnTopOfBiggest wd imgs = do
                 catch
                   (alignSmallerOnTopOfBigger wd bigImage img)
                   ( \(e :: SomeException) -> do
-                      putStrLn ("WARN: alignment failed for " ++ img ++ ": " ++ show e)
+                      logWarnIO ("alignment failed for " ++ img ++ ": " ++ show e)
                       return img
                   )
     )

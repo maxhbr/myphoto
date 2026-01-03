@@ -61,10 +61,10 @@ getDcrawArgs opts imgs = do
       >>= addQualityArgs opts
       >>= addOutputFormaArgs
   when (urVerbose opts) $ do
-    putStrLn "dcrawArgs:"
-    print dcrawArgs
-    putStrLn "imgs:"
-    print imgs'
+    logDebugIO "dcrawArgs:"
+    logDebugIO (show dcrawArgs)
+    logDebugIO "imgs:"
+    logDebugIO (show imgs')
   return (dcrawArgs, imgs')
   where
     addVerbosityArgs :: UnRawOptions -> ([String], [Img]) -> IO ([String], [Img])
@@ -96,7 +96,7 @@ unRAW opts imgs = do
   tiffsExist <- mapM doesFileExist expectedTiffs
   if and tiffsExist
     then do
-      when (urVerbose opts) $ putStrLn "All unRAWed TIFFs already exist, skipping dcraw."
+      when (urVerbose opts) $ logInfoIO "All unRAWed TIFFs already exist, skipping dcraw."
       when (urCleanup opts) $
         forM_ (zip imgs' expectedTiffs) $ \(raw, tiff) -> do
           tiffExists <- doesFileExist tiff
@@ -104,13 +104,12 @@ unRAW opts imgs = do
       return expectedTiffs
     else do
       when (or tiffsExist) $
-        putStrLn "Warning: Some, but not all, expected unRAWed TIFFs exist, proceeding to call dcraw anyway."
+        logWarnIO "Some, but not all, expected unRAWed TIFFs exist, proceeding to call dcraw anyway."
       (exitCode, _, _) <- runDcraw (dcrawArgs ++ imgs')
       forM_ expectedTiffs $ \tiff -> do
         exists <- doesFileExist tiff
         unless exists $
-          putStrLn $
-            "Warning: expected unRAWed TIFF " ++ tiff ++ " is missing after dcraw execution"
+          logWarnIO ("expected unRAWed TIFF " ++ tiff ++ " is missing after dcraw execution")
       case exitCode of
         ExitSuccess -> do
           when (urCleanup opts) $

@@ -39,7 +39,7 @@ instance A.FromJSON Metadata where
 
 getMetadataFromImg :: Bool -> Img -> IO Metadata
 getMetadataFromImg verbose img = do
-  when verbose $ putStrLn ("INFO: getting metadata of " ++ img)
+  when verbose $ logInfoIO ("getting metadata of " ++ img)
   exifData <- parseFileExif img
   case exifData of
     Right exif -> do

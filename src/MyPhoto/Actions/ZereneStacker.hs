@@ -6,7 +6,6 @@ where
 import Data.Maybe (catMaybes)
 import MyPhoto.Model
 import MyPhoto.Wrapper.ZereneStackerWrapper
-import qualified System.IO as IO
 
 data ZereneStackerImagePlan
   = Planned FilePath
@@ -47,7 +46,7 @@ zereneStackerImgs headless verbose align outputBN imgs = do
 
   if not (isTodo pmaxOutput) && not (isTodo dmapOutput)
     then do
-      IO.hPutStrLn IO.stderr $ "INFO: Zerene Stacker outputs " ++ (show pmaxOutput) ++ " and " ++ (show dmapOutput) ++ " already exist, check that all aligned images are present"
+      logInfoIO ("Zerene Stacker outputs " ++ show pmaxOutput ++ " and " ++ show dmapOutput ++ " already exist, check that all aligned images are present")
     else do
       let opts =
             ZereneStackerOptions

@@ -201,7 +201,6 @@ insertIntoClusters clusterDistance file clusters =
 
 addFile :: WatchForStacksFile -> WatchForStacksM ()
 addFile file@(WatchForStacksFile p exifTimeSeconds) = do
-  -- MTL.liftIO $ putStrLn $ "addFile: " ++ p ++ " (" ++ show exifTimeSeconds ++ ")"
   wfss@WatchForStacksState {wfsInFileClusters = clusters, wfsOpts = WatchOptions {optClusterDistance = clusterDistance}} <- MTL.get
   let newClusters = insertIntoClusters clusterDistance file clusters
   MTL.put $ wfss {wfsInFileClusters = newClusters}

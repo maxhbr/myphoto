@@ -36,7 +36,7 @@ downscaleImgs pct imgs = do
     else do
       capabilities <- getNumCapabilities
       let actualCapabilities = if capabilities > 4 then capabilities - 4 else capabilities
-      putStrLn $ "Using " ++ show actualCapabilities ++ " (of " ++ show capabilities ++ ") concurrent threads for downscaling"
+      logInfoIO ("Using " ++ show actualCapabilities ++ " (of " ++ show capabilities ++ ") concurrent threads for downscaling")
       pb <- newImgsProgressBar imgs
       sem <- MS.new actualCapabilities
       mapConcurrently

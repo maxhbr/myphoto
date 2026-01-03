@@ -38,7 +38,7 @@ computImgsVecs :: Int -> FilePath -> [Img] -> IO [(Img, [Int])]
 computImgsVecs size tmpdir imgs = do
   capabilities <- getNumCapabilities
   let actualCapabilities = if capabilities > 4 then capabilities - 4 else capabilities
-  putStrLn $ "Using " ++ show actualCapabilities ++ " (of " ++ show capabilities ++ ") concurrent threads for outlier detection"
+  logInfoIO ("Using " ++ show actualCapabilities ++ " (of " ++ show capabilities ++ ") concurrent threads for outlier detection")
   sem <- MS.new actualCapabilities
   pb <- newImgsProgressBar imgs
   mapConcurrently
@@ -68,15 +68,15 @@ rmOutliers workdir imgs =
               then do
                 fmap ((img, dist) :) (dropByDistances maxDist imgsWithVecs curVec)
               else do
-                putStrLn ("drop " ++ img ++ " with dist " ++ show dist)
+                logWarnIO ("drop " ++ img ++ " with dist " ++ show dist)
                 dropByDistances maxDist imgsWithVecs lastVec
       printStatsOnDists :: [(Img, Double)] -> IO ()
       printStatsOnDists imgsWithoutOutliers =
         let dists = V.fromList (map snd imgsWithoutOutliers)
          in do
-              putStrLn $ "Variance = " ++ show (S.variance dists)
-              putStrLn $ "Standard deviation = " ++ show (S.stdDev dists)
-              putStrLn $ "Mean = " ++ show (S.mean dists)
+              logDebugIO ("Variance = " ++ show (S.variance dists))
+              logDebugIO ("Standard deviation = " ++ show (S.stdDev dists))
+              logDebugIO ("Mean = " ++ show (S.mean dists))
    in do
         withTempDirectory
           workdir

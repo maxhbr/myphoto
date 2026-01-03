@@ -26,7 +26,7 @@ unHeifImpl1 removeHeif img =
    in do
         exists <- doesFileExist outImg
         unless exists $ do
-          putStrLn (img ++ " --> " ++ outImg)
+          logInfoIO (img ++ " --> " ++ outImg)
           (_, _, _, pHandle) <- createProcess (proc "heif-convert" (args ++ [img, outImg]))
           exitCode <- waitForProcess pHandle
           unless (exitCode == ExitSuccess) $

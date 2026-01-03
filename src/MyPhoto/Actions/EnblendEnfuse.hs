@@ -74,19 +74,19 @@ enfuseStackImgs =
         outFileExists <- doesFileExist outFile
         if outFileExists
           then do
-            putStrLn ("#### " ++ outFile ++ " already exists, skipping")
+            logInfoIO ("#### " ++ outFile ++ " already exists, skipping")
             return (Right [outFile])
           else do
-            putStrLn ("#### calculate " ++ outFile ++ "...")
+            logInfoIO ("#### calculate " ++ outFile ++ "...")
 
             let workdir = outFile -<.> "workdir"
             createDirectoryIfMissing True workdir
 
-            putStrLn ("##### compute Chunks ...")
+            logDebugIO "##### compute Chunks ..."
             let chunks = mkChunks (eeaChunk opts) imgs
-            putStrLn ("##### chunks: " ++ showChunkTree chunks)
+            logDebugIO ("##### chunks: " ++ showChunkTree chunks)
 
-            putStrLn ("##### resolve Chunks ...")
+            logDebugIO "##### resolve Chunks ..."
             let (bn, ext) = splitExtensions (takeFileName outFile)
             let bnInWorkdir = workdir </> bn
             result <-
@@ -106,13 +106,13 @@ enfuseStackImgs =
               Left err -> do
                 return (Left err)
    in \opts imgs -> do
-        print opts
+        logDebugIO (show opts)
         numCapabilities <- getNumCapabilities
         let numThreads =
               if eeaConcurrent opts
                 then min numCapabilities (eeaMaxCapabilities opts)
                 else 1
-        when (eeaConcurrent opts) $ putStrLn ("#### use " ++ show numThreads ++ " threads")
+        when (eeaConcurrent opts) $ logInfoIO ("#### use " ++ show numThreads ++ " threads")
         sem <- MS.new numThreads -- semathore to limit number of parallel threads
         if eeaAll opts
           then do

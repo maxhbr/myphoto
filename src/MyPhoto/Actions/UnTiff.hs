@@ -35,7 +35,7 @@ unTiffImpl1 img =
    in do
         exists <- doesFileExist png
         unless exists $ do
-          putStrLn (img ++ " --> " ++ png)
+          logInfoIO (img ++ " --> " ++ png)
           (_, _, _, pHandle) <- createProcess (proc "magick" (args ++ [img, png]))
           exitCode <- waitForProcess pHandle
           unless (exitCode == ExitSuccess) $

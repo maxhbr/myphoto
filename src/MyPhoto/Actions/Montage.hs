@@ -18,7 +18,7 @@ montage xySize outputFileBN imgs =
    in do
         alreadyExists <- doesFileExist outputFile
         if alreadyExists
-          then putStrLn ("previously generated " ++ outputFile)
+          then logInfoIO ("previously generated " ++ outputFile)
           else do
             (_, _, _, pHandle) <-
               createProcess
