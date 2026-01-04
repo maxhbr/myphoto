@@ -43,15 +43,18 @@ let
     fi
 
     if [ -z "$HOME" ] || [ ! -d "$HOME" ]; then
-      ZS_CONFIG_DIR="$(mktemp -d)"
-    else
-      ZS_CONFIG_DIR="$HOME/.ZereneStacker"
+      echo "HOME environment variable is not set or points to a non-existing directory." >&2
+      exit 1
     fi
+    USER_NAME="''${USER:-root}"
+    ZS_CONFIG_DIR="$HOME/.ZereneStacker"
     mkdir -p "$ZS_CONFIG_DIR"
 
     JAVA_ARGS=(
       "-Xmx''${memoryLimitMB}m"
       "-DjavaBits=64bitJava"
+      "-Duser.home=$HOME"
+      "-Duser.name=$USER_NAME"
       "-Dlaunchcmddir=$ZS_CONFIG_DIR"
       "-classpath"
       "@out@/opt/zerene-stacker/ZereneStacker.jar:@out@/opt/zerene-stacker/JREextensions/*"
@@ -114,7 +117,6 @@ let
     ZS_DIR="@out@/opt/zerene-stacker"
     cd "$ZS_DIR"
     set -x
-    env
     exec "$ZS_DIR/jre/bin/java" \
       "''${JAVA_ARGS[@]}" \
       "''${ABS_ARGS[@]}"

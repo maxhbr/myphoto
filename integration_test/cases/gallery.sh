@@ -6,6 +6,7 @@ case_dir="$(dirname "$(readlink -f "$0")")"
 . "$case_dir/../harness.sh"
 
 tmpdir="$(mk_tmp gallery clean)"
+exec &> >(tee "$tmpdir.log")
 log "tmpdir=$tmpdir"
 
 examples="$(pcb_examples_dir)"
