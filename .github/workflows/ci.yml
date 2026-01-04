@@ -43,10 +43,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        script:
-          - test/test_stack_with_pcb_example.sh
-          - test/test_watch_with_pcb_example.sh
-          - test/test_gallery_with_pcb_exampls.sh
+        case:
+          - stack
+          - watch
+          - gallery
+          - docker
+          - zerene-stacker-batch-headless
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -58,4 +60,4 @@ jobs:
         run: |
           set -euo pipefail
           nix build .#myphoto
-          "./${{ matrix.script }}"
+          ./integration_test/run.sh "${{ matrix.case }}"
