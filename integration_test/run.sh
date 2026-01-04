@@ -53,6 +53,9 @@ for case in "${cases[@]}"; do
   if [[ "$case" != *.sh ]]; then
     case="$case.sh"
   fi
+  echo
+  echo
+  echo "=== Running case: $case ==="
   if [[ ! -x "$cases_dir/$case" ]]; then
     echo "missing case: $cases_dir/$case" >&2
     exit 1

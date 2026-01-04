@@ -67,10 +67,9 @@ let
     ZS_DIR="@out@/opt/zerene-stacker"
     cd "$ZS_DIR"
     set -x
-    env
     exec "$ZS_DIR/jre/bin/java" \
       "''${JAVA_ARGS[@]}" \
-      @args@ "''${ABS_ARGS[@]}"
+      "''${ABS_ARGS[@]}"
   '';
 
   zerene-stacker-batch = pkgs.writeShellApplication {
@@ -83,6 +82,7 @@ let
   zerene-stacker-batch-headless = pkgs.writeShellApplication ( rec {
     name = "zerene-stacker-batch-headless";
     runtimeInputs = [
+      pkgs.coreutils
       pkgs.bash
       pkgs.xvfb-run
       pkgs.xorg.xorgserver
@@ -178,8 +178,7 @@ in
       cp ${zerene-stacker-script-template} $out/bin/zerene-stacker
       substituteInPlace $out/bin/zerene-stacker \
         --replace-fail '@out@' "$out" \
-        --replace-fail '@libPath@' '${pkgs.lib.makeLibraryPath buildInputs}' \
-        --replace-fail '@args@' ""
+        --replace-fail '@libPath@' '${pkgs.lib.makeLibraryPath buildInputs}'
       chmod +x $out/bin/zerene-stacker
 
       makeWrapper ${zerene-stacker-batch}/bin/zerene-stacker-batch \

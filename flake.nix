@@ -173,24 +173,49 @@
         inherit (zerene) zerene-stacker;
         myphoto-docker =
           let
-            entrypoint = pkgs.writeShellScriptBin "myphoto-docker-entrypoint" ''
-              #!/bin/sh
+            XKB_CONFIG_ROOT = "/usr/share/X11/xkb";
+            XKB_BIN_DIR = "/usr/bin";
+            XORG_FONT_PATH = "${pkgs.xorg.fontmiscmisc}/share/fonts/X11/misc,${pkgs.dejavu_fonts}/share/fonts/truetype";
+            XORG_PREFIX = "${pkgs.xorg.xorgserver}";
+            entrypoint = pkgs.writeShellScriptBin "entrypoint" ''
+              #!${pkgs.stdenv.shell}
               set -euo pipefail
-              exec &> >(${pkgs.coreutils}/bin/tee -a /output/myphoto-docker-entrypoint.log)
-              exec "${
-                self.packages.${system}.myphoto
-              }/bin/myphoto-watch" "--verbose" "--headless" "/input" "/output" "$@"
+              DISPLAY=:99
+              export DISPLAY
+              set -x
+              ${XORG_PREFIX}/bin/Xvfb "$DISPLAY" \
+                -screen 0 1920x1080x24 \
+                -nolisten tcp \
+                -ac \
+                -xkbdir ${XKB_CONFIG_ROOT} \
+                -fp ${XORG_FONT_PATH} \
+                2>/tmp/Xvfb.log &
+              xvfb_pid=$!
+              ${pkgs.coreutils}/bin/sleep 1
+              ${ self.packages.${system}.myphoto }/bin/myphoto-watch --verbose /input /output "$@"
+              kill "$xvfb_pid" 2>/dev/null || true
             '';
           in
           pkgs.dockerTools.buildImage {
             name = "myphoto";
             tag = "latest";
-            # copyToRoot = [ pkgs.dockerTools.caCertificates self.packages.${system}.myphoto ] ++ extraLibraries;
+            copyToRoot = [
+              pkgs.bash
+              pkgs.coreutils
+              pkgs.xkeyboard_config
+              pkgs.xorg.fontmiscmisc
+              pkgs.dejavu_fonts
+              pkgs.xorg.xauth
+              pkgs.xorg.xkbcomp
+              pkgs.xorg.xorgserver
+            ];
             extraCommands = ''
               mkdir -p input
               mkdir -p output
               mkdir -p tmp tmp/.X11-unix
               chmod 1777 tmp tmp/.X11-unix
+              mkdir -p usr/bin usr/share/X11
+              ln -s ${pkgs.xkeyboard_config}/share/X11/xkb usr/share/X11/xkb
             '';
             config = {
               Labels = {
@@ -202,9 +227,12 @@
                 "XDG_RUNTIME_DIR=/tmp"
                 "LANG=C.UTF-8"
                 "LC_ALL=C.UTF-8"
+                "XKB_CONFIG_ROOT=${XKB_CONFIG_ROOT}"
+                "XORG_FONT_PATH=${XORG_FONT_PATH}"
+                "XORG_PREFIX=${XORG_PREFIX}"
               ];
               Entrypoint = [
-                "${entrypoint}/bin/myphoto-docker-entrypoint"
+                "${entrypoint}/bin/entrypoint"
               ];
               Cmd = [
                 "--once"
