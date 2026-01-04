@@ -17,7 +17,7 @@ data ZereneStackerOptions = ZereneStackerOptions
 
 runZereneStacker :: ZereneStackerOptions -> Imgs -> IO ()
 runZereneStacker opts imgs = do
-  let headlessArgs = if _Headless opts then ["--headless"] else []
+  let cmd = if _Headless opts then "zerene-stacker-batch-headless" else "zerene-stacker-batch"
       alignArgs = if not (_Align opts) then ["--already-aligned"] else []
       pmaxArgs =
         case _PMaxOutput opts of
@@ -27,12 +27,12 @@ runZereneStacker opts imgs = do
         case _DMapOutput opts of
           Just dmapOutput -> ["--dmap-output", dmapOutput]
           Nothing -> ["--no-dmap"]
-      args = headlessArgs ++ alignArgs ++ pmaxArgs ++ dmapArgs
+      args = alignArgs ++ pmaxArgs ++ dmapArgs
 
-  logDebugIO (unwords ["$ zerene-stacker-batch", unwords args, "[img [img [...]]]"])
+  logDebugIO (unwords ["$" , cmd, unwords args, "[img [img [...]]]"])
   if _Verbose opts
     then do
-      callProcess "zerene-stacker-batch" (args ++ imgs)
+      callProcess cmd (args ++ imgs)
     else do
-      _ <- readProcess "zerene-stacker-batch" (args ++ imgs) ""
+      _ <- readProcess cmd (args ++ imgs) ""
       return ()

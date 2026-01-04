@@ -7,7 +7,6 @@ Usage: $0 [OPTIONS] IMG1 IMG2 ...
        $0 [OPTIONS] DIR
 
 Options:
-  --headless                                    Run in headless mode (with xvfb-run)
   --project-file FILE                           Use specific project file
   --already-aligned                             Skip alignment step
   --no-pmax                                     Disable PMax stacking method
@@ -27,7 +26,6 @@ if [ "$#" -lt 1 ] || [ "$1" == "--help" ]; then
   exit 1
 fi
 
-HEADLESS="false"
 PREFIX=""
 PROJECT_FILE=""
 DO_NOT_ALIGN="false"
@@ -42,10 +40,6 @@ POSITIONAL=()
 while [[ $# -gt 0 ]]; do
   key="$1"
   case $key in
-    --headless)
-      HEADLESS="true"
-      shift # past argument
-      ;;
     --project-file)
       PROJECT_FILE="$(readlink -f "$2")"
       shift # past argument
@@ -230,21 +224,7 @@ main() {
   mkXml |tee "$xml"
 
   echo "DEBUG: $ zerene-stacker -batchScript $xml $EXIT_ARG ..." >&2
-  if [ "$HEADLESS" == "true" ]; then
-    echo "DEBUG: running in headless mode" >&2
-    set -x
-    xvfb-run -a \
-      -e /tmp/xvfb-run.log \
-      -s "-screen 0 1920x1080x24 -nolisten tcp -ac -xkbdir $XKB_CONFIG_ROOT -fp $XORG_FONT_PATH" \
-      --wait=5 \
-      zerene-stacker -batchScript "$xml" $EXIT_ARG "${POSITIONAL[@]}" || {
-        code=$?
-        cat /tmp/xvfb-run.log
-        exit $code
-      }
-  else
-    exec zerene-stacker -batchScript "$xml" $EXIT_ARG "${POSITIONAL[@]}"
-  fi
+  exec zerene-stacker -batchScript "$xml" $EXIT_ARG "${POSITIONAL[@]}"
 }
 
 main

@@ -252,6 +252,10 @@
           type = "app";
           program = "${self.packages.${system}.zerene-stacker}/bin/zerene-stacker-batch";
         };
+        zerene-stacker-batch-headless = {
+          type = "app";
+          program = "${self.packages.${system}.zerene-stacker}/bin/zerene-stacker-batch-headless";
+        };
       };
 
       formatter.${system} =

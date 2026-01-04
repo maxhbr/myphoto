@@ -44,7 +44,7 @@ let
     if [ -z "$HOME" ] || [ ! -d "$HOME" ]; then
       ZS_CONFIG_DIR="$(mktemp -d)"
     else
-      ZS_CONFIG_DIR="$HOME/.ZereneStacker2"
+      ZS_CONFIG_DIR="$HOME/.ZereneStacker"
     fi
     mkdir -p "$ZS_CONFIG_DIR"
 
@@ -77,6 +77,13 @@ let
     name = "zerene-stacker-batch";
     runtimeInputs = [
       pkgs.coreutils
+    ];
+    text = builtins.readFile ./zerene-stacker-batch.sh;
+  };
+  zerene-stacker-batch-headless = pkgs.writeShellApplication ( rec {
+    name = "zerene-stacker-batch-headless";
+    runtimeInputs = [
+      pkgs.bash
       pkgs.xvfb-run
       pkgs.xorg.xorgserver
       pkgs.xorg.xkbcomp
@@ -92,8 +99,20 @@ let
       XORG_FONT_PATH = "${pkgs.xorg.fontmiscmisc}/share/fonts/X11/misc,${pkgs.dejavu_fonts}/share/fonts/truetype";
       XORG_PREFIX = "${pkgs.xorg.xorgserver}";
     };
-    text = builtins.readFile ./zerene-stacker-batch.sh;
-  };
+    text = ''
+      #!${pkgs.stdenv.shell}
+      set -e
+      ${pkgs.xvfb-run}/bin/xvfb-run -a \
+        -e /tmp/xvfb-run.log \
+        -s "-screen 0 1920x1080x24 -nolisten tcp -ac -xkbdir ${runtimeEnv.XKB_CONFIG_ROOT} -fp ${runtimeEnv.XORG_FONT_PATH}" \
+        --wait=5 \
+        ${zerene-stacker-batch}/bin/zerene-stacker-batch "$@" || {
+          code=$?
+          cat /tmp/xvfb-run.log
+          exit $code
+        }
+    '';
+  });
 in
 {
   zerene-stacker = pkgs.stdenv.mkDerivation rec {
@@ -165,6 +184,9 @@ in
 
       makeWrapper ${zerene-stacker-batch}/bin/zerene-stacker-batch \
         $out/bin/zerene-stacker-batch \
+        --prefix PATH : $out/bin
+      makeWrapper ${zerene-stacker-batch-headless}/bin/zerene-stacker-batch-headless \
+        $out/bin/zerene-stacker-batch-headless \
         --prefix PATH : $out/bin
     '';
 

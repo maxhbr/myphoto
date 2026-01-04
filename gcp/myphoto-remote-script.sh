@@ -4,6 +4,7 @@ set -euo pipefail
 INPUT_BUCKET_PATH="$1"
 OUTPUT_BUCKET_PATH="$2"
 IMAGE_TAR="$3"
+LEVELS="${4:-2}"
 
 sudo mkdir -p /data/input /data/workdir /data/output
 sudo chown -R "$USER":"$USER" /data
@@ -31,18 +32,28 @@ if [[ "$IMAGE_TAR" == gs://* ]]; then
   IMAGE_TAR="$(basename "$IMAGE_TAR")"
 fi
 sudo docker load -i "$IMAGE_TAR"
-sudo docker run --rm \
-  -e LANG=C.UTF-8 \
-  -e LC_ALL=C.UTF-8 \
-  -v /data/input:/input:ro \
-  -v /data/workdir:/output \
-  myphoto:latest
 
-find /data/workdir -maxdepth 2 -type f -print0 | 
-  while IFS= read -r -d '' file; do
-    dest="/data/output/$(basename "$file")"
-    mkdir -p "$(dirname "$dest")"
-    cp "$file" "$dest"
-  done
+if [ "$LEVELS" -gt 0 ]; then
+  sudo docker run --rm \
+    -e LANG=C.UTF-8 \
+    -e LC_ALL=C.UTF-8 \
+    -v /data/input:/input:ro \
+    -v /data/workdir:/output \
+    myphoto:latest
+
+  find /data/workdir -maxdepth "$LEVELS" -type f -print0 | 
+    while IFS= read -r -d '' file; do
+      dest="/data/output/$(basename "$file")"
+      mkdir -p "$(dirname "$dest")"
+      cp "$file" "$dest"
+    done
+else
+  sudo docker run --rm \
+    -e LANG=C.UTF-8 \
+    -e LC_ALL=C.UTF-8 \
+    -v /data/input:/input:ro \
+    -v /data/output:/output \
+    myphoto:latest
+fi
 
 gsutil -m rsync -r /data/output "$OUTPUT_BUCKET_PATH"
