@@ -29,9 +29,13 @@ pcb_examples_dir() {
 mk_tmp() {
   local name="$1"
   local clean="${2:-}"
+  local tmpdirInTmp="/tmp/myphoto-integration-tests"
+  mkdir -p "$tmpdirInTmp"
   local root
   root="$(repo_root)"
-  local tmp="$root/_tmp_${name}"
+  local tmpdirInRoot="$root/_integration_tests"
+  ln -sfn "$tmpdirInTmp" "$tmpdirInRoot"
+  local tmp="$root/_integration_tests/${name}"
   if [[ "$clean" == "clean" ]]; then
     rm -rf "$tmp"
   fi

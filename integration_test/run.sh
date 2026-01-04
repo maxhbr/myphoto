@@ -57,5 +57,8 @@ for case in "${cases[@]}"; do
     echo "missing case: $cases_dir/$case" >&2
     exit 1
   fi
-  "$cases_dir/$case" "${extra[@]}"
+  if ! "$cases_dir/$case" "${extra[@]}"; then
+    echo "failed case: $case" >&2
+    exit 1
+  fi
 done
