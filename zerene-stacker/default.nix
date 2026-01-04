@@ -90,6 +90,7 @@ let
       XKB_CONFIG_ROOT = "${pkgs.xkeyboard_config}/share/X11/xkb";
       XKB_BIN_DIR = "${pkgs.xorg.xkbcomp}/bin";
       XORG_FONT_PATH = "${pkgs.xorg.fontmiscmisc}/share/fonts/X11/misc,${pkgs.dejavu_fonts}/share/fonts/truetype";
+      XORG_PREFIX = "${pkgs.xorg.xorgserver}";
     };
     text = builtins.readFile ./zerene-stacker-batch.sh;
   };
