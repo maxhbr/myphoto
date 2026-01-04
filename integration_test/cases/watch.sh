@@ -12,5 +12,5 @@ examples="$(pcb_examples_dir)"
 require_dir "$examples"
 
 cd "$tmpdir"
-"$(repo_root)/myphoto-watch.sh" --offset -1 --cluster-distance 60 --once "$examples" --headless -- --no-breaking
+"$(repo_root)/myphoto-watch.sh" --offset -1 --cluster-distance 60 --once "$examples" -- --no-breaking
  

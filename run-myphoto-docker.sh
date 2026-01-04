@@ -20,7 +20,7 @@ mkdir -p "$OUTPUT_DIR"
 OUTPUT_DIR=$(realpath "$OUTPUT_DIR")
 IMAGE_REF="myphoto:latest"
 
-load_image() {
+load_image() (
   local image="$(nix build "$myphotodir#myphoto-docker" --no-link --print-out-paths)"
 
   tmpdir=$(mktemp -d)
@@ -37,15 +37,22 @@ load_image() {
 }
 JSON
 
+  set -x
   podman load --signature-policy "$policyfile" -i "$image"
-}
+)
 
-run_image() {
+run_image() (
+  local docker_extra_args=""
+  if [[ -f "$HOME/.ZereneStacker/LicenseKey.txt" ]]; then
+    docker_extra_args+=" -v $HOME/.ZereneStacker/LicenseKey.txt:/root/.ZereneStacker/LicenseKey.txt:ro"
+  fi
+  set -x
   podman run --rm \
     -v "$INPUT_DIR":/input:ro \
     -v "$OUTPUT_DIR":/output \
+    $docker_extra_args \
     "$IMAGE_REF" $extra_args
-}
+)
 
 load_image
 run_image

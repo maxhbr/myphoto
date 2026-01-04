@@ -182,6 +182,7 @@
               set -euo pipefail
               DISPLAY=:99
               export DISPLAY
+              exec &> >(${pkgs.coreutils}/bin/tee -a /output/entrypoint.log)
               set -x
               ${XORG_PREFIX}/bin/Xvfb "$DISPLAY" \
                 -screen 0 1920x1080x24 \
@@ -192,6 +193,17 @@
                 2>/tmp/Xvfb.log &
               xvfb_pid=$!
               ${pkgs.coreutils}/bin/sleep 1
+
+              make_xwd_screenshots() (
+                set +x
+                mkdir -p /output/_xwd
+                while : ; do
+                  ${pkgs.xorg.xwd}/bin/xwd -root -display $DISPLAY -silent -out /output/screenshot.xwd
+                  ${pkgs.coreutils}/bin/sleep 10
+                done
+              )
+              make_xwd_screenshots &
+
               ${ self.packages.${system}.myphoto }/bin/myphoto-watch --verbose /input /output "$@"
               kill "$xvfb_pid" 2>/dev/null || true
             '';
@@ -208,12 +220,13 @@
               pkgs.xorg.xauth
               pkgs.xorg.xkbcomp
               pkgs.xorg.xorgserver
+              pkgs.xorg.xwd
             ];
             extraCommands = ''
               mkdir -p input
               mkdir -p output
-              mkdir -p tmp tmp/.X11-unix
-              chmod 1777 tmp tmp/.X11-unix
+              mkdir -p tmp root/.X11-unix
+              chmod 1777 tmp root/.X11-unix
               mkdir -p usr/bin usr/share/X11
               ln -s ${pkgs.xkeyboard_config}/share/X11/xkb usr/share/X11/xkb
             '';
@@ -223,8 +236,8 @@
               };
               Env = [
                 "TMPDIR=/tmp"
-                "HOME=/tmp"
-                "XDG_RUNTIME_DIR=/tmp"
+                "HOME=/root"
+                "XDG_RUNTIME_DIR=/root"
                 "LANG=C.UTF-8"
                 "LC_ALL=C.UTF-8"
                 "XKB_CONFIG_ROOT=${XKB_CONFIG_ROOT}"

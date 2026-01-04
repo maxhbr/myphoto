@@ -35,7 +35,8 @@ let
 
     # Compute memory limit as 80% of available memory
     TOTAL_MEM_KB=$(free | awk '/^Mem:/ {print $2}')
-    memoryLimitMB=$((TOTAL_MEM_KB * 80 / 100 / 1024))
+    memoryMB=$((TOTAL_MEM_KB / 1024))
+    memoryLimitMB=$((memoryMB * 80 / 100))
     # Fallback to 16GB if free command fails
     if [ -z "$memoryLimitMB" ] || [ "$memoryLimitMB" -lt 1000 ]; then
       memoryLimitMB=16000
@@ -58,15 +59,62 @@ let
       "-noSplashScreen"
     )
 
+    if [[ ! -f "$ZS_CONFIG_DIR/zerenstk.cfg" ]]; then
+      cat <<EOF > "$ZS_CONFIG_DIR/zerenstk.cfg"
+    #Zerene Stacker configuration
+    #Sun Jan 04 12:21:36 CET 2026
+    AutoUpdateCheck.IntervalInDays=0.0
+    AutoUpdateCheck.LastKnownBuild=1.04 Build T2024-11-18-1210
+    ColorManagement.InputOption.AssumedProfile=sRGB IEC61966-2.1
+    ColorManagement.InputOption=Use_EXIF_and_DCF_rules
+    ColorManagement.OutputOption=CopyInput
+    ComputerConfiguration.PhysicalMemory=''${memoryMB}
+    DepthMapControl.EstimationRadius=10
+    DepthMapControl.SaveDepthMapImageDirectory={project}/DepthMaps
+    DepthMapControl.SmoothingRadius=5
+    DepthMapControl.UsedPixelFractionThreshold=0.5
+    LaunchConfiguration.HeapSize.64bitJava=''${memoryLimitMB}
+    NewProject.PlacementStrategy=InApplicationDefaultDirectory
+    RetouchingBrush.ShowBrushes=false
+    RetouchingBrush.Type=Details
+    SaveImage.BitsPerColor=8
+    SaveImage.CompressionQuality=0.75
+    SaveImage.CompressionType=none
+    SaveImage.FileType=jpg
+    SaveImage.RescaleImageToAvoidOverflow=false
+    ScreenLayout.Bounds=0,0,1000,1000
+    ScreenLayout.ExtendedState=0
+    ScreenLayout.FilesDivider.Location=1281
+    ScreenLayout.FontsScale=1.0
+    ScreenLayout.MainDivider.Location=265
+    ScreenLayout.OutputImageWindow.Bounds=762,0,762,1841
+    ScreenLayout.OutputImageWindow.ImageScale=1.0
+    ScreenLayout.OutputImageWindow.ImageScaleFitToWindow=false
+    ScreenLayout.OutputImageWindow.Maximized=false
+    ScreenLayout.ResetLayoutForEachProject=true
+    ScreenLayout.ResetScaleForEachProject=true
+    ScreenLayout.SourceImageWindow.Bounds=0,0,762,1841
+    ScreenLayout.SourceImageWindow.ImageScale=1.0
+    ScreenLayout.SourceImageWindow.ImageScaleFitToWindow=false
+    ScreenLayout.SourceImageWindow.Maximized=false
+    SkewSequence.NumberOfOutputImages=3
+    SkewSequence.ShiftXPct.Limit1=-3.0
+    SkewSequence.ShiftXPct.Limit2=3.0
+    SkewSequence.ShiftYPct.Limit1=0.0
+    SkewSequence.ShiftYPct.Limit2=0.0
+    Slabbing.FramesPerOverlap=3
+    SourceFileChooser.LastDirectory=/tmp
+    UIStyle.ShowIntermediateOutputInterval=0.0
+    EOF
+    fi
     if [[ ! -f "$ZS_CONFIG_DIR/zerenstk.launchcmd" ]]; then
-      touch "$ZS_CONFIG_DIR/zerenstk.cfg"
-      touch "$ZS_CONFIG_DIR/zerenstk.launchOK"
-      echo '"@out@/opt/zerene-stacker/jre/bin/java" "''${JAVA_ARGS[@]}"' > "$ZS_CONFIG_DIR/zerenstk.launchcmd"
+      echo '"@out@/opt/zerene-stacker/jre/bin/java" "'"''${JAVA_ARGS[@]}"'"' |tee "$ZS_CONFIG_DIR/zerenstk.launchcmd"
     fi
 
     ZS_DIR="@out@/opt/zerene-stacker"
     cd "$ZS_DIR"
     set -x
+    env
     exec "$ZS_DIR/jre/bin/java" \
       "''${JAVA_ARGS[@]}" \
       "''${ABS_ARGS[@]}"
