@@ -232,8 +232,16 @@ main() {
   echo "DEBUG: $ zerene-stacker -batchScript $xml $EXIT_ARG ..." >&2
   if [ "$HEADLESS" == "true" ]; then
     echo "DEBUG: running in headless mode" >&2
-    exec xvfb-run -a \
-      zerene-stacker -batchScript "$xml" $EXIT_ARG "${POSITIONAL[@]}"
+    set -x
+    xvfb-run -a \
+      -e /tmp/xvfb-run.log \
+      -s "-screen 0 1920x1080x24 -nolisten tcp -ac -xkbdir $XKB_CONFIG_ROOT -fp $XORG_FONT_PATH" \
+      --wait=5 \
+      zerene-stacker -batchScript "$xml" $EXIT_ARG "${POSITIONAL[@]}" || {
+        code=$?
+        cat /tmp/xvfb-run.log
+        exit $code
+      }
   else
     exec zerene-stacker -batchScript "$xml" $EXIT_ARG "${POSITIONAL[@]}"
   fi

@@ -10,6 +10,8 @@ let
     set -e
 
     export PATH="${pkgs.coreutils}/bin:$PATH"
+    export PATH="${pkgs.procps}/bin:$PATH"
+    export PATH="${pkgs.gawk}/bin:$PATH"
     export LD_LIBRARY_PATH="@libPath@:$LD_LIBRARY_PATH"
     export FONTCONFIG_FILE="@out@/etc/fonts/fonts.conf"
     export FONTCONFIG_PATH="@out@/etc/fonts"
@@ -32,14 +34,18 @@ let
     done
 
     # Compute memory limit as 80% of available memory
-    TOTAL_MEM_KB=$(${pkgs.procps}/bin/free | ${pkgs.gawk}/bin/awk '/^Mem:/ {print $2}')
+    TOTAL_MEM_KB=$(free | awk '/^Mem:/ {print $2}')
     memoryLimitMB=$((TOTAL_MEM_KB * 80 / 100 / 1024))
     # Fallback to 16GB if free command fails
     if [ -z "$memoryLimitMB" ] || [ "$memoryLimitMB" -lt 1000 ]; then
       memoryLimitMB=16000
     fi
 
-    ZS_CONFIG_DIR="$HOME/.ZereneStacker"
+    if [ -z "$HOME" ] || [ ! -d "$HOME" ]; then
+      ZS_CONFIG_DIR="$(mktemp -d)"
+    else
+      ZS_CONFIG_DIR="$HOME/.ZereneStacker2"
+    fi
     mkdir -p "$ZS_CONFIG_DIR"
 
     JAVA_ARGS=(
@@ -61,6 +67,7 @@ let
     ZS_DIR="@out@/opt/zerene-stacker"
     cd "$ZS_DIR"
     set -x
+    env
     exec "$ZS_DIR/jre/bin/java" \
       "''${JAVA_ARGS[@]}" \
       @args@ "''${ABS_ARGS[@]}"
@@ -72,7 +79,18 @@ let
       pkgs.coreutils
       pkgs.xvfb-run
       pkgs.xorg.xorgserver
+      pkgs.xorg.xkbcomp
+      pkgs.xkeyboard_config
+      pkgs.xorg.xkeyboardconfig
+      pkgs.xorg.fontmiscmisc
+      pkgs.dejavu_fonts
+      pkgs.fontconfig
     ];
+    runtimeEnv = {
+      XKB_CONFIG_ROOT = "${pkgs.xkeyboard_config}/share/X11/xkb";
+      XKB_BIN_DIR = "${pkgs.xorg.xkbcomp}/bin";
+      XORG_FONT_PATH = "${pkgs.xorg.fontmiscmisc}/share/fonts/X11/misc,${pkgs.dejavu_fonts}/share/fonts/truetype";
+    };
     text = builtins.readFile ./zerene-stacker-batch.sh;
   };
 in

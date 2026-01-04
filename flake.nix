@@ -198,6 +198,8 @@
               };
               Env = [
                 "TMPDIR=/tmp"
+                "HOME=/tmp"
+                "XDG_RUNTIME_DIR=/tmp"
                 "LANG=C.UTF-8"
                 "LC_ALL=C.UTF-8"
               ];
