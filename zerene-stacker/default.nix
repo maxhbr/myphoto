@@ -170,7 +170,7 @@ in
     version = "2024-11-18-1210";
 
     src = pkgs.fetchurl {
-      url = "https://zerenesystems.com/stacker/downloads/ZS-Linux-Intel-64bit-T2024-11-18-1210.zip";
+      url = "https://zerenesystems.com/stacker/downloads/ZS-Linux-Intel-64bit-T${version}.zip";
       sha256 = "0biwhmy1h09n1mply30dbqg7nyykq9m1xd50ylck9rghl8rl3jww";
     };
 

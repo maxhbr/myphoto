@@ -17,6 +17,7 @@ Usage: $0 \
   [--image-project <project>] \
   [--input-prefix <prefix>] \
   [--output-prefix <prefix>] \
+  [--self-delete] \
   [--keep-vm] \
   [--keep-bucket]
 EOF
@@ -38,6 +39,7 @@ INPUT_PREFIX="${VM_NAME}-input"
 OUTPUT_PREFIX="${VM_NAME}-output"
 KEEP_VM="no"
 KEEP_BUCKET="no"
+SELF_DELETE="no"
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -54,6 +56,7 @@ while [ $# -gt 0 ]; do
     --image-project) IMAGE_PROJECT="$2"; shift 2 ;;
     --input-prefix) INPUT_PREFIX="$2"; shift 2 ;;
     --output-prefix) OUTPUT_PREFIX="$2"; shift 2 ;;
+    --self-delete) SELF_DELETE="yes"; shift 1 ;;
     --keep-vm) KEEP_VM="yes"; shift 1 ;;
     --keep-bucket) KEEP_BUCKET="yes"; shift 1 ;;
     -h|--help) usage; exit 0 ;;
@@ -146,7 +149,7 @@ gcloud compute scp "@REMOTE_SCRIPT@" "$VM_NAME:~/myphoto-remote.sh" \
 gcloud compute ssh "$VM_NAME" \
   --project "$PROJECT" \
   --zone "$ZONE" \
-  --command "bash ~/myphoto-remote.sh '$INPUT_BUCKET_PATH' '$OUTPUT_BUCKET_PATH' ~/myphoto-docker.tar"
+  --command "SELF_DELETE='$SELF_DELETE' bash ~/myphoto-remote.sh '$INPUT_BUCKET_PATH' '$OUTPUT_BUCKET_PATH' ~/myphoto-docker.tar"
 
 mkdir -p "$OUTPUT_DIR"
 gsutil -m rsync -r "$OUTPUT_BUCKET_PATH" "$OUTPUT_DIR"
