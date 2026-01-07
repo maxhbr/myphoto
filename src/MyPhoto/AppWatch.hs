@@ -101,6 +101,20 @@ watchOptions =
       "Only import images, no processing",
     Option
       ""
+      ["no-import"]
+      ( NoArg
+          ( \opt -> do
+              when (optWatchOnlyImport opt) $
+                fail "Cannot use --no-import and --only-import together"
+              return
+                opt
+                  { optWatchStackOpts = (optWatchStackOpts opt) {optWorkdirStrategy = WorkdirStrategyOverwrite  (optOutdir opt)}
+                  }
+          )
+      )
+      "Do not import images, only process existing imports",
+    Option
+      ""
       ["raw"]
       ( NoArg
           ( \opt ->
@@ -128,6 +142,18 @@ watchOptions =
           "HOURS"
       )
       "Time offset in hours (default: 12, 0 to import all)",
+    Option
+      ""
+      ["all"]
+      ( NoArg
+          ( \opt -> do
+              return
+                opt
+                  { optOffset = 0
+                  }
+          )
+      )
+      "Import all images, no time offset",
     Option
       "h"
       ["help"]

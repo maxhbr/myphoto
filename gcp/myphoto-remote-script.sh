@@ -1,23 +1,33 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-INPUT_BUCKET_PATH="$1"
-OUTPUT_BUCKET_PATH="$2"
+INPUT_BUCKET="$1"
+OUTPUT_BUCKET="$2"
 IMAGE_TAR="$3"
 LEVELS="${4:-2}"
+
+TIMEOUT="${TIMEOUT:-24}"
 
 sudo mkdir -p /data/input /data/workdir /data/output
 sudo chown -R "$USER":"$USER" /data
 
 exec &> >(tee -a /data/output/myphoto-gcp-remote-script.log)
 
-sudo systemd-run --on-active=24h /sbin/shutdown -h now
-sudo systemd-run --on-active=23h --unit myphoto-self-delete /bin/bash -c \
+cat <<EOF
+ INPUT_BUCKET: $INPUT_BUCKET
+OUTPUT_BUCKET: $OUTPUT_BUCKET
+    IMAGE_TAR: $IMAGE_TAR
+       LEVELS: $LEVELS
+      TIMEOUT: $TIMEOUT (h)
+EOF
+
+sudo systemd-run --on-active=$((TIMEOUT + 1))h /sbin/shutdown -h now
+sudo systemd-run --on-active=${TIMEOUT}h --unit myphoto-self-delete /bin/bash -c \
   'set +e
   instance_name="$(curl -fsS -H "Metadata-Flavor: Google" \
     "http://metadata/computeMetadata/v1/instance/name")"
   zone="$(curl -fsS -H "Metadata-Flavor: Google" \
-    "http://metadata/computeMetadata/v1/instance/zone" | awk -F/ "{print \$NF}")"
+    "http://metadata/computeMetadata/v1/instance/zone" | awk -F/ "{print $NF}")"
   project="$(curl -fsS -H "Metadata-Flavor: Google" \
     "http://metadata/computeMetadata/v1/project/project-id")"
   gcloud compute instances delete "$instance_name" \
@@ -39,7 +49,9 @@ sudo systemctl enable --now docker
 
 set -x
 
-gsutil -m rsync -r "$INPUT_BUCKET_PATH" /data/input
+gsutil -m rsync -r "$INPUT_BUCKET" /data/input
+
+gsutil -m rm -r "$INPUT_BUCKET" || true
 
 if [[ "$IMAGE_TAR" == gs://* ]]; then
   gsutil cp "$IMAGE_TAR" .
@@ -70,7 +82,7 @@ else
     myphoto:latest
 fi
 
-gsutil -m rsync -r /data/output "$OUTPUT_BUCKET_PATH"
+gsutil -m rsync -r /data/output "$OUTPUT_BUCKET"
 
 if [ "${SELF_DELETE:-no}" = "yes" ]; then
   (

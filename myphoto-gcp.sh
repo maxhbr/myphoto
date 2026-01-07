@@ -13,10 +13,15 @@ fi
 INPUT_DIR="$1"
 OUTPUT_DIR="$2"
 
-exec nix run "$myphotodir#myphoto-docker-in-gcp" -- \
-    --project $PROJECT \
-    --region $REGION \
-    --zone $ZONE \
-    --bucket $BUCKET \
-    --input-dir $INPUT_DIR \
-    --output-dir $OUTPUT_DIR
+args=();
+args+=(--project "$PROJECT")
+args+=(--region "$REGION")
+args+=(--zone "$ZONE")
+if [[ "$1" == "gs://"* ]]; then
+    args+=(--input-bucket "$INPUT_DIR")
+else
+    args+=(--input-dir "$INPUT_DIR")
+fi
+args+=(--output-dir "$OUTPUT_DIR")
+
+exec nix run "$myphotodir#myphoto-docker-in-gcp" -- "${args[@]}"

@@ -10,7 +10,6 @@ Usage: $0 \
   --bucket <bucket-name> \
   --input-dir <local-input-dir> \
   --output-dir <local-output-dir> \
-  [--vm <vm-name>] \
   [--machine-type <type>] \
   [--disk-size <size>] \
   [--image-family <family>] \
@@ -26,17 +25,14 @@ EOF
 PROJECT=""
 REGION=""
 ZONE=""
-BUCKET=""
 INPUT_DIR=""
 OUTPUT_DIR=""
+INPUT_BUCKET=""
 
-VM_NAME="myphoto-gcp-$(date +%Y%m%d-%H%M%S)"
 MACHINE_TYPE="n2-standard-32"
 DISK_SIZE="500GB"
 IMAGE_FAMILY="debian-12"
 IMAGE_PROJECT="debian-cloud"
-INPUT_PREFIX="${VM_NAME}-input"
-OUTPUT_PREFIX="${VM_NAME}-output"
 KEEP_VM="no"
 KEEP_BUCKET="no"
 SELF_DELETE="no"
@@ -46,16 +42,13 @@ while [ $# -gt 0 ]; do
     --project) PROJECT="$2"; shift 2 ;;
     --region) REGION="$2"; shift 2 ;;
     --zone) ZONE="$2"; shift 2 ;;
-    --bucket) BUCKET="$2"; shift 2 ;;
     --input-dir) INPUT_DIR="$2"; shift 2 ;;
     --output-dir) OUTPUT_DIR="$2"; shift 2 ;;
-    --vm) VM_NAME="$2"; shift 2 ;;
+    --input-bucket) INPUT_BUCKET="$2"; shift 2 ;;
     --machine-type) MACHINE_TYPE="$2"; shift 2 ;;
     --disk-size) DISK_SIZE="$2"; shift 2 ;;
     --image-family) IMAGE_FAMILY="$2"; shift 2 ;;
     --image-project) IMAGE_PROJECT="$2"; shift 2 ;;
-    --input-prefix) INPUT_PREFIX="$2"; shift 2 ;;
-    --output-prefix) OUTPUT_PREFIX="$2"; shift 2 ;;
     --self-delete) SELF_DELETE="yes"; shift 1 ;;
     --keep-vm) KEEP_VM="yes"; shift 1 ;;
     --keep-bucket) KEEP_BUCKET="yes"; shift 1 ;;
@@ -64,19 +57,24 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-if [ -z "$PROJECT" ] || [ -z "$REGION" ] || [ -z "$ZONE" ] || [ -z "$BUCKET" ]; then
+if [ -z "$PROJECT" ] || [ -z "$REGION" ] || [ -z "$ZONE" ]; then
   echo "Missing required GCP parameters." >&2
   usage
   exit 1
 fi
 
-if [ -z "$INPUT_DIR" ] || [ -z "$OUTPUT_DIR" ]; then
+if [ -z "$INPUT_BUCKET" ] && [ -z "$INPUT_DIR" ]; then
+  echo "Either --input-bucket or --input-dir must be specified." >&2
+  usage
+  exit 1
+fi
+if [ -z "$OUTPUT_DIR" ]; then
   echo "Missing input/output directories." >&2
   usage
   exit 1
 fi
 
-if [ ! -d "$INPUT_DIR" ]; then
+if [ -n "$INPUT_DIR" ] && [ ! -d "$INPUT_DIR" ]; then
   echo "Input directory does not exist: $INPUT_DIR" >&2
   exit 1
 fi
@@ -88,6 +86,14 @@ cleanup_vm() {
       --project "$PROJECT" \
       --zone "$ZONE" \
       --quiet || true
+  fi
+}
+
+cleanup_vm_and_input_bucket() {
+  cleanup_vm
+  if [ -n "$INPUT_BUCKET" ] && [ "$KEEP_BUCKET" = "no" ]; then
+    echo "cleaning up input bucket: $INPUT_BUCKET"
+    gsutil -m rm -r "$INPUT_BUCKET" || true
   fi
 }
 
@@ -112,20 +118,51 @@ wait_for_ssh() (
   return 1
 )
 
-trap cleanup_vm EXIT
+set_up_bucket() {
+  local bucket_name="$1"
+  local initial_content="${2:-}"
+  if ! gsutil ls -b "$bucket_name" >/dev/null 2>&1; then
+    gsutil mb -p "$PROJECT" -l "$REGION" "$bucket_name"
+    gcloud storage buckets update --clear-soft-delete "$bucket_name" || true
+  else
+    echo "Bucket already exists: $bucket_name"
+  fi
+  if [ -n "$initial_content" ]; then
+    # only input gets label
+    gcloud storage buckets update "$bucket_name" \
+      --project "$PROJECT" \
+      --update-labels "run=$LABEL_VALUE,date=$DATE"
+
+    gsutil -m rsync -r "$initial_content" "$bucket_name"
+  fi
+}
+
+if [ -n "$INPUT_DIR" ]; then
+  SIZE=$(find "$INPUT_DIR" -type f | wc -l)
+else
+  SIZE=gs
+fi
+DATE=$(date +%Y%m%d-%H%M%S)
+VM_NAME="myphoto-$DATE-$SIZE"
+LABEL_VALUE="$(printf '%s' "$VM_NAME" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9_-]+/-/g; s/^-+//; s/-+$//')"
+if [ -z "$LABEL_VALUE" ]; then
+  LABEL_VALUE="run"
+fi
+
+if [ -z "$INPUT_BUCKET" ]; then
+  INPUT_BUCKET="gs://$VM_NAME-input/"
+  set_up_bucket "$INPUT_BUCKET" "$INPUT_DIR"
+  trap cleanup_vm_and_input_bucket EXIT
+else
+  trap cleanup_vm EXIT
+fi
+OUTPUT_BUCKET="gs://myphoto-output/"
+set_up_bucket "$OUTPUT_BUCKET"
+OUTPUT_BUCKET_PATH="${OUTPUT_BUCKET}${VM_NAME}/"
+
 
 set -x
 
-if ! gsutil ls -b "gs://$BUCKET" >/dev/null 2>&1; then
-  gsutil mb -p "$PROJECT" -l "$REGION" "gs://$BUCKET"
-else
-  echo "Bucket already exists: $BUCKET"
-fi
-
-INPUT_BUCKET_PATH="gs://$BUCKET/$INPUT_PREFIX/"
-OUTPUT_BUCKET_PATH="gs://$BUCKET/$OUTPUT_PREFIX/"
-
-gsutil -m rsync -r "$INPUT_DIR" "$INPUT_BUCKET_PATH"
 
 gcloud compute instances create "$VM_NAME" \
   --project "$PROJECT" \
@@ -134,6 +171,7 @@ gcloud compute instances create "$VM_NAME" \
   --boot-disk-size "$DISK_SIZE" \
   --image-family "$IMAGE_FAMILY" \
   --image-project "$IMAGE_PROJECT" \
+  --labels "run=$LABEL_VALUE,date=$DATE" \
   --scopes "https://www.googleapis.com/auth/cloud-platform"
 
 wait_for_ssh
@@ -149,12 +187,11 @@ gcloud compute scp "@REMOTE_SCRIPT@" "$VM_NAME:~/myphoto-remote.sh" \
 gcloud compute ssh "$VM_NAME" \
   --project "$PROJECT" \
   --zone "$ZONE" \
-  --command "SELF_DELETE='$SELF_DELETE' bash ~/myphoto-remote.sh '$INPUT_BUCKET_PATH' '$OUTPUT_BUCKET_PATH' ~/myphoto-docker.tar"
+  --command "SELF_DELETE='$SELF_DELETE' bash ~/myphoto-remote.sh '$INPUT_BUCKET' '$OUTPUT_BUCKET_PATH' ~/myphoto-docker.tar"
+
+cleanup_vm_and_input_bucket || true
 
 mkdir -p "$OUTPUT_DIR"
 gsutil -m rsync -r "$OUTPUT_BUCKET_PATH" "$OUTPUT_DIR"
 
-if [ "$KEEP_BUCKET" = "no" ]; then
-  gsutil -m rm -r "$INPUT_BUCKET_PATH" || true
-  gsutil -m rm -r "$OUTPUT_BUCKET_PATH" || true
-fi
+times

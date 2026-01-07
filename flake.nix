@@ -177,6 +177,17 @@
             XKB_BIN_DIR = "/usr/bin";
             XORG_FONT_PATH = "${pkgs.xorg.fontmiscmisc}/share/fonts/X11/misc,${pkgs.dejavu_fonts}/share/fonts/truetype";
             XORG_PREFIX = "${pkgs.xorg.xorgserver}";
+            # mk_screenshots = ''
+            #   make_xwd_screenshots() (
+            #     set +x
+            #     mkdir -p /output/_xwd
+            #     while : ; do
+            #       ${pkgs.xorg.xwd}/bin/xwd -root -display $DISPLAY -silent -out /output/screenshot.xwd
+            #       ${pkgs.coreutils}/bin/sleep 10
+            #     done
+            #   )
+            #   make_xwd_screenshots &
+            # '';
             entrypoint = pkgs.writeShellScriptBin "entrypoint" ''
               #!${pkgs.stdenv.shell}
               set -euo pipefail
@@ -193,17 +204,6 @@
                 2>/tmp/Xvfb.log &
               xvfb_pid=$!
               ${pkgs.coreutils}/bin/sleep 1
-
-              make_xwd_screenshots() (
-                set +x
-                mkdir -p /output/_xwd
-                while : ; do
-                  ${pkgs.xorg.xwd}/bin/xwd -root -display $DISPLAY -silent -out /output/screenshot.xwd
-                  ${pkgs.coreutils}/bin/sleep 10
-                done
-              )
-              make_xwd_screenshots &
-
               ${ self.packages.${system}.myphoto }/bin/myphoto-watch --verbose /input /output "$@"
               kill "$xvfb_pid" 2>/dev/null || true
             '';
@@ -248,10 +248,9 @@
                 "${entrypoint}/bin/entrypoint"
               ];
               Cmd = [
+                "--all"
                 "--once"
                 "--clean"
-                "--offset"
-                "0"
               ];
               WorkingDir = "/output";
             };
