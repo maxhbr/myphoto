@@ -3,7 +3,7 @@
 
 module CmdImport (runImport, runUpdate, runImportWithOpts, parseImportArgs, ImportOpts (..)) where
 
-import Control.Concurrent.Async (mapConcurrently)
+import Control.Concurrent.Async.Pool (withTaskGroup, mapTasks)
 import Control.Exception (SomeException, try)
 import Control.Monad (forM_, unless, when)
 import qualified Crypto.Hash as Hash
@@ -15,6 +15,7 @@ import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
 import Data.Time.Clock (UTCTime, getCurrentTime)
 import Data.Time.Format (defaultTimeLocale, formatTime)
+import GHC.Conc (getNumCapabilities)
 import Model
   ( ImportedMeta (..),
     PhotoMeta (..),
@@ -264,7 +265,9 @@ loadImportedSummaries dir = do
 createScaledGallery :: FilePath -> Int -> Int -> [(FilePath, PhotoMeta, String)] -> IO [(FilePath, PhotoMeta, String)]
 createScaledGallery outDir width height summaries = do
   pb <- newImgsProgressBar summaries
-  results <- mapConcurrently (go pb) summaries
+  capabilities <- getNumCapabilities
+  let poolSize = min 6 $ max 1 (capabilities `div` 2)
+  results <- withTaskGroup poolSize $ \tg -> mapTasks tg (map (go pb) summaries)
   pure (catMaybes results)
   where
     go pb (src, meta, srcHash) = do

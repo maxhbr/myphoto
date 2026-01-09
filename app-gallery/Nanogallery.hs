@@ -3,14 +3,19 @@
 
 module Nanogallery (writeNanogalleries, computeThumbnails, computeOneThumbnail) where
 
-import Control.Concurrent.Async (mapConcurrently)
+import Control.Concurrent.Async.Pool (withTaskGroup, mapTasks)
 import Control.Exception (SomeException, try)
 import Data.Aeson ((.=))
 import qualified Data.Aeson as A
 import qualified Data.ByteString.Lazy as BL
 import Data.FileEmbed (embedFile)
 import qualified Data.Set as Set
+import GHC.Conc (getNumCapabilities)
 import Model (PhotoMeta (..))
+import MyPhoto.Utils.ProgressBar
+  ( incProgress,
+    newImgsProgressBar,
+  )
 import Network.HTTP.Simple (getResponseBody, httpLBS, parseRequestThrow)
 import System.Directory (createDirectoryIfMissing, doesFileExist)
 import System.FilePath
@@ -34,10 +39,15 @@ writeNanogalleries root summaries = do
 
 -- | Enrich summaries with optional thumbnail paths under $root/.thumbnail/<md5>.jpg.
 computeThumbnails :: FilePath -> [(FilePath, PhotoMeta, String)] -> IO [(FilePath, PhotoMeta, Maybe FilePath, String)]
-computeThumbnails root summaries = mapConcurrently addThumb summaries
+computeThumbnails root summaries = do
+  pb <- newImgsProgressBar summaries
+  capabilities <- getNumCapabilities
+  let poolSize = min 6 $ max 1 (capabilities `div` 2)
+  withTaskGroup poolSize $ \tg -> mapTasks tg (map (addThumb pb) summaries)
   where
-    addThumb (metaPath, meta, md5sum) = do
+    addThumb pb (metaPath, meta, md5sum) = do
       thumb <- computeOneThumbnail root metaPath md5sum
+      pb `incProgress` 1
       pure (metaPath, meta, thumb, md5sum)
 
 renderPage :: BL.ByteString

@@ -125,6 +125,7 @@ executable myphoto-gallery
                       optparse-applicative,
                       process,
                       async,
+                      async-pool,
                       http-conduit,
                       file-embed,
                       template-haskell,
