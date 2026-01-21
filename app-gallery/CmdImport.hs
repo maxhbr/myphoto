@@ -336,7 +336,8 @@ createScaledImage outDir width height (src, meta, srcHash) = let
         pure (destExists && cached == Just srcHash)
       createScaled = do
               createDirectoryIfMissing True (takeDirectory scaled)
-              let resizeArg = show width ++ "x" ++ show height ++ ">"
+              let maxDimension = max width height
+              let resizeArg = show maxDimension ++ "x" ++ show maxDimension ++ ">"
               res <-
                 try
                   ( callProcess
@@ -364,20 +365,30 @@ createScaledImage outDir width height (src, meta, srcHash) = let
                   putStrLn $ "[" ++ outDir ++ "] Wrote " <> scaled
                   pure True
   in do
+    let successReturnValue = Just (scaledRel, meta, srcHash)
+        failureReturnValue = Nothing
     srcExists <- doesFileExist src
-    scaledExists <- doesFileExist scaled
-    destHashUpToDate <- matchesHash
-    success <- if (srcExists && (not scaledExists || not destHashUpToDate))
-      then createScaled
-      else if  (not srcExists)
-        then do
-          hPutStrLn stderr ("[" ++ outDir ++ "] Source missing, skipping: " <> src)
-          pure False
-        else pure scaledExists
+    if not srcExists
+      then do
+        hPutStrLn stderr ("[" ++ outDir ++ "] Source missing, skipping: " <> src)
+        pure failureReturnValue
+      else do
+        scaledExists <- doesFileExist scaled
 
-    pure $ if success
-      then Just (scaledRel, meta, srcHash)
-      else Nothing
+        success  <- if scaledExists
+          then do
+            destHashUpToDate <- matchesHash
+            if destHashUpToDate
+              then pure True
+              else do
+                hPutStrLn stderr ("[" ++ outDir ++ "] Scaled image outdated, recreating: " <> scaled)
+                createScaled
+          else do
+            hPutStrLn stderr ("[" ++ outDir ++ "] Scaled image missing, will create: " <> scaled)
+            createScaled
+        pure $ if success
+          then successReturnValue
+          else failureReturnValue
 
 findImportedFiles :: FilePath -> IO [FilePath]
 findImportedFiles dir = do

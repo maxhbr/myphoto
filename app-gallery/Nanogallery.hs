@@ -81,7 +81,7 @@ computeOneThumbnail root imgPath md5sum = do
     then pure (Just thumbPath)
     else do
       createDirectoryIfMissing True thumbDir
-      res <- try (callProcess "magick" [imgPath, "-resize", "250x250^", "-gravity", "center", "-extent", "250x250", thumbPath]) :: IO (Either SomeException ())
+      res <- try (callProcess "magick" [root </> imgPath, "-resize", "250x250^", "-gravity", "center", "-extent", "250x250", thumbPath]) :: IO (Either SomeException ())
       case res of
         Left _ -> pure Nothing
         Right _ -> pure (Just thumbPath)
