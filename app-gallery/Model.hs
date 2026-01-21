@@ -20,8 +20,10 @@ where
 
 import Control.Applicative ((<|>))
 import Data.Bifunctor (first)
+import qualified Data.Map as Map
 import Data.Maybe (fromMaybe)
 import qualified Data.Set as Set
+import qualified Data.Text as Text
 import qualified Data.Text.IO as TIO
 import System.FilePath (isAbsolute, makeRelative, takeDirectory, (</>))
 import qualified Toml
@@ -79,16 +81,20 @@ data PhotoMetaPayload = PhotoMetaPayload
   deriving (Show, Eq)
 
 data GalleryConfig = GalleryConfig
-  { ignoredTags :: [String],
-    ignoredImgs :: [FilePath]
+  { ignoredTags :: Set.Set String,
+    ignoredImgs :: Set.Set FilePath,
+    remappedTags :: Map.Map String String,
+    remappedPaths :: Map.Map FilePath FilePath
   }
   deriving (Show, Eq)
 
 defaultGalleryConfig :: GalleryConfig
 defaultGalleryConfig =
   GalleryConfig
-    { ignoredTags = [],
-      ignoredImgs = []
+    { ignoredTags = Set.fromList ["Misc"],
+      ignoredImgs = mempty,
+      remappedTags = mempty,
+      remappedPaths = mempty
     }
 
 data ImportedMetaPayload = ImportedMetaPayload
@@ -218,9 +224,14 @@ fromImportedPayload tomlPath payload =
 
 galleryConfigCodec :: Toml.TomlCodec GalleryConfig
 galleryConfigCodec =
-  GalleryConfig
-    <$> Toml.dimap Just (fromMaybe []) (Toml.dioptional (Toml.arrayOf Toml._String "ignoredTags")) Toml..= ignoredTags
-    <*> Toml.dimap Just (fromMaybe []) (Toml.dioptional (Toml.arrayOf Toml._String "ignoredImgs")) Toml..= ignoredImgs
+  let trimQuotes = Text.strip . Text.dropAround (== '"')
+      toTextMap = Map.mapKeys Text.pack . Map.map Text.pack
+      fromTextMap = Map.mapKeys (Text.unpack . trimQuotes) . Map.map (Text.unpack . trimQuotes)
+   in GalleryConfig
+        <$> Toml.dimap Set.toList Set.fromList (Toml.arrayOf Toml._String "ignoredTags") Toml..= ignoredTags
+        <*> Toml.dimap Set.toList Set.fromList (Toml.arrayOf Toml._String "ignoredImgs") Toml..= ignoredImgs
+        <*> Toml.dimap toTextMap fromTextMap (Toml.tableMap Toml._KeyText Toml.text "remappedTags") Toml..= remappedTags
+        <*> Toml.dimap toTextMap fromTextMap (Toml.tableMap Toml._KeyText Toml.text "remappedPaths") Toml..= remappedPaths
 
 renderErrors :: [Toml.TomlDecodeError] -> String
 renderErrors =

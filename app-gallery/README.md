@@ -68,3 +68,35 @@ where `original` is the computed `PhotoMeta`. This only gets written and overwri
 #### Step 2.b: Compute Metadata
 
 Find all `.imported.toml` and parse them.
+
+### Gallery Configuration
+
+The gallery can be configured using a `myphoto.gallery.toml` file in the gallery root directory. Initialize it with `myphoto-gallery init`.
+
+The configuration model:
+```hs
+data GalleryConfig = GalleryConfig
+  { ignoredTags :: Set.Set String -- tags to filter out from gallery
+  , ignoredImgs :: Set.Set FilePath -- image paths to exclude from gallery
+  , remappedTags :: Map.Map String String -- tag remapping (old -> new)
+  , remappedPaths :: Map.Map FilePath FilePath -- path remapping (old -> new)
+  }
+  deriving (Show, Eq)
+```
+
+Example `myphoto.gallery.toml`:
+```toml
+ignoredTags = ["Draft", "Private", "Test"]
+ignoredImgs = ["2024-01_-_Project/debug.png", "2024-02_-_Trip/outtake.jpg"]
+
+[remappedTags]
+"Macro" = "Close-up"
+"BW" = "Black & White"
+"Pano" = "Panorama"
+
+[remappedPaths]
+"2024-01_-_Old_Name" = "2024-01_-_New_Name"
+"temp" = "2024-12_-_Misc"
+```
+
+The configuration is applied during the update step, filtering out ignored items and applying remappings before generating the gallery output.

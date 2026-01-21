@@ -1,7 +1,7 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module CmdImport (runImport, runUpdate, runImportWithOpts, parseImportArgs, ImportOpts (..)) where
+module CmdImport (runImport, runUpdate, runImportInit, runImportWithOpts, parseImportArgs, ImportOpts (..)) where
 
 import Control.Concurrent.Async.Pool (withTaskGroup, mapTasks)
 import Control.Exception (SomeException, try)
@@ -10,6 +10,7 @@ import qualified Crypto.Hash as Hash
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
 import Data.List (isPrefixOf, isSuffixOf)
+import qualified Data.Map as Map
 import Data.Maybe (catMaybes)
 import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
@@ -18,13 +19,17 @@ import Data.Time.Format (defaultTimeLocale, formatTime)
 import GHC.Conc (getNumCapabilities)
 import Model
   ( ImportedMeta (..),
+    GalleryConfig (..),
     PhotoMeta (..),
     defaultDirMeta,
+    defaultGalleryConfig,
     loadImportedMeta,
+    loadGalleryConfig,
     loadPhotoMeta,
     mergeMeta,
     resolveAboutPaths,
     writeImportedMeta,
+    writeGalleryConfig,
   )
 import MyPhoto.Utils.ProgressBar
   ( incProgress,
@@ -48,6 +53,7 @@ import System.FilePath
     takeDirectory,
     takeFileName,
     (</>),
+    (-<.>),
   )
 import System.IO (hPutStrLn, stderr)
 import System.Process (callProcess)
@@ -60,6 +66,9 @@ importedSuffix = ".myphoto.imported.toml"
 
 galleryBasePath :: FilePath
 galleryBasePath = "./gallery"
+
+galleryConfigPath :: FilePath
+galleryConfigPath = "./myphoto.gallery.toml"
 
 data ImportOpts = ImportOpts
   { ioDryRun :: Bool,
@@ -87,6 +96,7 @@ runImport dir = runImportWithOpts ImportOpts {ioDryRun = False, ioDir = dir}
 
 runImportWithOpts :: ImportOpts -> IO ()
 runImportWithOpts ImportOpts {ioDryRun, ioDir} = do
+  cfg <- loadGalleryConfigOrDie
   let dir = ioDir
   ok <- doesDirectoryExist dir
   unless ok (die ("Directory not found: " <> dir))
@@ -102,15 +112,52 @@ runImportWithOpts ImportOpts {ioDryRun, ioDir} = do
             importOne ioDryRun rootDir metadataFile
             pb `incProgress` 1
         )
-  runUpdate ioDryRun
+  runUpdateWithConfig ioDryRun cfg
 
 runUpdate :: Bool -> IO ()
 runUpdate ioDryRun = do
+  cfg <- loadGalleryConfigOrDie
+  runUpdateWithConfig ioDryRun cfg
+
+runImportInit :: IO ()
+runImportInit = do
+  exists <- doesFileExist galleryConfigPath
+  when exists (die ("Gallery config already exists: " <> galleryConfigPath))
+  writeGalleryConfig galleryConfigPath defaultGalleryConfig
+  putStrLn ("Wrote gallery config: " <> galleryConfigPath)
+
+
+applyCfg :: GalleryConfig -> [(FilePath, PhotoMeta, a)] -> [(FilePath, PhotoMeta, a)]
+applyCfg cfg = map apply
+  where
+    apply (imgPath, meta, a) =
+      let remappedTags' = remappedTags cfg
+          remappedPaths' = remappedPaths cfg
+          ignoredTagsSet = ignoredTags cfg
+          ignoredImgsSet = ignoredImgs cfg
+          remapTag tag = Map.findWithDefault tag tag remappedTags'
+          remapPath path = Map.findWithDefault path path remappedPaths'
+          meta' = meta {
+                    tags = Set.map remapTag (Set.filter (`Set.notMember` ignoredTagsSet) (tags meta)),
+                    path = fmap remapPath (path meta),
+                    ignore = if (Maybe.fromMaybe False (ignore meta)) || (Maybe.isJust (img meta) && Set.member (Maybe.fromMaybe "" (img meta)) ignoredImgsSet)
+                              then Just True
+                              else Nothing  
+                  }
+       in (imgPath, meta', a)
+
+runUpdateWithConfig :: Bool -> GalleryConfig -> IO ()
+runUpdateWithConfig ioDryRun cfg = do
   directoryExists <- doesDirectoryExist galleryBasePath
   unless directoryExists (die ("Gallery directory not found: " <> galleryBasePath))
 
-  summaries <- loadImportedSummaries galleryBasePath
+  summaries <- applyCfg cfg <$> loadImportedSummaries galleryBasePath
   let summaries' = filter (\(_, meta, _) -> ignore meta /= Just True) summaries
+
+  let uniqueTags = Set.toList $ Set.unions $ map (\(_, meta, _) -> tags meta) summaries'
+  putStrLn $ "Found " ++ show (length summaries') ++ " imported images with " ++ show (length uniqueTags) ++ " unique tags."
+  putStrLn $ "Unique tags: " ++ show uniqueTags
+
   when (not ioDryRun) $ do
     writeNanogalleries galleryBasePath summaries'
     (createScaledGallery "_4k" 3840 2160 summaries') >>= writeNanogalleries "./_4k"
@@ -267,56 +314,70 @@ createScaledGallery outDir width height summaries = do
   pb <- newImgsProgressBar summaries
   capabilities <- getNumCapabilities
   let poolSize = min 6 $ max 1 (capabilities `div` 2)
-  results <- withTaskGroup poolSize $ \tg -> mapTasks tg (map (go pb) summaries)
+  results <- let
+      go summary = do
+                          ret <- createScaledImage outDir width height summary
+                          pb `incProgress` 1
+                          pure ret
+    in withTaskGroup poolSize $ \tg -> mapTasks tg (map go summaries)
   pure (catMaybes results)
-  where
-    go pb (src, meta, srcHash) = do
-      let rel = makeRelative "." src
-          dest = outDir </> rel
-          hashPath = dest <> ".md5"
-      exists <- doesFileExist src
-      ret <-
-        if not exists
-          then do
-            hPutStrLn stderr ("[" ++ outDir ++ "] Source missing, skipping: " <> src)
-            pure Nothing
-          else do
-            cached <- readHash hashPath
-            destExists <- doesFileExist dest
-            if destExists && cached == Just srcHash
-              then pure (Just (src, meta, srcHash))
-              else do
-                createDirectoryIfMissing True (takeDirectory dest)
-                let resizeArg = show width ++ "x" ++ show height ++ ">"
-                res <-
-                  try
-                    ( callProcess
-                        "magick"
-                        [ src,
-                          "-resize",
-                          resizeArg,
-                          "-unsharp",
-                          "1.5x1.2+1.0+0.10",
-                          "-interlace",
-                          "Plane",
-                          "-strip",
-                          "-quality",
-                          "95",
-                          dest
-                        ]
-                    ) ::
-                    IO (Either SomeException ())
-                case res of
-                  Left err -> hPutStrLn stderr ("[" ++ outDir ++ "] Failed for " <> src <> ": " <> show err) >> pure Nothing
-                  Right _ -> do
-                    BS.writeFile hashPath (BSC.pack srcHash)
-                    putStrLn $ "[" ++ outDir ++ "] Wrote " <> dest
-                    pure (Just (src, meta, srcHash))
-      pb `incProgress` 1
-      pure ret
-    readHash p = do
-      ok <- doesFileExist p
-      if ok then fmap (Just . BSC.unpack) (BS.readFile p) else pure Nothing
+
+createScaledImage :: FilePath -> Int -> Int -> (FilePath, PhotoMeta, String) -> IO  (Maybe (FilePath, PhotoMeta, String))
+createScaledImage outDir width height (src, meta, srcHash) = let
+      scaledRel = makeRelative galleryBasePath src -<.> ".png"
+      scaled = outDir </> scaledRel
+      hashPath = scaled <> ".md5"
+      readHash = do
+        ok <- doesFileExist hashPath
+        if ok then fmap (Just . BSC.unpack) (BS.readFile hashPath) else pure Nothing
+      matchesHash = do
+        cached <- readHash
+        destExists <- doesFileExist scaled
+        pure (destExists && cached == Just srcHash)
+      createScaled = do
+              createDirectoryIfMissing True (takeDirectory scaled)
+              let resizeArg = show width ++ "x" ++ show height ++ ">"
+              res <-
+                try
+                  ( callProcess
+                      "magick"
+                      [ src,
+                        "-resize",
+                        resizeArg,
+                        "-unsharp",
+                        "1.5x1.2+1.0+0.10",
+                        "-interlace",
+                        "Plane",
+                        "-strip",
+                        "-quality",
+                        "95",
+                        scaled
+                      ]
+                  ) ::
+                  IO (Either SomeException ())
+              case res of
+                Left err -> do
+                  hPutStrLn stderr ("[" ++ outDir ++ "] Failed for " <> src <> ": " <> show err)
+                  pure False
+                Right _ -> do
+                  BS.writeFile hashPath (BSC.pack srcHash)
+                  putStrLn $ "[" ++ outDir ++ "] Wrote " <> scaled
+                  pure True
+  in do
+    srcExists <- doesFileExist src
+    scaledExists <- doesFileExist scaled
+    destHashUpToDate <- matchesHash
+    success <- if (srcExists && (not scaledExists || not destHashUpToDate))
+      then createScaled
+      else if  (not srcExists)
+        then do
+          hPutStrLn stderr ("[" ++ outDir ++ "] Source missing, skipping: " <> src)
+          pure False
+        else pure scaledExists
+
+    pure $ if success
+      then Just (scaledRel, meta, srcHash)
+      else Nothing
 
 findImportedFiles :: FilePath -> IO [FilePath]
 findImportedFiles dir = do
@@ -339,3 +400,12 @@ computeMd5 fp = do
 
 formatDate :: UTCTime -> String
 formatDate = formatTime defaultTimeLocale "%F"
+
+loadGalleryConfigOrDie :: IO GalleryConfig
+loadGalleryConfigOrDie = do
+  exists <- doesFileExist galleryConfigPath
+  unless exists (die ("Gallery config not found: " <> galleryConfigPath))
+  parsed <- loadGalleryConfig galleryConfigPath
+  case parsed of
+    Left err -> die ("Failed to parse gallery config " <> galleryConfigPath <> ": " <> err)
+    Right cfg -> pure cfg
