@@ -152,8 +152,21 @@ DOCKER_BUCKET="gs://myphoto-docker-images/"
 if ! gsutil ls -b "$DOCKER_BUCKET" >/dev/null 2>&1; then
   gsutil mb -p "$PROJECT" -l "$REGION" "$DOCKER_BUCKET"
 fi
-DOCKER_TAR_PATH="${DOCKER_BUCKET}${VM_NAME}-myphoto-docker.tar"
-gsutil cp "@MYPHOTO_DOCKER@" "$DOCKER_TAR_PATH"
+DOCKER_TAR_PATH="${DOCKER_BUCKET}myphoto-docker.tar"
+
+if gsutil ls "$DOCKER_TAR_PATH" >/dev/null 2>&1; then
+  LOCAL_HASH=$(md5sum "@MYPHOTO_DOCKER@" | awk '{print $1}')
+  REMOTE_HASH=$(gsutil hash -h "$DOCKER_TAR_PATH" | grep -i md5 | awk '{print $2}')
+  if [ "$LOCAL_HASH" = "$REMOTE_HASH" ]; then
+    echo "Docker image already exists in bucket with matching hash, skipping upload"
+  else
+    echo "Docker image hash mismatch, uploading new image"
+    gsutil cp "@MYPHOTO_DOCKER@" "$DOCKER_TAR_PATH"
+  fi
+else
+  echo "Docker image not found in bucket, uploading"
+  gsutil cp "@MYPHOTO_DOCKER@" "$DOCKER_TAR_PATH"
+fi
 
 set -x
 

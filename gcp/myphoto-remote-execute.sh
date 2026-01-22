@@ -24,7 +24,6 @@ gsutil -m rm -r "$INPUT_BUCKET" || true
 if [[ "$IMAGE_TAR" == gs://* ]]; then
   gsutil cp "$IMAGE_TAR" .
   IMAGE_TAR="$(basename "$IMAGE_TAR")"
-  gsutil rm "$3" || true
 fi
 sudo docker load -i "$IMAGE_TAR"
 
