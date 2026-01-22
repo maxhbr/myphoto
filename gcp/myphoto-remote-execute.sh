@@ -5,7 +5,6 @@ INPUT_BUCKET="$1"
 OUTPUT_BUCKET="$2"
 IMAGE_TAR="$3"
 LEVELS="${4:-2}"
-DETACH="${5:-no}"
 
 exec &> >(tee -a /data/output/myphoto-gcp-execute.log)
 
@@ -53,18 +52,16 @@ fi
 
 gsutil -m rsync -r /data/output "$OUTPUT_BUCKET"
 
-if [ "$DETACH" = "no" ]; then
-  (
-    set +e
-    instance_name="$(curl -fsS -H "Metadata-Flavor: Google" \
-      "http://metadata/computeMetadata/v1/instance/name")"
-    zone="$(curl -fsS -H "Metadata-Flavor: Google" \
-      "http://metadata/computeMetadata/v1/instance/zone" | awk -F/ '{print $NF}')"
-    project="$(curl -fsS -H "Metadata-Flavor: Google" \
-      "http://metadata/computeMetadata/v1/project/project-id")"
-    nohup gcloud compute instances delete "$instance_name" \
-      --project "$project" \
-      --zone "$zone" \
-      --quiet >/tmp/myphoto-self-delete.log 2>&1 &
-  )
-fi
+(
+  set +e
+  instance_name="$(curl -fsS -H "Metadata-Flavor: Google" \
+    "http://metadata/computeMetadata/v1/instance/name")"
+  zone="$(curl -fsS -H "Metadata-Flavor: Google" \
+    "http://metadata/computeMetadata/v1/instance/zone" | awk -F/ '{print $NF}')"
+  project="$(curl -fsS -H "Metadata-Flavor: Google" \
+    "http://metadata/computeMetadata/v1/project/project-id")"
+  nohup gcloud compute instances delete "$instance_name" \
+    --project "$project" \
+    --zone "$zone" \
+    --quiet >/tmp/myphoto-self-delete.log 2>&1 &
+)
