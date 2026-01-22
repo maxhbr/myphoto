@@ -167,15 +167,34 @@ gcloud compute scp "@MYPHOTO_DOCKER@" "$VM_NAME:~/myphoto-docker.tar" \
   --project "$PROJECT" \
   --zone "$ZONE"
 
-gcloud compute scp "@REMOTE_SCRIPT@" "$VM_NAME:~/myphoto-remote.sh" \
+gcloud compute scp "@REMOTE_PROVISION@" "$VM_NAME:~/myphoto-remote-provision.sh" \
   --project "$PROJECT" \
   --zone "$ZONE"
+
+gcloud compute scp "@REMOTE_EXECUTE@" "$VM_NAME:~/myphoto-remote-execute.sh" \
+  --project "$PROJECT" \
+  --zone "$ZONE"
+
+if ! gcloud compute ssh "$VM_NAME" \
+    --project "$PROJECT" \
+    --zone "$ZONE" \
+    --command "bash ~/myphoto-remote-provision.sh"; then
+  echo "Provisioning failed, cleaning up..."
+  gcloud compute instances delete "$VM_NAME" \
+    --project "$PROJECT" \
+    --zone "$ZONE" \
+    --quiet || true
+  if [ -n "$INPUT_DIR" ]; then
+    gsutil -m rm -r "$INPUT_BUCKET" || true
+  fi
+  exit 1
+fi
 
 if [ "$DETACH" = "yes" ]; then
   gcloud compute ssh "$VM_NAME" \
     --project "$PROJECT" \
     --zone "$ZONE" \
-    --command "nohup bash -c \"bash ~/myphoto-remote.sh '$INPUT_BUCKET' '$OUTPUT_BUCKET_PATH' ~/myphoto-docker.tar\" > /dev/null 2>&1 &"
+    --command "nohup bash -c \"bash ~/myphoto-remote-execute.sh '$INPUT_BUCKET' '$OUTPUT_BUCKET_PATH' ~/myphoto-docker.tar 2 $DETACH\" > /dev/null 2>&1 &"
   echo "Detached execution started."
   echo "Output will be available at: $OUTPUT_BUCKET_PATH"
   
@@ -207,7 +226,7 @@ else
   gcloud compute ssh "$VM_NAME" \
     --project "$PROJECT" \
     --zone "$ZONE" \
-    --command "bash ~/myphoto-remote.sh '$INPUT_BUCKET' '$OUTPUT_BUCKET_PATH' ~/myphoto-docker.tar"
+    --command "bash ~/myphoto-remote-execute.sh '$INPUT_BUCKET' '$OUTPUT_BUCKET_PATH' ~/myphoto-docker.tar 2 no"
 
   if [ "$KEEP_VM" = "no" ]; then
     echo "cleaning up VM: $VM_NAME"

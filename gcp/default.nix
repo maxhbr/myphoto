@@ -20,11 +20,13 @@ in
       lib.replaceStrings
         [
           "@MYPHOTO_DOCKER@"
-          "@REMOTE_SCRIPT@"
+          "@REMOTE_PROVISION@"
+          "@REMOTE_EXECUTE@"
         ]
         [
           "${self.packages.${system}.myphoto-docker}"
-          "${./myphoto-remote-script.sh}"
+          "${./myphoto-remote-provision.sh}"
+          "${./myphoto-remote-execute.sh}"
         ]
         script;
   };
