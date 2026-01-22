@@ -148,23 +148,49 @@ OUTPUT_BUCKET="gs://myphoto-output/"
 set_up_bucket "$OUTPUT_BUCKET"
 OUTPUT_BUCKET_PATH="${OUTPUT_BUCKET}${VM_NAME}/"
 
+DOCKER_BUCKET="gs://myphoto-docker-images/"
+if ! gsutil ls -b "$DOCKER_BUCKET" >/dev/null 2>&1; then
+  gsutil mb -p "$PROJECT" -l "$REGION" "$DOCKER_BUCKET"
+fi
+DOCKER_TAR_PATH="${DOCKER_BUCKET}${VM_NAME}-myphoto-docker.tar"
+gsutil cp "@MYPHOTO_DOCKER@" "$DOCKER_TAR_PATH"
 
-DOWNLOAD_SCRIPT="${OUTPUT_DIR}/download.${VM_NAME}.sh"
-cat > "$DOWNLOAD_SCRIPT" <<EOF
-#!/usr/bin/env bash
-set -euo pipefail
+set -x
 
-VM_NAME="$VM_NAME"
-PROJECT="$PROJECT"
-ZONE="$ZONE"
-OUTPUT_DIR="$OUTPUT_DIR"
-OUTPUT_BUCKET_PATH="$OUTPUT_BUCKET_PATH"
 
-if $(which gcloud) compute instances describe "\$VM_NAME" \
-    --project="\$PROJECT" \
-    --zone="\$ZONE" \
-    --format="get(status)" 2>/dev/null | grep -q "RUNNING"; then
-  echo "Error: VM \$VM_NAME is still running. Wait for the job to complete before downloading."
+gcloud compute instances create "$VM_NAME" \
+  --project "$PROJECT" \
+  --zone "$ZONE" \
+  --machine-type "$MACHINE_TYPE" \
+  --boot-disk-size "$DISK_SIZE" \
+  --image-family "$IMAGE_FAMILY" \
+  --image-project "$IMAGE_PROJECT" \
+  --labels "run=$LABEL_VALUE,date=$DATE" \
+  --scopes "https://www.googleapis.com/auth/cloud-platform"
+
+wait_for_ssh
+
+gcloud compute scp "@REMOTE_PROVISION@" "$VM_NAME:~/myphoto-remote-provision.sh" \
+  --project "$PROJECT" \
+  --zone "$ZONE"
+
+gcloud compute scp "@REMOTE_EXECUTE@" "$VM_NAME:~/myphoto-remote-execute.sh" \
+  --project "$PROJECT" \
+  --zone "$ZONE"
+
+if ! gcloud compute ssh "$VM_NAME" \
+    --project "$PROJECT" \
+    --zone "$ZONE" \
+    --command "bash ~/myphoto-remote-provision.sh"; then
+  echo "Provisioning failed, cleaning up..."
+  gcloud compute instances delete "$VM_NAME" \
+    --project "$PROJECT" \
+    --zone "$ZONE" \
+    --quiet || true
+  if [ -n "$INPUT_DIR" ]; then
+    gsutil -m rm -r "$INPUT_BUCKET" || true
+  fi
+  gsutil rm "$DOCKER_TAR_PATH" || true
   exit 1
 fi
 
@@ -239,7 +265,7 @@ if [ "$DETACH" = "yes" ]; then
   gcloud compute ssh "$VM_NAME" \
     --project "$PROJECT" \
     --zone "$ZONE" \
-    --command "nohup bash -c \"bash ~/myphoto-remote-execute.sh '$INPUT_BUCKET' '$OUTPUT_BUCKET_PATH' ~/myphoto-docker.tar no\" > /dev/null 2>&1 &"
+    --command "nohup bash -c \"bash ~/myphoto-remote-execute.sh '$INPUT_BUCKET' '$OUTPUT_BUCKET_PATH' '$DOCKER_TAR_PATH' no\" > /dev/null 2>&1 &"
   echo "Detached execution started."
   echo "Output will be available at: $OUTPUT_BUCKET_PATH"
   
@@ -247,7 +273,7 @@ else
   gcloud compute ssh "$VM_NAME" \
     --project "$PROJECT" \
     --zone "$ZONE" \
-    --command "bash ~/myphoto-remote-execute.sh '$INPUT_BUCKET' '$OUTPUT_BUCKET_PATH' ~/myphoto-docker.tar no"
+    --command "bash ~/myphoto-remote-execute.sh '$INPUT_BUCKET' '$OUTPUT_BUCKET_PATH' '$DOCKER_TAR_PATH' no"
 
   if [ "$KEEP_VM" = "no" ]; then
     echo "cleaning up VM: $VM_NAME"
@@ -264,6 +290,8 @@ else
 
   mkdir -p "$OUTPUT_DIR"
   gsutil -m rsync -r "$OUTPUT_BUCKET_PATH" "$OUTPUT_DIR"
+
+  gsutil rm "$DOCKER_TAR_PATH" || true
 
   times
 fi
