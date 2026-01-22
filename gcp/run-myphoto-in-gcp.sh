@@ -194,7 +194,7 @@ if [ "$DETACH" = "yes" ]; then
   gcloud compute ssh "$VM_NAME" \
     --project "$PROJECT" \
     --zone "$ZONE" \
-    --command "nohup bash -c \"bash ~/myphoto-remote-execute.sh '$INPUT_BUCKET' '$OUTPUT_BUCKET_PATH' ~/myphoto-docker.tar 2 $DETACH\" > /dev/null 2>&1 &"
+    --command "nohup bash -c \"bash ~/myphoto-remote-execute.sh '$INPUT_BUCKET' '$OUTPUT_BUCKET_PATH' ~/myphoto-docker.tar no $DETACH\" > /dev/null 2>&1 &"
   echo "Detached execution started."
   echo "Output will be available at: $OUTPUT_BUCKET_PATH"
   
@@ -226,7 +226,7 @@ else
   gcloud compute ssh "$VM_NAME" \
     --project "$PROJECT" \
     --zone "$ZONE" \
-    --command "bash ~/myphoto-remote-execute.sh '$INPUT_BUCKET' '$OUTPUT_BUCKET_PATH' ~/myphoto-docker.tar 2 no"
+    --command "bash ~/myphoto-remote-execute.sh '$INPUT_BUCKET' '$OUTPUT_BUCKET_PATH' ~/myphoto-docker.tar no no"
 
   if [ "$KEEP_VM" = "no" ]; then
     echo "cleaning up VM: $VM_NAME"
