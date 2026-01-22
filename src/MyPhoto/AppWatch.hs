@@ -108,7 +108,7 @@ watchOptions =
                 fail "Cannot use --no-import and --only-import together"
               return
                 opt
-                  { optWatchStackOpts = (optWatchStackOpts opt) {optWorkdirStrategy = WorkdirStrategyOverwrite  (optOutdir opt)}
+                  { optWatchStackOpts = (optWatchStackOpts opt) {optWorkdirStrategy = WorkdirStrategyOverwrite (optOutdir opt)}
                   }
           )
       )

@@ -129,7 +129,7 @@ let
     ];
     text = builtins.readFile ./zerene-stacker-batch.sh;
   };
-  zerene-stacker-batch-headless = pkgs.writeShellApplication ( rec {
+  zerene-stacker-batch-headless = pkgs.writeShellApplication (rec {
     name = "zerene-stacker-batch-headless";
     runtimeInputs = [
       pkgs.coreutils

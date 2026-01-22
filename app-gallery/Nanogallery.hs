@@ -3,7 +3,7 @@
 
 module Nanogallery (writeNanogalleries, computeThumbnails, computeOneThumbnail) where
 
-import Control.Concurrent.Async.Pool (withTaskGroup, mapTasks)
+import Control.Concurrent.Async.Pool (mapTasks, withTaskGroup)
 import Control.Exception (SomeException, try)
 import Data.Aeson ((.=))
 import qualified Data.Aeson as A

@@ -204,7 +204,7 @@
                 2>/tmp/Xvfb.log &
               xvfb_pid=$!
               ${pkgs.coreutils}/bin/sleep 1
-              ${ self.packages.${system}.myphoto }/bin/myphoto-watch --verbose /input /output "$@"
+              ${self.packages.${system}.myphoto}/bin/myphoto-watch --verbose /input /output "$@"
               kill "$xvfb_pid" 2>/dev/null || true
             '';
           in

@@ -3,7 +3,7 @@
 
 module CmdImport (runImport, runUpdate, runImportInit, runImportWithOpts, parseImportArgs, ImportOpts (..)) where
 
-import Control.Concurrent.Async.Pool (withTaskGroup, mapTasks)
+import Control.Concurrent.Async.Pool (mapTasks, withTaskGroup)
 import Control.Exception (SomeException, try)
 import Control.Monad (forM_, unless, when)
 import qualified Crypto.Hash as Hash
@@ -18,18 +18,18 @@ import Data.Time.Clock (UTCTime, getCurrentTime)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import GHC.Conc (getNumCapabilities)
 import Model
-  ( ImportedMeta (..),
-    GalleryConfig (..),
+  ( GalleryConfig (..),
+    ImportedMeta (..),
     PhotoMeta (..),
     defaultDirMeta,
     defaultGalleryConfig,
-    loadImportedMeta,
     loadGalleryConfig,
+    loadImportedMeta,
     loadPhotoMeta,
     mergeMeta,
     resolveAboutPaths,
-    writeImportedMeta,
     writeGalleryConfig,
+    writeImportedMeta,
   )
 import MyPhoto.Utils.ProgressBar
   ( incProgress,
@@ -52,8 +52,8 @@ import System.FilePath
     splitDirectories,
     takeDirectory,
     takeFileName,
-    (</>),
     (-<.>),
+    (</>),
   )
 import System.IO (hPutStrLn, stderr)
 import System.Process (callProcess)
@@ -126,7 +126,6 @@ runImportInit = do
   writeGalleryConfig galleryConfigPath defaultGalleryConfig
   putStrLn ("Wrote gallery config: " <> galleryConfigPath)
 
-
 applyCfg :: GalleryConfig -> [(FilePath, PhotoMeta, a)] -> [(FilePath, PhotoMeta, a)]
 applyCfg cfg = map apply
   where
@@ -137,13 +136,15 @@ applyCfg cfg = map apply
           ignoredImgsSet = ignoredImgs cfg
           remapTag tag = Map.findWithDefault tag tag remappedTags'
           remapPath path = Map.findWithDefault path path remappedPaths'
-          meta' = meta {
-                    tags = Set.map remapTag (Set.filter (`Set.notMember` ignoredTagsSet) (tags meta)),
-                    path = fmap remapPath (path meta),
-                    ignore = if (Maybe.fromMaybe False (ignore meta)) || (Maybe.isJust (img meta) && Set.member (Maybe.fromMaybe "" (img meta)) ignoredImgsSet)
-                              then Just True
-                              else Nothing  
-                  }
+          meta' =
+            meta
+              { tags = Set.map remapTag (Set.filter (`Set.notMember` ignoredTagsSet) (tags meta)),
+                path = fmap remapPath (path meta),
+                ignore =
+                  if (Maybe.fromMaybe False (ignore meta)) || (Maybe.isJust (img meta) && Set.member (Maybe.fromMaybe "" (img meta)) ignoredImgsSet)
+                    then Just True
+                    else Nothing
+              }
        in (imgPath, meta', a)
 
 runUpdateWithConfig :: Bool -> GalleryConfig -> IO ()
@@ -314,17 +315,17 @@ createScaledGallery outDir width height summaries = do
   pb <- newImgsProgressBar summaries
   capabilities <- getNumCapabilities
   let poolSize = min 6 $ max 1 (capabilities `div` 2)
-  results <- let
-      go summary = do
-                          ret <- createScaledImage outDir width height summary
-                          pb `incProgress` 1
-                          pure ret
-    in withTaskGroup poolSize $ \tg -> mapTasks tg (map go summaries)
+  results <-
+    let go summary = do
+          ret <- createScaledImage outDir width height summary
+          pb `incProgress` 1
+          pure ret
+     in withTaskGroup poolSize $ \tg -> mapTasks tg (map go summaries)
   pure (catMaybes results)
 
-createScaledImage :: FilePath -> Int -> Int -> (FilePath, PhotoMeta, String) -> IO  (Maybe (FilePath, PhotoMeta, String))
-createScaledImage outDir width height (src, meta, srcHash) = let
-      scaledRel = makeRelative galleryBasePath src -<.> ".png"
+createScaledImage :: FilePath -> Int -> Int -> (FilePath, PhotoMeta, String) -> IO (Maybe (FilePath, PhotoMeta, String))
+createScaledImage outDir width height (src, meta, srcHash) =
+  let scaledRel = makeRelative galleryBasePath src -<.> ".png"
       scaled = outDir </> scaledRel
       hashPath = scaled <> ".md5"
       readHash = do
@@ -335,60 +336,62 @@ createScaledImage outDir width height (src, meta, srcHash) = let
         destExists <- doesFileExist scaled
         pure (destExists && cached == Just srcHash)
       createScaled = do
-              createDirectoryIfMissing True (takeDirectory scaled)
-              let maxDimension = max width height
-              let resizeArg = show maxDimension ++ "x" ++ show maxDimension ++ ">"
-              res <-
-                try
-                  ( callProcess
-                      "magick"
-                      [ src,
-                        "-resize",
-                        resizeArg,
-                        "-unsharp",
-                        "1.5x1.2+1.0+0.10",
-                        "-interlace",
-                        "Plane",
-                        "-strip",
-                        "-quality",
-                        "95",
-                        scaled
-                      ]
-                  ) ::
-                  IO (Either SomeException ())
-              case res of
-                Left err -> do
-                  hPutStrLn stderr ("[" ++ outDir ++ "] Failed for " <> src <> ": " <> show err)
-                  pure False
-                Right _ -> do
-                  BS.writeFile hashPath (BSC.pack srcHash)
-                  putStrLn $ "[" ++ outDir ++ "] Wrote " <> scaled
-                  pure True
-  in do
-    let successReturnValue = Just (scaledRel, meta, srcHash)
-        failureReturnValue = Nothing
-    srcExists <- doesFileExist src
-    if not srcExists
-      then do
-        hPutStrLn stderr ("[" ++ outDir ++ "] Source missing, skipping: " <> src)
-        pure failureReturnValue
-      else do
-        scaledExists <- doesFileExist scaled
-
-        success  <- if scaledExists
+        createDirectoryIfMissing True (takeDirectory scaled)
+        let maxDimension = max width height
+        let resizeArg = show maxDimension ++ "x" ++ show maxDimension ++ ">"
+        res <-
+          try
+            ( callProcess
+                "magick"
+                [ src,
+                  "-resize",
+                  resizeArg,
+                  "-unsharp",
+                  "1.5x1.2+1.0+0.10",
+                  "-interlace",
+                  "Plane",
+                  "-strip",
+                  "-quality",
+                  "95",
+                  scaled
+                ]
+            ) ::
+            IO (Either SomeException ())
+        case res of
+          Left err -> do
+            hPutStrLn stderr ("[" ++ outDir ++ "] Failed for " <> src <> ": " <> show err)
+            pure False
+          Right _ -> do
+            BS.writeFile hashPath (BSC.pack srcHash)
+            putStrLn $ "[" ++ outDir ++ "] Wrote " <> scaled
+            pure True
+   in do
+        let successReturnValue = Just (scaledRel, meta, srcHash)
+            failureReturnValue = Nothing
+        srcExists <- doesFileExist src
+        if not srcExists
           then do
-            destHashUpToDate <- matchesHash
-            if destHashUpToDate
-              then pure True
-              else do
-                hPutStrLn stderr ("[" ++ outDir ++ "] Scaled image outdated, recreating: " <> scaled)
-                createScaled
+            hPutStrLn stderr ("[" ++ outDir ++ "] Source missing, skipping: " <> src)
+            pure failureReturnValue
           else do
-            hPutStrLn stderr ("[" ++ outDir ++ "] Scaled image missing, will create: " <> scaled)
-            createScaled
-        pure $ if success
-          then successReturnValue
-          else failureReturnValue
+            scaledExists <- doesFileExist scaled
+
+            success <-
+              if scaledExists
+                then do
+                  destHashUpToDate <- matchesHash
+                  if destHashUpToDate
+                    then pure True
+                    else do
+                      hPutStrLn stderr ("[" ++ outDir ++ "] Scaled image outdated, recreating: " <> scaled)
+                      createScaled
+                else do
+                  hPutStrLn stderr ("[" ++ outDir ++ "] Scaled image missing, will create: " <> scaled)
+                  createScaled
+            pure $
+              if success
+                then successReturnValue
+                else failureReturnValue
 
 findImportedFiles :: FilePath -> IO [FilePath]
 findImportedFiles dir = do

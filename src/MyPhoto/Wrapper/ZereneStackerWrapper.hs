@@ -29,7 +29,7 @@ runZereneStacker opts imgs = do
           Nothing -> ["--no-dmap"]
       args = alignArgs ++ pmaxArgs ++ dmapArgs
 
-  logDebugIO (unwords ["$" , cmd, unwords args, "[img [img [...]]]"])
+  logDebugIO (unwords ["$", cmd, unwords args, "[img [img [...]]]"])
   if _Verbose opts
     then do
       callProcess cmd (args ++ imgs)
