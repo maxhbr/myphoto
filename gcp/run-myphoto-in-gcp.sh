@@ -83,8 +83,9 @@ if [ -n "$INPUT_DIR" ]; then
   INPUT_DIR="$(cd "$INPUT_DIR" && pwd)"
 fi
 
+mkdir -p "$OUTPUT_DIR"
 if [ -n "$OUTPUT_DIR" ]; then
-  OUTPUT_DIR="$(cd "$(dirname "$OUTPUT_DIR")" && pwd)/$(basename "$OUTPUT_DIR")"
+  OUTPUT_DIR="$(cd "$OUTPUT_DIR" && pwd)"
 fi
 
 wait_for_ssh() (
@@ -148,8 +149,52 @@ set_up_bucket "$OUTPUT_BUCKET"
 OUTPUT_BUCKET_PATH="${OUTPUT_BUCKET}${VM_NAME}/"
 
 
-set -x
+DOWNLOAD_SCRIPT="${OUTPUT_DIR}/download.${VM_NAME}.sh"
+cat > "$DOWNLOAD_SCRIPT" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
 
+VM_NAME="$VM_NAME"
+PROJECT="$PROJECT"
+ZONE="$ZONE"
+OUTPUT_DIR="$OUTPUT_DIR"
+OUTPUT_BUCKET_PATH="$OUTPUT_BUCKET_PATH"
+
+if $(which gcloud) compute instances describe "\$VM_NAME" \
+    --project="\$PROJECT" \
+    --zone="\$ZONE" \
+    --format="get(status)" 2>/dev/null | grep -q "RUNNING"; then
+  echo "Error: VM \$VM_NAME is still running. Wait for the job to complete before downloading."
+  exit 1
+fi
+
+mkdir -p "\$OUTPUT_DIR"
+$(which gsutil) -m rsync -r "\$OUTPUT_BUCKET_PATH" "\$OUTPUT_DIR"
+EOF
+chmod +x "$DOWNLOAD_SCRIPT"
+echo "Download script created: $DOWNLOAD_SCRIPT"
+
+TEARDOWN_SCRIPT="${OUTPUT_DIR}/teardown.${VM_NAME}.sh"
+cat > "$TEARDOWN_SCRIPT" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+
+VM_NAME="$VM_NAME"
+PROJECT="$PROJECT"
+ZONE="$ZONE"
+INPUT_BUCKET="$INPUT_BUCKET"
+
+echo "cleaning up VM: \$VM_NAME"
+$(which gcloud) compute instances delete "\$VM_NAME" \
+  --project "\$PROJECT" \
+  --zone "\$ZONE" \
+  --quiet || true
+
+$(which gsutil) -m rm -r "$INPUT_BUCKET" || true
+EOF
+chmod +x "$TEARDOWN_SCRIPT"
+
+set -x
 
 gcloud compute instances create "$VM_NAME" \
   --project "$PROJECT" \
@@ -198,30 +243,6 @@ if [ "$DETACH" = "yes" ]; then
   echo "Detached execution started."
   echo "Output will be available at: $OUTPUT_BUCKET_PATH"
   
-  DOWNLOAD_SCRIPT="${OUTPUT_DIR}.gcp-download.${DATE}.sh"
-  cat > "$DOWNLOAD_SCRIPT" <<EOF
-#!/usr/bin/env bash
-set -euo pipefail
-
-VM_NAME="$VM_NAME"
-PROJECT="$PROJECT"
-ZONE="$ZONE"
-OUTPUT_DIR="$OUTPUT_DIR"
-OUTPUT_BUCKET_PATH="$OUTPUT_BUCKET_PATH"
-
-if $(which gcloud) compute instances describe "\$VM_NAME" \
-    --project="\$PROJECT" \
-    --zone="\$ZONE" \
-    --format="get(status)" 2>/dev/null | grep -q "RUNNING"; then
-  echo "Error: VM \$VM_NAME is still running. Wait for the job to complete before downloading."
-  exit 1
-fi
-
-mkdir -p "\$OUTPUT_DIR"
-$(which gsutil) -m rsync -r "\$OUTPUT_BUCKET_PATH" "\$OUTPUT_DIR"
-EOF
-  chmod +x "$DOWNLOAD_SCRIPT"
-  echo "Download script created: $DOWNLOAD_SCRIPT"
 else
   gcloud compute ssh "$VM_NAME" \
     --project "$PROJECT" \
