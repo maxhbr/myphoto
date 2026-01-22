@@ -16,9 +16,9 @@ Usage: $0 \
   [--image-project <project>] \
   [--input-prefix <prefix>] \
   [--output-prefix <prefix>] \
-  [--self-delete] \
   [--keep-vm] \
-  [--keep-bucket]
+  [--keep-bucket] \
+  [--detach]
 EOF
 }
 
@@ -35,7 +35,7 @@ IMAGE_FAMILY="debian-12"
 IMAGE_PROJECT="debian-cloud"
 KEEP_VM="no"
 KEEP_BUCKET="no"
-SELF_DELETE="no"
+DETACH="no"
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -49,9 +49,9 @@ while [ $# -gt 0 ]; do
     --disk-size) DISK_SIZE="$2"; shift 2 ;;
     --image-family) IMAGE_FAMILY="$2"; shift 2 ;;
     --image-project) IMAGE_PROJECT="$2"; shift 2 ;;
-    --self-delete) SELF_DELETE="yes"; shift 1 ;;
     --keep-vm) KEEP_VM="yes"; shift 1 ;;
     --keep-bucket) KEEP_BUCKET="yes"; shift 1 ;;
+    --detach) DETACH="yes"; shift 1 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown argument: $1" >&2; usage; exit 1 ;;
   esac
@@ -79,23 +79,13 @@ if [ -n "$INPUT_DIR" ] && [ ! -d "$INPUT_DIR" ]; then
   exit 1
 fi
 
-cleanup_vm() {
-  if [ "$KEEP_VM" = "no" ]; then
-    echo "cleaning up VM: $VM_NAME"
-    gcloud compute instances delete "$VM_NAME" \
-      --project "$PROJECT" \
-      --zone "$ZONE" \
-      --quiet || true
-  fi
-}
+if [ -n "$INPUT_DIR" ]; then
+  INPUT_DIR="$(cd "$INPUT_DIR" && pwd)"
+fi
 
-cleanup_vm_and_input_bucket() {
-  cleanup_vm
-  if [ -n "$INPUT_BUCKET" ] && [ "$KEEP_BUCKET" = "no" ]; then
-    echo "cleaning up input bucket: $INPUT_BUCKET"
-    gsutil -m rm -r "$INPUT_BUCKET" || true
-  fi
-}
+if [ -n "$OUTPUT_DIR" ]; then
+  OUTPUT_DIR="$(cd "$(dirname "$OUTPUT_DIR")" && pwd)/$(basename "$OUTPUT_DIR")"
+fi
 
 wait_for_ssh() (
   set +x
@@ -152,9 +142,6 @@ fi
 if [ -z "$INPUT_BUCKET" ]; then
   INPUT_BUCKET="gs://$VM_NAME-input/"
   set_up_bucket "$INPUT_BUCKET" "$INPUT_DIR"
-  trap cleanup_vm_and_input_bucket EXIT
-else
-  trap cleanup_vm EXIT
 fi
 OUTPUT_BUCKET="gs://myphoto-output/"
 set_up_bucket "$OUTPUT_BUCKET"
@@ -184,14 +171,59 @@ gcloud compute scp "@REMOTE_SCRIPT@" "$VM_NAME:~/myphoto-remote.sh" \
   --project "$PROJECT" \
   --zone "$ZONE"
 
-gcloud compute ssh "$VM_NAME" \
-  --project "$PROJECT" \
-  --zone "$ZONE" \
-  --command "SELF_DELETE='$SELF_DELETE' bash ~/myphoto-remote.sh '$INPUT_BUCKET' '$OUTPUT_BUCKET_PATH' ~/myphoto-docker.tar"
+if [ "$DETACH" = "yes" ]; then
+  gcloud compute ssh "$VM_NAME" \
+    --project "$PROJECT" \
+    --zone "$ZONE" \
+    --command "nohup bash -c \"bash ~/myphoto-remote.sh '$INPUT_BUCKET' '$OUTPUT_BUCKET_PATH' ~/myphoto-docker.tar\" > /dev/null 2>&1 &"
+  echo "Detached execution started."
+  echo "Output will be available at: $OUTPUT_BUCKET_PATH"
+  
+  DOWNLOAD_SCRIPT="${OUTPUT_DIR}.gcp-download.${DATE}.sh"
+  cat > "$DOWNLOAD_SCRIPT" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
 
-cleanup_vm_and_input_bucket || true
+VM_NAME="$VM_NAME"
+PROJECT="$PROJECT"
+ZONE="$ZONE"
+OUTPUT_DIR="$OUTPUT_DIR"
+OUTPUT_BUCKET_PATH="$OUTPUT_BUCKET_PATH"
 
-mkdir -p "$OUTPUT_DIR"
-gsutil -m rsync -r "$OUTPUT_BUCKET_PATH" "$OUTPUT_DIR"
+if $(which gcloud) compute instances describe "\$VM_NAME" \
+    --project="\$PROJECT" \
+    --zone="\$ZONE" \
+    --format="get(status)" 2>/dev/null | grep -q "RUNNING"; then
+  echo "Error: VM \$VM_NAME is still running. Wait for the job to complete before downloading."
+  exit 1
+fi
 
-times
+mkdir -p "\$OUTPUT_DIR"
+$(which gsutil) -m rsync -r "\$OUTPUT_BUCKET_PATH" "\$OUTPUT_DIR"
+EOF
+  chmod +x "$DOWNLOAD_SCRIPT"
+  echo "Download script created: $DOWNLOAD_SCRIPT"
+else
+  gcloud compute ssh "$VM_NAME" \
+    --project "$PROJECT" \
+    --zone "$ZONE" \
+    --command "bash ~/myphoto-remote.sh '$INPUT_BUCKET' '$OUTPUT_BUCKET_PATH' ~/myphoto-docker.tar"
+
+  if [ "$KEEP_VM" = "no" ]; then
+    echo "cleaning up VM: $VM_NAME"
+    gcloud compute instances delete "$VM_NAME" \
+      --project "$PROJECT" \
+      --zone "$ZONE" \
+      --quiet || true
+  fi
+
+  if [ -n "$INPUT_DIR" ] && [ "$KEEP_BUCKET" = "no" ]; then
+    echo "cleaning up input bucket: $INPUT_BUCKET"
+    gsutil -m rm -r "$INPUT_BUCKET" || true
+  fi
+
+  mkdir -p "$OUTPUT_DIR"
+  gsutil -m rsync -r "$OUTPUT_BUCKET_PATH" "$OUTPUT_DIR"
+
+  times
+fi

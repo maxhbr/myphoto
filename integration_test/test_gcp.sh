@@ -13,4 +13,5 @@ log "tmpdir=$tmpdir"
 prepare_pcb "$tmpdir"
 
 cd "$tmpdir"
-"$(repo_root)/myphoto-gcp.sh" "$tmpdir/pcb" "$tmpdir/out"
+"$(repo_root)/myphoto-gcp.sh" --many "$tmpdir/pcb"
+# "$(repo_root)/myphoto-gcp.sh" "$tmpdir/pcb" "$tmpdir/out"

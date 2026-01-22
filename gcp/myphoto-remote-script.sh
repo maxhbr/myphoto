@@ -16,9 +16,9 @@ exec &> >(tee -a /data/output/myphoto-gcp-remote-script.log)
 cat <<EOF
  INPUT_BUCKET: $INPUT_BUCKET
 OUTPUT_BUCKET: $OUTPUT_BUCKET
-    IMAGE_TAR: $IMAGE_TAR
-       LEVELS: $LEVELS
-      TIMEOUT: $TIMEOUT (h)
+     IMAGE_TAR: $IMAGE_TAR
+        LEVELS: $LEVELS
+       TIMEOUT: $TIMEOUT (h)
 EOF
 
 sudo systemd-run --on-active=$((TIMEOUT + 1))h /sbin/shutdown -h now
@@ -84,18 +84,16 @@ fi
 
 gsutil -m rsync -r /data/output "$OUTPUT_BUCKET"
 
-if [ "${SELF_DELETE:-no}" = "yes" ]; then
-  (
-    set +e
-    instance_name="$(curl -fsS -H "Metadata-Flavor: Google" \
-      "http://metadata/computeMetadata/v1/instance/name")"
-    zone="$(curl -fsS -H "Metadata-Flavor: Google" \
-      "http://metadata/computeMetadata/v1/instance/zone" | awk -F/ '{print $NF}')"
-    project="$(curl -fsS -H "Metadata-Flavor: Google" \
-      "http://metadata/computeMetadata/v1/project/project-id")"
-    nohup gcloud compute instances delete "$instance_name" \
-      --project "$project" \
-      --zone "$zone" \
-      --quiet >/tmp/myphoto-self-delete.log 2>&1 &
-  )
-fi
+(
+  set +e
+  instance_name="$(curl -fsS -H "Metadata-Flavor: Google" \
+    "http://metadata/computeMetadata/v1/instance/name")"
+  zone="$(curl -fsS -H "Metadata-Flavor: Google" \
+    "http://metadata/computeMetadata/v1/instance/zone" | awk -F/ \'{print $NF}\')"
+  project="$(curl -fsS -H "Metadata-Flavor: Google" \
+    "http://metadata/computeMetadata/v1/project/project-id")"
+  nohup gcloud compute instances delete "$instance_name" \
+    --project "$project" \
+    --zone "$zone" \
+    --quiet >/tmp/myphoto-self-delete.log 2>&1 &
+)

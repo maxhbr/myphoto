@@ -10,18 +10,36 @@ else
     exit 1
 fi
 
-INPUT_DIR="$1"
-OUTPUT_DIR="$2"
+run_gcp() {
+    local input_arg="$1"
+    local output_arg="${2:-}"
+    local use_detach="$3"
 
-args=();
-args+=(--project "$PROJECT")
-args+=(--region "$REGION")
-args+=(--zone "$ZONE")
-if [[ "$1" == "gs://"* ]]; then
-    args+=(--input-bucket "$INPUT_DIR")
+    local INPUT_DIR="${input_arg%/}"
+    local OUTPUT_DIR="${output_arg:-${INPUT_DIR}_gcp}"
+
+    args=();
+    args+=(--project "$PROJECT")
+    args+=(--region "$REGION")
+    args+=(--zone "$ZONE")
+    if [[ "$INPUT_DIR" == "gs://"* ]]; then
+        args+=(--input-bucket "$INPUT_DIR")
+    else
+        args+=(--input-dir "$INPUT_DIR")
+    fi
+    args+=(--output-dir "$OUTPUT_DIR")
+    if [ "$use_detach" = "yes" ]; then
+        args+=(--detach)
+    fi
+
+    nix run "$myphotodir#myphoto-docker-in-gcp" -- "${args[@]}"
+}
+
+if [[ "${1:-}" == "--many" ]]; then
+    shift
+    for INPUT_ARG in "$@"; do
+        run_gcp "$INPUT_ARG" "" "yes"
+    done
 else
-    args+=(--input-dir "$INPUT_DIR")
+    run_gcp "${1:-}" "${2:-}" "no"
 fi
-args+=(--output-dir "$OUTPUT_DIR")
-
-exec nix run "$myphotodir#myphoto-docker-in-gcp" -- "${args[@]}"
