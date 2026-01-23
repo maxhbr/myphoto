@@ -280,6 +280,10 @@
           type = "app";
           program = "${self.packages.${system}.myphoto}/bin/myphoto-gallery";
         };
+        myphoto-gcp = {
+          type = "app";
+          program = "${self.packages.${system}.myphoto}/bin/myphoto-gcp";
+        };
         myphoto-docker-in-gcp = {
           type = "app";
           program = "${self.packages.${system}.myphoto-docker-in-gcp}/bin/myphoto-docker-in-gcp";
@@ -332,6 +336,8 @@
               "gcp/run-myphoto-in-gcp.sh"
               "gcp/myphoto-remote-provision.sh"
               "gcp/myphoto-remote-execute.sh"
+              "app-gcp/remote/provision.sh"
+              "app-gcp/remote/execute.sh"
             ];
           in
           pkgs.stdenv.mkDerivation {

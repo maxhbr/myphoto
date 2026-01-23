@@ -21,7 +21,7 @@ run_gcp() {
         args+=(--detach)
     fi
 
-    nix run "$myphotodir#myphoto-docker-in-gcp" -- "${args[@]}"
+    nix run "$myphotodir#myphoto-gcp" -- "${args[@]}"
 }
 
 if [[ ${1:-} == "--many" ]]; then
