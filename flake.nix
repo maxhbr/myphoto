@@ -28,6 +28,7 @@
         libraw # for converting raw files like ARW to tiff, provides dcraw_emu
         libheif # for converting heif files
         udisks # for mounting devices
+        coreutils # for readlink, dirname, needed by google-cloud-sdk wrappers
         google-cloud-sdk # provides gcloud and gsutil for GCP operations
       ];
       project =
