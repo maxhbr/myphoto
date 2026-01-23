@@ -1,6 +1,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module MyPhoto.Actions.Gcp
   ( remoteProvisionScript,
@@ -32,6 +33,7 @@ import Data.Char
 import Data.Time.Clock
 import Data.Time.Format
 import Data.Maybe (isNothing)
+import Control.Exception (catch, SomeException)
 import Control.Monad (forM_, unless)
 
 remoteProvisionScript :: BS.ByteString
@@ -76,7 +78,7 @@ runMain config@GcpConfig {..} inputDir outputDir inputBucket dockerImage
       setupBucket config bucketName labelValue date inputDir
       return bucketName
 
-  setupBucket config outputBucket labelValue date Nothing
+  setupBucketIfNotExists config outputBucket labelValue date Nothing True
 
   uploadDockerTar config dockerTarPath dockerImage
 
@@ -168,6 +170,17 @@ setupBucket GcpConfig {..} bucketName labelValue date initialContent = do
       _ <- callProcess "gsutil" ["-m", "rsync", "-r", dir, bucketName]
       return ()
     Nothing -> return ()
+
+setupBucketIfNotExists :: GcpConfig -> String -> String -> String -> Maybe FilePath -> Bool -> IO ()
+setupBucketIfNotExists config@GcpConfig {..} bucketName labelValue date initialContent skipIfExists = do
+  if skipIfExists
+    then do
+      bucketExists <- catch (readProcess "gsutil" ["ls", bucketName] "" >> return True) 
+                           (\(_ :: SomeException) -> return False)
+      if not bucketExists
+        then setupBucket config bucketName labelValue date initialContent
+        else putStrLn $ "Bucket already exists: " ++ bucketName
+    else setupBucket config bucketName labelValue date initialContent
 
 uploadDockerTar :: GcpConfig -> String -> Maybe FilePath -> IO ()
 uploadDockerTar _ dockerTarPath maybeDockerImage = do 
