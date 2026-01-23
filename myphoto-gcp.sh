@@ -2,14 +2,6 @@
 set -euo pipefail
 myphotodir="$(dirname "$(readlink -f "$0")")"
 
-# Read the following variables from `~/.myphoto/gcp.env`
-if [ -f "$HOME/.myphoto/gcp.env" ]; then
-    source "$HOME/.myphoto/gcp.env"
-else
-    echo "GCP configuration file ~/.myphoto/gcp.env not found." >&2
-    exit 1
-fi
-
 run_gcp() {
     local input_arg="$1"
     local output_arg="${2:-}"
@@ -19,9 +11,6 @@ run_gcp() {
     local OUTPUT_DIR="${output_arg:-${INPUT_DIR}_gcp}"
 
     args=()
-    args+=(--project "$PROJECT")
-    args+=(--region "$REGION")
-    args+=(--zone "$ZONE")
     if [[ $INPUT_DIR == "gs://"* ]]; then
         args+=(--input-bucket "$INPUT_DIR")
     else

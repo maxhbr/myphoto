@@ -360,9 +360,13 @@
             cabal-fmt
             cabal-install
             haskell-language-server
+            ormolu
             hlint
             ghcid
           ]
+          ++ (with pkgs; [
+            shfmt
+          ])
           ++ enabledPackages
         );
 

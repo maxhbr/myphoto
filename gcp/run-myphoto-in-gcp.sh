@@ -6,31 +6,96 @@ set -euo pipefail
 
 usage() {
     cat <<'EOF'
-Usage: $0 \
-  --project <gcp-project> \
-  --region <region> \
-  --zone <zone> \
-  --bucket <bucket-name> \
-  --input-dir <local-input-dir> \
-  --output-dir <local-output-dir> \
-  [--machine-type <type>] \
-  [--disk-size <size>] \
-  [--image-family <family>] \
-  [--image-project <project>] \
-  [--input-prefix <prefix>] \
-  [--output-prefix <prefix>] \
-  [--keep-vm] \
-  [--keep-bucket] \
-  [--detach]
+Usage: 
+  $0 \
+    --input-dir <local-input-dir> \
+    --output-dir <local-output-dir> \
+    [--input-bucket <bucket-name>] \
+    [--machine-type <type>] \
+    [--disk-size <size>] \
+    [--image-family <family>] \
+    [--image-project <project>] \
+    [--keep-vm] \
+    [--keep-bucket] \
+    [--detach]
+  $0 --teardown <vm-name> [<input-bucket>]
+  $0 --direct-download <vm-name> [<output-dir>]
 EOF
 }
 
-PROJECT=""
-REGION=""
-ZONE=""
-INPUT_DIR=""
-OUTPUT_DIR=""
+# Read the following variables from `~/.myphoto/gcp.env`
+if [ -f "$HOME/.myphoto/gcp.env" ]; then
+    source "$HOME/.myphoto/gcp.env"
+    if [ -z "$PROJECT" ] || [ -z "$REGION" ] || [ -z "$ZONE" ]; then
+        echo "Missing required GCP parameters." >&2
+        usage
+        exit 1
+    fi
+else
+    echo "GCP configuration file ~/.myphoto/gcp.env not found." >&2
+    exit 1
+fi
+
+#####################################
+# Early Mode Detection
+
+MODE=""
+VM_NAME=""
 INPUT_BUCKET=""
+OUTPUT_DIR=""
+
+if [ $# -gt 0 ]; then
+    case "$1" in
+        --teardown)
+            MODE="teardown"
+            VM_NAME="${2:-}"
+            INPUT_BUCKET="${3:-}"
+            if [ -z "$VM_NAME" ]; then
+                echo "Error: --teardown requires VM_NAME as argument" >&2
+                usage
+                exit 1
+            fi
+            set -x
+            gcloud compute instances delete "$VM_NAME" \
+                --project "$PROJECT" \
+                --zone "$ZONE" \
+                --quiet || true
+
+            if [ -n "$INPUT_BUCKET" ]; then
+                gsutil -m rm -r "$INPUT_BUCKET" || true
+            fi
+            exit 0
+            ;;
+        --direct-download)
+            MODE="direct-download"
+            VM_NAME="${2:-}"
+            OUTPUT_DIR="${3:-.}"
+            if [ -z "$VM_NAME" ]; then
+                echo "Error: --direct-download requires VM_NAME as argument" >&2
+                usage
+                exit 1
+            fi
+
+            if ! gcloud compute instances describe "$VM_NAME" \
+                --project="$PROJECT" \
+                --zone="$ZONE" \
+                --format="get(status)" 2>/dev/null | grep -q "RUNNING"; then
+                echo "Error: VM $VM_NAME is no longer running" >&2
+                exit 1
+            fi
+
+            mkdir -p "$OUTPUT_DIR"
+            set -x
+            gcloud compute scp --recurse "$VM_NAME:/data/workdir/*" "$OUTPUT_DIR/" \
+                --project="$PROJECT" \
+                --zone="$ZONE"
+            exit 0
+            ;;
+    esac
+fi
+
+# End of Early Mode Detection
+#####################################
 
 MACHINE_TYPE="n2-standard-32"
 DISK_SIZE="500GB"
@@ -45,18 +110,6 @@ DOCKER_TAR_PATH="${DOCKER_BUCKET}myphoto-docker.tar"
 
 while [ $# -gt 0 ]; do
     case "$1" in
-        --project)
-            PROJECT="$2"
-            shift 2
-            ;;
-        --region)
-            REGION="$2"
-            shift 2
-            ;;
-        --zone)
-            ZONE="$2"
-            shift 2
-            ;;
         --input-dir)
             INPUT_DIR="$2"
             shift 2
@@ -109,19 +162,13 @@ while [ $# -gt 0 ]; do
     esac
 done
 
-if [ -z "$PROJECT" ] || [ -z "$REGION" ] || [ -z "$ZONE" ]; then
-    echo "Missing required GCP parameters." >&2
-    usage
-    exit 1
-fi
-
 if [ -z "$INPUT_BUCKET" ] && [ -z "$INPUT_DIR" ]; then
     echo "Either --input-bucket or --input-dir must be specified." >&2
     usage
     exit 1
 fi
 if [ -z "$OUTPUT_DIR" ]; then
-    echo "Missing input/output directories." >&2
+    echo "Missing --output-dir parameter." >&2
     usage
     exit 1
 fi
@@ -218,23 +265,7 @@ upload_docker_tar() {
     gsutil cp "@MYPHOTO_DOCKER@" "$DOCKER_TAR_PATH"
 }
 
-# End of Functions
-#####################################
-
-######################################
-# Run
-
-main() {
-    if [ -z "$INPUT_BUCKET" ]; then
-        INPUT_BUCKET="gs://$VM_NAME-input/"
-        set_up_bucket "$INPUT_BUCKET" "$INPUT_DIR"
-    fi
-    OUTPUT_BUCKET="gs://myphoto-output/"
-    set_up_bucket "$OUTPUT_BUCKET"
-    OUTPUT_BUCKET_PATH="${OUTPUT_BUCKET}${VM_NAME}/"
-
-    set -x
-
+create_vm() {
     gcloud compute instances create "$VM_NAME" \
         --project "$PROJECT" \
         --zone "$ZONE" \
@@ -244,9 +275,9 @@ main() {
         --image-project "$IMAGE_PROJECT" \
         --labels "run=$LABEL_VALUE,date=$DATE" \
         --scopes "https://www.googleapis.com/auth/cloud-platform"
+}
 
-    wait_for_ssh
-
+provision() {
     gcloud compute scp "@REMOTE_PROVISION@" "$VM_NAME:~/myphoto-remote-provision.sh" \
         --project "$PROJECT" \
         --zone "$ZONE"
@@ -260,20 +291,25 @@ main() {
         --zone "$ZONE" \
         --command "bash ~/myphoto-remote-provision.sh"; then
         echo "Provisioning failed, cleaning up..."
-        gcloud compute instances delete "$VM_NAME" \
-            --project "$PROJECT" \
-            --zone "$ZONE" \
-            --quiet || true
-        if [ -n "$INPUT_DIR" ]; then
-            gsutil -m rm -r "$INPUT_BUCKET" || true
-        fi
-        gsutil rm "$DOCKER_TAR_PATH" || true
+        cleanup_on_provision_failure
         exit 1
     fi
+}
 
-    mkdir -p "$OUTPUT_DIR"
-    DOWNLOAD_SCRIPT="${OUTPUT_DIR}/download.${VM_NAME}.sh"
-    cat >"$DOWNLOAD_SCRIPT" <<EOF
+cleanup_on_provision_failure() {
+    gcloud compute instances delete "$VM_NAME" \
+        --project "$PROJECT" \
+        --zone "$ZONE" \
+        --quiet || true
+    if [ -n "$INPUT_DIR" ]; then
+        gsutil -m rm -r "$INPUT_BUCKET" || true
+    fi
+    gsutil rm "$DOCKER_TAR_PATH" || true
+}
+
+create_download_script() {
+    local script_path="${OUTPUT_DIR}/${VM_NAME}.download.sh"
+    cat >"$script_path" <<SCRIPT
 #!/usr/bin/env bash
 set -euo pipefail
 
@@ -292,72 +328,38 @@ if $(which gcloud) compute instances describe "\$VM_NAME" \
 fi
 
 mkdir -p "\$OUTPUT_DIR"
+set -x
 $(which gsutil) -m rsync -r "\$OUTPUT_BUCKET_PATH" "\$OUTPUT_DIR"
-EOF
-    chmod +x "$DOWNLOAD_SCRIPT"
-    echo "Download script created: $DOWNLOAD_SCRIPT"
+SCRIPT
+    chmod +x "$script_path"
+    echo "Download script created: $script_path"
+}
 
-    TEARDOWN_SCRIPT="${OUTPUT_DIR}/teardown.${VM_NAME}.sh"
-    cat >"$TEARDOWN_SCRIPT" <<EOF
+create_direct_download_script() {
+    local script_path="${OUTPUT_DIR}/${VM_NAME}.direct-download.sh"
+    cat >"$script_path" <<SCRIPT
 #!/usr/bin/env bash
 set -euo pipefail
 
-VM_NAME="$VM_NAME"
-PROJECT="$PROJECT"
-ZONE="$ZONE"
-INPUT_BUCKET="$INPUT_BUCKET"
+set -x
+exec "$0" --direct-download "$VM_NAME" "${OUTPUT_DIR:-.}"
+SCRIPT
+    chmod +x "$script_path"
+}
 
-echo "cleaning up VM: \$VM_NAME"
-$(which gcloud) compute instances delete "\$VM_NAME" \
-  --project "\$PROJECT" \
-  --zone "\$ZONE" \
-  --quiet || true
+create_teardown_script() {
+    local script_path="${OUTPUT_DIR}/${VM_NAME}.teardown.sh"
+    cat >"$script_path" <<SCRIPT
+#!/usr/bin/env bash
+set -euo pipefail
 
-$(which gsutil) -m rm -r "$INPUT_BUCKET" || true
-EOF
-    chmod +x "$TEARDOWN_SCRIPT"
+set -x
+exec "$0" --teardown "$VM_NAME" "${INPUT_BUCKET:-}"
+SCRIPT
+    chmod +x "$script_path"
+}
 
-    set -x
-
-    gcloud compute instances create "$VM_NAME" \
-        --project "$PROJECT" \
-        --zone "$ZONE" \
-        --machine-type "$MACHINE_TYPE" \
-        --boot-disk-size "$DISK_SIZE" \
-        --image-family "$IMAGE_FAMILY" \
-        --image-project "$IMAGE_PROJECT" \
-        --labels "run=$LABEL_VALUE,date=$DATE" \
-        --scopes "https://www.googleapis.com/auth/cloud-platform"
-
-    wait_for_ssh
-
-    # gcloud compute scp "@MYPHOTO_DOCKER@" "$VM_NAME:~/myphoto-docker.tar" \
-    #   --project "$PROJECT" \
-    #   --zone "$ZONE"
-
-    gcloud compute scp "@REMOTE_PROVISION@" "$VM_NAME:~/myphoto-remote-provision.sh" \
-        --project "$PROJECT" \
-        --zone "$ZONE"
-
-    gcloud compute scp "@REMOTE_EXECUTE@" "$VM_NAME:~/myphoto-remote-execute.sh" \
-        --project "$PROJECT" \
-        --zone "$ZONE"
-
-    if ! gcloud compute ssh "$VM_NAME" \
-        --project "$PROJECT" \
-        --zone "$ZONE" \
-        --command "bash ~/myphoto-remote-provision.sh"; then
-        echo "Provisioning failed, cleaning up..."
-        gcloud compute instances delete "$VM_NAME" \
-            --project "$PROJECT" \
-            --zone "$ZONE" \
-            --quiet || true
-        if [ -n "$INPUT_DIR" ]; then
-            gsutil -m rm -r "$INPUT_BUCKET" || true
-        fi
-        exit 1
-    fi
-
+run_execute() {
     if [ "$DETACH" = "yes" ]; then
         gcloud compute ssh "$VM_NAME" \
             --project "$PROJECT" \
@@ -365,7 +367,6 @@ EOF
             --command "nohup bash -c \"bash ~/myphoto-remote-execute.sh '$INPUT_BUCKET' '$OUTPUT_BUCKET_PATH' '$DOCKER_TAR_PATH' no\" > /dev/null 2>&1 &"
         echo "Detached execution started."
         echo "Output will be available at: $OUTPUT_BUCKET_PATH"
-
     else
         gcloud compute ssh "$VM_NAME" \
             --project "$PROJECT" \
@@ -390,6 +391,41 @@ EOF
 
         times
     fi
+}
+
+# End of Functions
+#####################################
+
+######################################
+# Run
+
+main() {
+    if [ -z "$INPUT_BUCKET" ]; then
+        INPUT_BUCKET="gs://$VM_NAME-input/"
+        set_up_bucket "$INPUT_BUCKET" "$INPUT_DIR"
+    fi
+    OUTPUT_BUCKET="gs://myphoto-output/"
+    set_up_bucket "$OUTPUT_BUCKET"
+    OUTPUT_BUCKET_PATH="${OUTPUT_BUCKET}${VM_NAME}/"
+
+    upload_docker_tar
+
+    set -x
+
+    create_vm
+    wait_for_ssh
+    provision
+
+    set +x
+
+    mkdir -p "$OUTPUT_DIR"
+    create_download_script
+    create_direct_download_script
+    create_teardown_script
+
+    set -x
+
+    run_execute
 }
 
 main "$@"
