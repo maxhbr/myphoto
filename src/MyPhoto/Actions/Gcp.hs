@@ -197,7 +197,7 @@ uploadDockerTar _ dockerTarPath maybeDockerImage = do
 uploadDockerTarFile :: String -> FilePath -> IO ()
 uploadDockerTarFile dockerTarPath dockerTarFile = do
   putStrLn $ "Uploading Docker image to " ++ dockerTarPath
-  _ <- callProcess "gsutil" ["-m", "rsync", "-r", dockerTarFile, dockerTarPath]
+  _ <- callProcess "gsutil" ["cp", dockerTarFile, dockerTarPath]
   return ()
 
 createVm :: GcpConfig -> String -> String -> String -> String -> String -> String -> String -> IO ()
