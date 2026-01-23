@@ -9,10 +9,12 @@
 - Develop/build: `cabal build all` (uses `myphoto.cabal`); `cabal run myphoto-stack -- --help` to inspect CLI flags.
 - Test: `cabal test test-myphoto` runs the chunking suite; prefer running before pushing.
 - Nix flows: `nix build .#myphoto-stack` for the stack binary; `nix run .#myphoto-watch -- <args>` to exercise the watcher.
-- Formatting: `nix fmt` runs the formatter (ormolu) over Haskell sources.
+- Formatting: `nix fmt` runs ormolu for Haskell sources and nixfmt-rfc-style for Nix files via pre-commit hooks.
+- Check shell formatting: `nix build '.#checks.x86_64-linux.shell-fmt-check'` or use `, shfmt -d -s -i 4 -ci <files>` to verify.
 
 ## Coding Style & Naming Conventions
-- Follow `ormolu` formatting (two-space indentation, let-bindings aligned by the formatter); run `nix fmt` before commits.
+- Haskell: Follow `ormolu` formatting (two-space indentation, let-bindings aligned by the formatter); run `nix fmt` before commits.
+- Shell scripts: Use 4-space indentation with `shfmt -i 4 -s -ci -w <script>`; `set -euo pipefail` for error handling.
 - Modules use `MyPhoto.*` namespace; keep new actions under `MyPhoto.Actions.*` and utilities under `MyPhoto.Utils.*`.
 - Enable warnings: `-Wall -threaded` is enforced in the common stanza—fix warnings rather than suppressing them.
 - Prefer total functions or explicit error handling; keep IO boundaries narrow around wrapper modules.
