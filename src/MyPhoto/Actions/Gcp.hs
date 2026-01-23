@@ -221,9 +221,7 @@ waitForSsh GcpConfig {..} vmName inputBucket dockerTarPath = do
       sleepSeconds = 5
       attempt 0 = do
         putStrLn $ "SSH did not become available on " ++ vmName
-        putStr "Cleaning up after SSH failure..."
         cleanupOnProvisionFailureWithPath GcpConfig{..} vmName inputBucket dockerTarPath
-        exitWith (ExitFailure 1)
       attempt n = do
         exitCode <- catch
           (callProcess "gcloud"
@@ -247,26 +245,28 @@ provisionVm :: GcpConfig -> String -> Maybe String -> Maybe String -> IO ()
 provisionVm GcpConfig {..} vmName inputBucket dockerTarPath = do
   let provisionPath = "/tmp/myphoto-remote-provision.sh"
       executePath = "/tmp/myphoto-remote-execute.sh"
-  
+
   BS.writeFile provisionPath remoteProvisionScript
   BS.writeFile executePath remoteExecuteScript
-  
+
   _ <- callProcess "gcloud"
     ["compute", "scp", provisionPath, vmName ++ ":~/myphoto-remote-provision.sh",
      "--project", gcpProject,
      "--zone", gcpZone]
-  
+
   _ <- callProcess "gcloud"
     ["compute", "scp", executePath, vmName ++ ":~/myphoto-remote-execute.sh",
      "--project", gcpProject,
      "--zone", gcpZone]
-  
-  exitCode <- system $ unwords
-    ["gcloud", "compute", "ssh", vmName,
-     "--project", gcpProject,
-     "--zone", gcpZone,
-     "--command", "bash ~/myphoto-remote-provision.sh"]
-  
+
+  exitCode <- catch
+    (callProcess "gcloud"
+      ["compute", "ssh", vmName,
+       "--project", gcpProject,
+       "--zone", gcpZone,
+       "--command", "bash ~/myphoto-remote-provision.sh"] >> return ExitSuccess)
+    (\(_ :: SomeException) -> return (ExitFailure 1))
+
   case exitCode of
     ExitSuccess -> return ()
     _ -> do
@@ -280,7 +280,7 @@ cleanupOnProvisionFailure vmName dockerTarPath = do
 cleanupOnProvisionFailureWithPath :: GcpConfig -> String -> Maybe String -> Maybe String -> IO ()
 cleanupOnProvisionFailureWithPath GcpConfig {..} vmName inputBucket dockerTarPath = do
   putStrLn $ "Cleaning up after provisioning failure..."
-  _ <- callProcess "gcloud" 
+  _ <- callProcess "gcloud"
     ["compute", "instances", "delete", vmName,
      "--project", gcpProject,
      "--zone", gcpZone,
@@ -291,6 +291,7 @@ cleanupOnProvisionFailureWithPath GcpConfig {..} vmName inputBucket dockerTarPat
   forM_ dockerTarPath $ \tarPath -> do
     _ <- callProcess "gsutil" ["rm", tarPath]
     return ()
+  exitWith (ExitFailure 1)
 
 runExecute ::
   GcpConfig ->

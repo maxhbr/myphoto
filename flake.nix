@@ -16,6 +16,11 @@
       t = lib.trivial;
       hl = pkgs.haskell.lib;
 
+      gcpExtraLibraries = with pkgs; [
+        coreutils # for readlink, dirname, needed by google-cloud-sdk wrappers
+        openssh # SSH client for gcloud compute ssh
+        google-cloud-sdk # provides gcloud and gsutil for GCP operations
+      ];
       extraLibraries = with pkgs; [
         self.packages.${system}.focus-stack # main aligning and focus stacking
         self.packages.${system}.zerene-stacker # for zerene-stacker integration
@@ -28,9 +33,7 @@
         libraw # for converting raw files like ARW to tiff, provides dcraw_emu
         libheif # for converting heif files
         udisks # for mounting devices
-        coreutils # for readlink, dirname, needed by google-cloud-sdk wrappers
-        google-cloud-sdk # provides gcloud and gsutil for GCP operations
-      ];
+      ] ++ gcpExtraLibraries;
       project =
         devTools:
         let

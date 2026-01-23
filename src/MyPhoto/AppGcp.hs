@@ -13,7 +13,8 @@ import Data.Maybe
 import MyPhoto.Model
 import MyPhoto.Actions.Gcp
 import System.Console.GetOpt
-import System.Directory (doesDirectoryExist, makeAbsolute)
+import System.Directory (doesDirectoryExist, makeAbsolute, getHomeDirectory)
+import System.FilePath ((</>))
 import System.Environment (getArgs, getProgName)
 import qualified System.IO as IO
 import Data.Time.Clock
@@ -174,7 +175,8 @@ gcpOptions =
 
 readGcpConfig :: IO GcpConfig
 readGcpConfig = do
-  let envPath = "~/.myphoto/gcp.env"
+  homeDir <- getHomeDirectory
+  let envPath = homeDir </> ".myphoto" </> "gcp.env"
   expandedPath <- catch (makeAbsolute envPath) (\(_ :: SomeException) -> return envPath)
   contents <- catch (readFile expandedPath) (\(_ :: SomeException) -> do
     IO.hPutStrLn IO.stderr ("GCP configuration file " ++ envPath ++ " not found.")
@@ -201,15 +203,6 @@ readGcpConfig = do
       IO.hPutStrLn IO.stderr "Missing ZONE in GCP configuration."
       exitWith (ExitFailure 1)
   return GcpConfig {..}
-
-generateVmName :: Maybe FilePath -> IO String
-generateVmName maybeInputDir = do
-  let size = case maybeInputDir of
-        Just _ -> "local"
-        Nothing -> "gs"
-  now <- getCurrentTime
-  let date = formatTime defaultTimeLocale "%Y%m%d-%H%M%S" now
-  return $ "myphoto-" ++ date ++ "-" ++ size
 
 runMyPhotoGcp :: IO ()
 runMyPhotoGcp = do

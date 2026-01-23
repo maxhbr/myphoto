@@ -64,4 +64,7 @@ gsutil -m rsync -r /data/output "$OUTPUT_BUCKET"
         --project "$project" \
         --zone "$zone" \
         --quiet >/tmp/myphoto-self-delete.log 2>&1 &
+    true
 )
+
+echo "Processing complete."

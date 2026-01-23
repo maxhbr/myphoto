@@ -6,6 +6,7 @@ run_gcp() {
     local input_arg="$1"
     local output_arg="${2:-}"
     local use_detach="$3"
+    shift 3
 
     local INPUT_DIR="${input_arg%/}"
     local OUTPUT_DIR="${output_arg:-${INPUT_DIR}_gcp}"
@@ -21,7 +22,8 @@ run_gcp() {
         args+=(--detach)
     fi
 
-    nix run "$myphotodir#myphoto-gcp" -- "${args[@]}"
+    set -x
+    nix run "$myphotodir#myphoto-gcp" -- "${args[@]}" "$@"
 }
 
 if [[ ${1:-} == "--many" ]]; then
@@ -30,5 +32,8 @@ if [[ ${1:-} == "--many" ]]; then
         run_gcp "$INPUT_ARG" "" "yes"
     done
 else
-    run_gcp "${1:-}" "${2:-}" "no"
+    input_arg="${1}"
+    output_arg="${2:-}"
+    shift 2
+    run_gcp "$input_arg" "$output_arg" "no" "$@"
 fi
