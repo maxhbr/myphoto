@@ -16,6 +16,7 @@ module MyPhoto.Model
     CleanupStrategy (..),
     ChunkSettings (..),
     Options (..),
+    GcpConfig (..),
     inWorkdir,
     findOutFile,
     findAltFileOfFile,
@@ -140,6 +141,13 @@ instance Default Options where
         optZereneStackerHeadless = False,
         optParameters = mempty
       }
+
+data GcpConfig = GcpConfig
+  { gcpProject :: String,
+    gcpRegion :: String,
+    gcpZone :: String
+  }
+  deriving (Show, Eq)
 
 inWorkdir :: FilePath -> FilePath -> FilePath
 inWorkdir workdir img = workdir </> takeFileName img
