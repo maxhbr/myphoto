@@ -98,7 +98,7 @@ runMain config@GcpConfig {..} inputDir outputDir inputBucket dockerImage
 
   createVm config vmName machineType' diskSize' imageFamily' imageProject' labelValue date
 
-  waitForSsh config vmName
+  waitForSsh config vmName (Just actualInputBucket) (if isNothing maybeDockerTarForCleanup then Nothing else Just dockerTarPath)
 
   provisionVm config vmName (Just actualInputBucket) (if isNothing maybeDockerTarForCleanup then Nothing else Just dockerTarPath)
 
@@ -215,11 +215,13 @@ createVm GcpConfig {..} vmName machineType diskSize imageFamily imageProject lab
      "--scopes", scopes]
   return ()
 
-waitForSsh :: GcpConfig -> String -> IO ()
-waitForSsh GcpConfig {..} vmName = do
+waitForSsh :: GcpConfig -> String -> Maybe String -> Maybe String -> IO ()
+waitForSsh GcpConfig {..} vmName inputBucket dockerTarPath = do
   let maxAttempts = 30
       attempt 0 = do
         putStrLn $ "SSH did not become available on " ++ vmName
+        putStr "Cleaning up after SSH failure..."
+        cleanupOnProvisionFailureWithPath GcpConfig{..} vmName inputBucket dockerTarPath
         exitWith (ExitFailure 1)
       attempt n = do
         exitCode <- system $ unwords
@@ -227,9 +229,9 @@ waitForSsh GcpConfig {..} vmName = do
            "--project", gcpProject,
            "--zone", gcpZone,
            "--command", "true",
-           "--ssh-flag", "-o ConnectionAttempts=1",
-           "--ssh-flag", "-o ConnectTimeout=5",
-           ">/dev/null 2>&1"]
+           "--ssh-flag", "-o ConnectionAttempts=3",
+           "--ssh-flag", "-o ConnectTimeout=20",
+           "--ssh-flag", "-o StrictHostKeyChecking=no"]
         case exitCode of
           ExitSuccess -> return ()
           _ -> do
