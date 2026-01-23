@@ -18,11 +18,11 @@ run_gcp() {
     local INPUT_DIR="${input_arg%/}"
     local OUTPUT_DIR="${output_arg:-${INPUT_DIR}_gcp}"
 
-    args=();
+    args=()
     args+=(--project "$PROJECT")
     args+=(--region "$REGION")
     args+=(--zone "$ZONE")
-    if [[ "$INPUT_DIR" == "gs://"* ]]; then
+    if [[ $INPUT_DIR == "gs://"* ]]; then
         args+=(--input-bucket "$INPUT_DIR")
     else
         args+=(--input-dir "$INPUT_DIR")
@@ -35,7 +35,7 @@ run_gcp() {
     nix run "$myphotodir#myphoto-docker-in-gcp" -- "${args[@]}"
 }
 
-if [[ "${1:-}" == "--many" ]]; then
+if [[ ${1:-} == "--many" ]]; then
     shift
     for INPUT_ARG in "$@"; do
         run_gcp "$INPUT_ARG" "" "yes"

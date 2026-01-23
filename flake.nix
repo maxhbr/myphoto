@@ -326,6 +326,12 @@
               "myphoto-stack.sh"
               "myphoto-watch.sh"
               "myphoto-gallery.sh"
+              "myphoto-align.sh"
+              "myphoto-toPNG.sh"
+              "myphoto-gcp.sh"
+              "gcp/run-myphoto-in-gcp.sh"
+              "gcp/myphoto-remote-provision.sh"
+              "gcp/myphoto-remote-execute.sh"
             ];
           in
           pkgs.stdenv.mkDerivation {
