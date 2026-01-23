@@ -34,6 +34,7 @@ data GcpOptions = GcpOptions
     optDiskSize :: String,
     optImageFamily :: String,
     optImageProject :: String,
+    optDockerImage :: Maybe FilePath,
     optKeepVm :: Bool,
     optKeepBucket :: Bool,
     optDetach :: Bool
@@ -51,6 +52,7 @@ instance Default GcpOptions where
         optDiskSize = "500GB",
         optImageFamily = "debian-12",
         optImageProject = "debian-cloud",
+        optDockerImage = Nothing,
         optKeepVm = False,
         optKeepBucket = False,
         optDetach = False
@@ -121,6 +123,15 @@ gcpOptions =
           "PROJECT"
       )
       "Image project (default: debian-cloud)",
+    Option
+      [] ["docker-image"]
+      ( ReqArg
+          ( \arg opt ->
+              return opt {optDockerImage = Just arg}
+          )
+          "TAR"
+      )
+      "Path to Docker tar file (default: built-in)",
     Option
       [] ["keep-vm"]
       ( NoArg
@@ -254,8 +265,10 @@ runWithOpts opts@GcpOptions {optMode = mode, optInputDir = inputDir, optOutputDi
             Just d -> d
             Nothing -> error "Missing --output-dir parameter"
       
-      runMain gcpConfig inputDir actualOutputDir 
-        (optInputBucket opts) Nothing Nothing Nothing Nothing
+      runMain gcpConfig inputDir actualOutputDir
+        (optInputBucket opts) (optDockerImage opts)
+        (Just (optMachineType opts)) (Just (optDiskSize opts))
+        (Just (optImageFamily opts)) (Just (optImageProject opts))
         (optKeepVm opts) (optKeepBucket opts) (optDetach opts)
       
     Teardown vmName maybeInputBucket -> do
