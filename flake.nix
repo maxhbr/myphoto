@@ -28,6 +28,7 @@
         libraw # for converting raw files like ARW to tiff, provides dcraw_emu
         libheif # for converting heif files
         udisks # for mounting devices
+        google-cloud-sdk # provides gcloud and gsutil for GCP operations
       ];
       project =
         devTools:
@@ -168,6 +169,9 @@
             makeWrapper ${self.packages.${system}.myphoto-unwrapped}/bin/myphoto-watch $out/bin/myphoto-import \
               --set PATH ${pkgs.lib.makeBinPath extraLibraries} \
               --add-flags "--only-import"
+
+            makeWrapper ${self.packages.${system}.myphoto-unwrapped}/bin/myphoto-gcp $out/bin/myphoto-gcp \
+              --set PATH ${pkgs.lib.makeBinPath extraLibraries}
           '';
         };
         inherit (zerene) zerene-stacker;
@@ -282,7 +286,13 @@
         };
         myphoto-gcp = {
           type = "app";
-          program = "${self.packages.${system}.myphoto}/bin/myphoto-gcp";
+          program = let
+              docker-image = "${self.packages.${system}.myphoto-docker}";
+              myphoto-gcp-with-docker-image-argument = pkgs.writeShellScriptBin "myphoto-gcp" ''
+                #!${pkgs.stdenv.shell}
+                exec ${self.packages.${system}.myphoto}/bin/myphoto-gcp --docker-image "${docker-image}" "$@"
+              '';
+            in "${myphoto-gcp-with-docker-image-argument}/bin/myphoto-gcp";
         };
         myphoto-docker-in-gcp = {
           type = "app";
