@@ -11,7 +11,6 @@ module MyPhoto.Actions.Gcp
     runMain,
     setupBucket,
     uploadDockerTar,
-    uploadDockerTarFile,
     createVm,
     waitForSsh,
     provisionVm,
@@ -35,12 +34,34 @@ import Data.Time.Format
 import Data.Maybe (isNothing)
 import Control.Exception (catch, SomeException)
 import Control.Monad (forM_, unless)
+import System.Directory (createDirectoryIfMissing)
+import System.IO.Temp (withSystemTempFile)
+import System.IO (hClose)
 
 remoteProvisionScript :: BS.ByteString
 remoteProvisionScript = $(embedFile "app-gcp/remote/provision.sh")
 
 remoteExecuteScript :: BS.ByteString
 remoteExecuteScript = $(embedFile "app-gcp/remote/execute.sh")
+
+deleteVm :: GcpConfig -> String -> IO ()
+deleteVm GcpConfig {..} vmName = do
+  _ <- callProcess "gcloud"
+    ["compute", "instances", "delete", vmName,
+     "--project", gcpProject,
+     "--zone", gcpZone,
+     "--quiet"]
+  return ()
+
+deleteBucket :: String -> IO ()
+deleteBucket bucket = do
+  _ <- callProcess "gsutil" ["-m", "rm", "-r", bucket]
+  return ()
+
+deleteGcsObject :: String -> IO ()
+deleteGcsObject path = do
+  _ <- callProcess "gsutil" ["rm", path]
+  return ()
 
 runMain ::
   GcpConfig ->
@@ -80,7 +101,9 @@ runMain config@GcpConfig {..} inputDir outputDir inputBucket dockerImage
 
   setupBucketIfNotExists config outputBucket labelValue date Nothing True
 
-  uploadDockerTar config dockerTarPath dockerImage
+  case dockerImage of
+    Just dockerImage' -> uploadDockerTar config dockerTarPath dockerImage'
+    Nothing -> return ()
 
   let maybeDockerTarForCleanup = dockerImage
       machineType' = case machineType of
@@ -100,15 +123,16 @@ runMain config@GcpConfig {..} inputDir outputDir inputBucket dockerImage
 
   waitForSsh config vmName (Just actualInputBucket) (if isNothing maybeDockerTarForCleanup then Nothing else Just dockerTarPath)
 
-  provisionVm config vmName (Just actualInputBucket) (if isNothing maybeDockerTarForCleanup then Nothing else Just dockerTarPath)
+  executeScript <- provisionVm config vmName (Just actualInputBucket) (if isNothing maybeDockerTarForCleanup then Nothing else Just dockerTarPath)
 
   let outputBucketPath = outputBucket ++ vmName ++ "/"
 
+  createDirectoryIfMissing True outputDir
   createDownloadScript outputDir vmName config outputBucketPath
   createDirectDownloadScript outputDir vmName
   createTeardownScript outputDir vmName actualInputBucket
 
-  runExecute config vmName actualInputBucket outputBucketPath dockerTarPath keepVm keepBucket detach
+  runExecute config vmName actualInputBucket outputBucketPath dockerTarPath keepVm keepBucket detach executeScript
 
   where 
     normalizeLabel :: String -> String
@@ -116,19 +140,9 @@ runMain config@GcpConfig {..} inputDir outputDir inputBucket dockerImage
       . takeWhile (/= '\0')
 
 teardown :: String -> Maybe String -> GcpConfig -> IO ()
-teardown vmName maybeInputBucket GcpConfig {..} = do
-  let zone = gcpZone
-      project = gcpProject
-
-  _ <- callProcess "gcloud" 
-    ["compute", "instances", "delete", vmName,
-     "--project", project,
-     "--zone", zone,
-     "--quiet"]
-  
-  forM_ maybeInputBucket $ \bucket -> do
-    _ <- callProcess "gsutil" ["-m", "rm", "-r", bucket]
-    return ()
+teardown vmName maybeInputBucket config = do
+  deleteVm config vmName
+  forM_ maybeInputBucket $ \bucket -> deleteBucket bucket
 
 directDownload :: String -> Maybe FilePath -> GcpConfig -> IO ()
 directDownload vmName maybeOutputDir GcpConfig {..} = do
@@ -182,22 +196,14 @@ setupBucketIfNotExists config@GcpConfig {..} bucketName labelValue date initialC
         else putStrLn $ "Bucket already exists: " ++ bucketName
     else setupBucket config bucketName labelValue date initialContent
 
-uploadDockerTar :: GcpConfig -> String -> Maybe FilePath -> IO ()
-uploadDockerTar _ dockerTarPath maybeDockerImage = do 
-  case maybeDockerImage of
-    Just dockerTarUploadPath -> do
-      exists <- doesFileExist dockerTarUploadPath
-      unless exists $ do
-        putStrLn $ "Docker tar file not found: " ++ dockerTarUploadPath
-        exitWith (ExitFailure 1)
-      uploadDockerTarFile dockerTarPath dockerTarUploadPath
-    Nothing -> do
-      return ()
-
-uploadDockerTarFile :: String -> FilePath -> IO ()
-uploadDockerTarFile dockerTarPath dockerTarFile = do
+uploadDockerTar :: GcpConfig -> String -> FilePath -> IO ()
+uploadDockerTar _ dockerTarPath dockerImage = do 
+  exists <- doesFileExist dockerImage
+  unless exists $ do
+    putStrLn $ "Docker tar file not found: " ++ dockerImage
+    exitWith (ExitFailure 1)
   putStrLn $ "Uploading Docker image to " ++ dockerTarPath
-  _ <- callProcess "gsutil" ["cp", dockerTarFile, dockerTarPath]
+  _ <- callProcess "gsutil" ["cp", dockerImage, dockerTarPath]
   return ()
 
 createVm :: GcpConfig -> String -> String -> String -> String -> String -> String -> String -> IO ()
@@ -241,34 +247,36 @@ waitForSsh GcpConfig {..} vmName inputBucket dockerTarPath = do
             attempt (n - 1)
   attempt maxAttempts
 
-provisionVm :: GcpConfig -> String -> Maybe String -> Maybe String -> IO ()
+uploadScripts :: GcpConfig -> String -> IO (String,String)
+uploadScripts GcpConfig {..} vmName = do
+  let provisionScript = "~/myphoto-remote-provision.sh"
+      executeScript = "~/myphoto-remote-execute.sh"
+  mapM_ (\(content, remotePath) ->
+    withSystemTempFile "myphoto-script.sh" $ \localPath handle -> do
+      BS.hPut handle content
+      hClose handle
+      callProcess "gcloud"
+        ["compute", "scp", localPath, vmName ++ ":" ++ remotePath,
+         "--project", gcpProject,
+         "--zone", gcpZone])
+    [ (remoteProvisionScript, provisionScript)
+    , (remoteExecuteScript, executeScript)
+    ]
+  return (provisionScript, executeScript) 
+
+provisionVm :: GcpConfig -> String -> Maybe String -> Maybe String -> IO String
 provisionVm GcpConfig {..} vmName inputBucket dockerTarPath = do
-  let provisionPath = "/tmp/myphoto-remote-provision.sh"
-      executePath = "/tmp/myphoto-remote-execute.sh"
-
-  BS.writeFile provisionPath remoteProvisionScript
-  BS.writeFile executePath remoteExecuteScript
-
-  _ <- callProcess "gcloud"
-    ["compute", "scp", provisionPath, vmName ++ ":~/myphoto-remote-provision.sh",
-     "--project", gcpProject,
-     "--zone", gcpZone]
-
-  _ <- callProcess "gcloud"
-    ["compute", "scp", executePath, vmName ++ ":~/myphoto-remote-execute.sh",
-     "--project", gcpProject,
-     "--zone", gcpZone]
-
+  (provisionScript, executeScript) <- uploadScripts GcpConfig{..} vmName
   exitCode <- catch
     (callProcess "gcloud"
       ["compute", "ssh", vmName,
        "--project", gcpProject,
        "--zone", gcpZone,
-       "--command", "bash ~/myphoto-remote-provision.sh"] >> return ExitSuccess)
+       "--command", "bash " ++ provisionScript] >> return ExitSuccess)
     (\(_ :: SomeException) -> return (ExitFailure 1))
 
   case exitCode of
-    ExitSuccess -> return ()
+    ExitSuccess -> return executeScript
     _ -> do
       putStrLn "Provisioning failed, cleaning up..."
       cleanupOnProvisionFailureWithPath (GcpConfig{..}) vmName inputBucket dockerTarPath
@@ -277,20 +285,12 @@ cleanupOnProvisionFailure :: String -> Maybe String -> IO ()
 cleanupOnProvisionFailure vmName dockerTarPath = do
   return ()
   
-cleanupOnProvisionFailureWithPath :: GcpConfig -> String -> Maybe String -> Maybe String -> IO ()
-cleanupOnProvisionFailureWithPath GcpConfig {..} vmName inputBucket dockerTarPath = do
+cleanupOnProvisionFailureWithPath :: GcpConfig -> String -> Maybe String -> Maybe String -> IO a
+cleanupOnProvisionFailureWithPath config@GcpConfig {..} vmName inputBucket dockerTarPath = do
   putStrLn $ "Cleaning up after provisioning failure..."
-  _ <- callProcess "gcloud"
-    ["compute", "instances", "delete", vmName,
-     "--project", gcpProject,
-     "--zone", gcpZone,
-     "--quiet"]
-  forM_ inputBucket $ \bucket -> do
-    _ <- callProcess "gsutil" ["-m", "rm", "-r", bucket]
-    return ()
-  forM_ dockerTarPath $ \tarPath -> do
-    _ <- callProcess "gsutil" ["rm", tarPath]
-    return ()
+  deleteVm config vmName
+  forM_ inputBucket $ \bucket -> deleteBucket bucket
+  forM_ dockerTarPath $ \tarPath -> deleteGcsObject tarPath
   exitWith (ExitFailure 1)
 
 runExecute ::
@@ -302,8 +302,9 @@ runExecute ::
   Bool ->
   Bool ->
   Bool ->
+  String ->
   IO ()
-runExecute GcpConfig {..} vmName inputBucket outputBucketPath dockerTarPath keepVm keepBucket detach = do
+runExecute config@GcpConfig {..} vmName inputBucket outputBucketPath dockerTarPath keepVm keepBucket detach executeScript = do
   if detach
     then do
       _ <- callProcess "gcloud"
@@ -311,7 +312,7 @@ runExecute GcpConfig {..} vmName inputBucket outputBucketPath dockerTarPath keep
          "--project", gcpProject,
          "--zone", gcpZone,
          "--command", 
-          "nohup bash -c \\\"bash ~/myphoto-remote-execute.sh '" ++ inputBucket ++ 
+          "nohup bash -c \\\"bash " ++ executeScript ++ " '" ++ inputBucket ++ 
            "' '" ++ outputBucketPath ++ "' '" ++ dockerTarPath ++ "' no\\\" > /dev/null 2>&1 &"]
       putStrLn "Detached execution started."
       putStrLn $ "Output will be available at: " ++ outputBucketPath
@@ -326,17 +327,11 @@ runExecute GcpConfig {..} vmName inputBucket outputBucketPath dockerTarPath keep
       
       unless keepVm $ do
         putStrLn $ "cleaning up VM: " ++ vmName
-        _ <- callProcess "gcloud"
-          ["compute", "instances", "delete", vmName,
-           "--project", gcpProject,
-           "--zone", gcpZone,
-           "--quiet"]
-        return ()
+        deleteVm config vmName
       
       unless keepBucket $ do
         putStrLn $ "cleaning up input bucket: " ++ inputBucket
-        _ <- callProcess "gsutil" ["-m", "rm", "-r", inputBucket]
-        return ()
+        deleteBucket inputBucket
       
       _ <- callProcess "gsutil" ["-m", "rsync", "-r", outputBucketPath, "."]
       return ()
