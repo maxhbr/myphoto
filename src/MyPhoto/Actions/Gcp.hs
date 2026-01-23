@@ -217,26 +217,29 @@ createVm GcpConfig {..} vmName machineType diskSize imageFamily imageProject lab
 
 waitForSsh :: GcpConfig -> String -> Maybe String -> Maybe String -> IO ()
 waitForSsh GcpConfig {..} vmName inputBucket dockerTarPath = do
-  let maxAttempts = 30
+  let maxAttempts = 10
+      sleepSeconds = 5
       attempt 0 = do
         putStrLn $ "SSH did not become available on " ++ vmName
         putStr "Cleaning up after SSH failure..."
         cleanupOnProvisionFailureWithPath GcpConfig{..} vmName inputBucket dockerTarPath
         exitWith (ExitFailure 1)
       attempt n = do
-        exitCode <- system $ unwords
-          ["gcloud", "compute", "ssh", vmName,
-           "--project", gcpProject,
-           "--zone", gcpZone,
-           "--command", "true",
-           "--ssh-flag", "-o ConnectionAttempts=3",
-           "--ssh-flag", "-o ConnectTimeout=20",
-           "--ssh-flag", "-o StrictHostKeyChecking=no"]
+        exitCode <- catch
+          (callProcess "gcloud"
+            ["compute", "ssh", vmName,
+             "--project", gcpProject,
+             "--zone", gcpZone,
+             "--command", "true",
+             "--ssh-flag=-o ConnectionAttempts=3",
+             "--ssh-flag=-o ConnectTimeout=" ++ show sleepSeconds,
+             "--ssh-flag=-o StrictHostKeyChecking=no"] >> return ExitSuccess)
+          (\(_ :: SomeException) -> return (ExitFailure 1))
         case exitCode of
           ExitSuccess -> return ()
           _ -> do
             putStrLn $ "Waiting for SSH on " ++ vmName ++ " (attempt " ++ show (maxAttempts - n + 1) ++ "/" ++ show maxAttempts ++ ")..."
-            _ <- system "sleep 10"
+            _ <- system $ "sleep " ++ show sleepSeconds
             attempt (n - 1)
   attempt maxAttempts
 
