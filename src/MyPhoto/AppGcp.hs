@@ -250,8 +250,13 @@ runWithOpts opts@GcpOptions {optMode = mode, optInputDir = inputDir, optOutputDi
           IO.hPutStrLn IO.stderr ("Input directory does not exist: " ++ dir)
           exitWith (ExitFailure 1)
       
-      vmName <- generateVmName inputDir
-      putStrLn ("VM name: " ++ vmName)
+      let actualOutputDir = case outputDir of
+            Just d -> d
+            Nothing -> error "Missing --output-dir parameter"
+      
+      runMain gcpConfig inputDir actualOutputDir 
+        (optInputBucket opts) Nothing Nothing Nothing Nothing
+        (optKeepVm opts) (optKeepBucket opts) (optDetach opts)
       
     Teardown vmName maybeInputBucket -> do
       putStrLn ("Tearing down VM: " ++ vmName)
