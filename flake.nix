@@ -16,6 +16,11 @@
       t = lib.trivial;
       hl = pkgs.haskell.lib;
 
+      gcpExtraLibraries = with pkgs; [
+        coreutils # for readlink, dirname, needed by google-cloud-sdk wrappers
+        openssh # SSH client for gcloud compute ssh
+        google-cloud-sdk # provides gcloud and gsutil for GCP operations
+      ];
       extraLibraries = with pkgs; [
         self.packages.${system}.focus-stack # main aligning and focus stacking
         self.packages.${system}.zerene-stacker # for zerene-stacker integration
@@ -28,7 +33,7 @@
         libraw # for converting raw files like ARW to tiff, provides dcraw_emu
         libheif # for converting heif files
         udisks # for mounting devices
-      ];
+      ] ++ gcpExtraLibraries;
       project =
         devTools:
         let
@@ -168,6 +173,9 @@
             makeWrapper ${self.packages.${system}.myphoto-unwrapped}/bin/myphoto-watch $out/bin/myphoto-import \
               --set PATH ${pkgs.lib.makeBinPath extraLibraries} \
               --add-flags "--only-import"
+
+            makeWrapper ${self.packages.${system}.myphoto-unwrapped}/bin/myphoto-gcp $out/bin/myphoto-gcp \
+              --set PATH ${pkgs.lib.makeBinPath extraLibraries}
           '';
         };
         inherit (zerene) zerene-stacker;
@@ -280,6 +288,16 @@
           type = "app";
           program = "${self.packages.${system}.myphoto}/bin/myphoto-gallery";
         };
+        myphoto-gcp = {
+          type = "app";
+          program = let
+              docker-image = "${self.packages.${system}.myphoto-docker}";
+              myphoto-gcp-with-docker-image-argument = pkgs.writeShellScriptBin "myphoto-gcp" ''
+                #!${pkgs.stdenv.shell}
+                exec ${self.packages.${system}.myphoto}/bin/myphoto-gcp --docker-image "${docker-image}" "$@"
+              '';
+            in "${myphoto-gcp-with-docker-image-argument}/bin/myphoto-gcp";
+        };
         myphoto-docker-in-gcp = {
           type = "app";
           program = "${self.packages.${system}.myphoto-docker-in-gcp}/bin/myphoto-docker-in-gcp";
@@ -332,6 +350,8 @@
               "gcp/run-myphoto-in-gcp.sh"
               "gcp/myphoto-remote-provision.sh"
               "gcp/myphoto-remote-execute.sh"
+              "app-gcp/remote/provision.sh"
+              "app-gcp/remote/execute.sh"
             ];
           in
           pkgs.stdenv.mkDerivation {
