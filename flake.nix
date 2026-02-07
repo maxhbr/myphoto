@@ -74,7 +74,9 @@
             hl.disableLibraryProfiling
             hl.disableExecutableProfiling
             ((t.flip hl.appendBuildFlags) [
-              "--ghc-options=\" -threaded -rtsopts -with-rtsopts=-N\""
+              /* "--ghc-options=\" -threaded -rtsopts -with-rtsopts=-N\"" */
+              "--ghc-options=-threaded"
+              "--ghc-options=-rtsopts"
               "+RTS"
             ])
           ];
