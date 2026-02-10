@@ -77,6 +77,7 @@
               /* "--ghc-options=\" -threaded -rtsopts -with-rtsopts=-N\"" */
               "--ghc-options=-threaded"
               "--ghc-options=-rtsopts"
+              "--ghc-options=-with-rtsopts=-N"
               "+RTS"
             ])
           ];
