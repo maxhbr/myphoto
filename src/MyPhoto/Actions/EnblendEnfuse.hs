@@ -11,6 +11,7 @@ import Control.Concurrent (getNumCapabilities)
 import Control.Concurrent.Async (mapConcurrently)
 import Control.Concurrent.MSem as MS
 import Control.Monad
+import Data.Maybe (fromMaybe)
 import MyPhoto.Model hiding (Options (..))
 import MyPhoto.Utils.Chunking
 import MyPhoto.Wrapper.EnblendEnfuseWrapper
@@ -18,7 +19,7 @@ import System.Directory
 
 data EnblendEnfuseActionOptions = EnblendEnfuseActionOptions
   { eeOptions :: EnblendEnfuseOptions,
-    eeaMaxCapabilities :: Int,
+    eeaMaxCapabilities :: Maybe Int,
     eeaOutputBN :: Maybe String,
     eeaChunk :: ChunkSettings,
     eeaConcurrent :: Bool,
@@ -30,7 +31,7 @@ instance Default EnblendEnfuseActionOptions where
   def =
     EnblendEnfuseActionOptions
       { eeOptions = def,
-        eeaMaxCapabilities = 24, -- with to many threads the memory seems to be insufficient
+        eeaMaxCapabilities = Nothing,
         eeaOutputBN = Nothing,
         eeaChunk = def,
         eeaConcurrent = True,
@@ -108,9 +109,10 @@ enfuseStackImgs =
    in \opts imgs -> do
         logDebugIO (show opts)
         numCapabilities <- getNumCapabilities
+        let maxThreads = fromMaybe (ceiling (fromIntegral numCapabilities * 0.75 :: Double)) (eeaMaxCapabilities opts)
         let numThreads =
               if eeaConcurrent opts
-                then min numCapabilities (eeaMaxCapabilities opts)
+                then min numCapabilities maxThreads
                 else 1
         when (eeaConcurrent opts) $ logInfoIO ("#### use " ++ show numThreads ++ " threads")
         sem <- MS.new numThreads -- semathore to limit number of parallel threads
