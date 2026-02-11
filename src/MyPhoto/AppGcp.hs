@@ -1,5 +1,5 @@
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module MyPhoto.AppGcp
   ( runMyPhotoGcp,
@@ -10,15 +10,15 @@ import Control.Exception
 import Control.Monad
 import Data.Default
 import Data.Maybe
-import MyPhoto.Model
-import MyPhoto.Actions.Gcp
-import System.Console.GetOpt
-import System.Directory (doesDirectoryExist, makeAbsolute, getHomeDirectory)
-import System.FilePath ((</>))
-import System.Environment (getArgs, getProgName)
-import qualified System.IO as IO
 import Data.Time.Clock
 import Data.Time.Format
+import MyPhoto.Actions.Gcp
+import MyPhoto.Model
+import System.Console.GetOpt
+import System.Directory (doesDirectoryExist, getHomeDirectory, makeAbsolute)
+import System.Environment (getArgs, getProgName)
+import System.FilePath ((</>))
+import qualified System.IO as IO
 
 data GcpMode
   = RunMain
@@ -62,7 +62,8 @@ instance Default GcpOptions where
 gcpOptions :: [OptDescr (GcpOptions -> IO GcpOptions)]
 gcpOptions =
   [ Option
-      [] ["input-dir"]
+      []
+      ["input-dir"]
       ( ReqArg
           ( \arg opt ->
               return opt {optInputDir = Just arg}
@@ -71,7 +72,8 @@ gcpOptions =
       )
       "Local input directory to upload",
     Option
-      [] ["output-dir"]
+      []
+      ["output-dir"]
       ( ReqArg
           ( \arg opt ->
               return opt {optOutputDir = Just arg}
@@ -80,7 +82,8 @@ gcpOptions =
       )
       "Local output directory for results",
     Option
-      [] ["input-bucket"]
+      []
+      ["input-bucket"]
       ( ReqArg
           ( \arg opt ->
               return opt {optInputBucket = Just arg}
@@ -89,7 +92,8 @@ gcpOptions =
       )
       "Existing input bucket URI (gs://...)",
     Option
-      [] ["machine-type"]
+      []
+      ["machine-type"]
       ( ReqArg
           ( \arg opt ->
               return opt {optMachineType = arg}
@@ -98,7 +102,8 @@ gcpOptions =
       )
       "Machine type (default: n2-standard-32)",
     Option
-      [] ["disk-size"]
+      []
+      ["disk-size"]
       ( ReqArg
           ( \arg opt ->
               return opt {optDiskSize = arg}
@@ -107,7 +112,8 @@ gcpOptions =
       )
       "Boot disk size (default: 500GB)",
     Option
-      [] ["image-family"]
+      []
+      ["image-family"]
       ( ReqArg
           ( \arg opt ->
               return opt {optImageFamily = arg}
@@ -116,7 +122,8 @@ gcpOptions =
       )
       "Image family (default: debian-12)",
     Option
-      [] ["image-project"]
+      []
+      ["image-project"]
       ( ReqArg
           ( \arg opt ->
               return opt {optImageProject = arg}
@@ -125,7 +132,8 @@ gcpOptions =
       )
       "Image project (default: debian-cloud)",
     Option
-      [] ["docker-image"]
+      []
+      ["docker-image"]
       ( ReqArg
           ( \arg opt ->
               return opt {optDockerImage = Just arg}
@@ -134,7 +142,8 @@ gcpOptions =
       )
       "Path to Docker tar file (default: built-in)",
     Option
-      [] ["keep-vm"]
+      []
+      ["keep-vm"]
       ( NoArg
           ( \opt ->
               return opt {optKeepVm = True}
@@ -142,7 +151,8 @@ gcpOptions =
       )
       "Keep VM after completion",
     Option
-      [] ["keep-bucket"]
+      []
+      ["keep-bucket"]
       ( NoArg
           ( \opt ->
               return opt {optKeepBucket = True}
@@ -150,7 +160,8 @@ gcpOptions =
       )
       "Keep input bucket after completion",
     Option
-      [] ["detach"]
+      []
+      ["detach"]
       ( NoArg
           ( \opt ->
               return opt {optDetach = True}
@@ -158,7 +169,8 @@ gcpOptions =
       )
       "Run in detached mode",
     Option
-      "h" ["help"]
+      "h"
+      ["help"]
       ( NoArg
           ( \_ -> do
               prg <- getProgName
@@ -178,9 +190,13 @@ readGcpConfig = do
   homeDir <- getHomeDirectory
   let envPath = homeDir </> ".myphoto" </> "gcp.env"
   expandedPath <- catch (makeAbsolute envPath) (\(_ :: SomeException) -> return envPath)
-  contents <- catch (readFile expandedPath) (\(_ :: SomeException) -> do
-    IO.hPutStrLn IO.stderr ("GCP configuration file " ++ envPath ++ " not found.")
-    exitWith (ExitFailure 1))
+  contents <-
+    catch
+      (readFile expandedPath)
+      ( \(_ :: SomeException) -> do
+          IO.hPutStrLn IO.stderr ("GCP configuration file " ++ envPath ++ " not found.")
+          exitWith (ExitFailure 1)
+      )
   let parseLine line =
         case words $ map (\c -> if c == '=' then ' ' else c) line of
           [key, value] -> Just (key, filter (not . (`elem` ['"', '\''])) value)
@@ -207,14 +223,14 @@ readGcpConfig = do
 runMyPhotoGcp :: IO ()
 runMyPhotoGcp = do
   args <- getArgs
-  
+
   let (actions, nonOpts, errors) = getOpt RequireOrder gcpOptions args
   unless (null errors) $ do
     mapM_ (IO.hPutStrLn IO.stderr) errors
     exitWith (ExitFailure 1)
-  
+
   opts <- foldM (flip ($)) def actions
-  
+
   case nonOpts of
     ["--teardown", vmName] -> do
       let opts' = opts {optMode = Teardown vmName Nothing}
@@ -238,7 +254,7 @@ runMyPhotoGcp = do
 runWithOpts :: GcpOptions -> IO ()
 runWithOpts opts@GcpOptions {optMode = mode, optInputDir = inputDir, optOutputDir = outputDir} = do
   gcpConfig <- readGcpConfig
-  
+
   case mode of
     RunMain -> do
       when (isNothing (optInputBucket opts) && isNothing inputDir) $ do
@@ -247,27 +263,33 @@ runWithOpts opts@GcpOptions {optMode = mode, optInputDir = inputDir, optOutputDi
       when (isNothing outputDir) $ do
         IO.hPutStrLn IO.stderr "Missing --output-dir parameter."
         exitWith (ExitFailure 1)
-      
+
       forM_ inputDir $ \dir -> do
         exists <- doesDirectoryExist dir
         unless exists $ do
           IO.hPutStrLn IO.stderr ("Input directory does not exist: " ++ dir)
           exitWith (ExitFailure 1)
-      
+
       let actualOutputDir = case outputDir of
             Just d -> d
             Nothing -> error "Missing --output-dir parameter"
-      
-      runMain gcpConfig inputDir actualOutputDir
-        (optInputBucket opts) (optDockerImage opts)
-        (Just (optMachineType opts)) (Just (optDiskSize opts))
-        (Just (optImageFamily opts)) (Just (optImageProject opts))
-        (optKeepVm opts) (optKeepBucket opts) (optDetach opts)
-      
+
+      runMain
+        gcpConfig
+        inputDir
+        actualOutputDir
+        (optInputBucket opts)
+        (optDockerImage opts)
+        (Just (optMachineType opts))
+        (Just (optDiskSize opts))
+        (Just (optImageFamily opts))
+        (Just (optImageProject opts))
+        (optKeepVm opts)
+        (optKeepBucket opts)
+        (optDetach opts)
     Teardown vmName maybeInputBucket -> do
       putStrLn ("Tearing down VM: " ++ vmName)
       teardown vmName maybeInputBucket gcpConfig
-      
     DirectDownload vmName maybeOutputDir -> do
       putStrLn ("Downloading from VM: " ++ vmName)
       directDownload vmName maybeOutputDir gcpConfig

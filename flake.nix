@@ -21,19 +21,22 @@
         openssh # SSH client for gcloud compute ssh
         google-cloud-sdk # provides gcloud and gsutil for GCP operations
       ];
-      extraLibraries = with pkgs; [
-        self.packages.${system}.focus-stack # main aligning and focus stacking
-        self.packages.${system}.zerene-stacker # for zerene-stacker integration
-        hugin # provides align_image_stack, for alternative aligning
-        glew # for parallel processing
-        enblend-enfuse # provides enfuse, for alternative focus stacking
-        imagemagick # for composing colages and more
-        exiftool # for extracting metadata
-        ffmpeg-headless # for extracting imgs from video
-        libraw # for converting raw files like ARW to tiff, provides dcraw_emu
-        libheif # for converting heif files
-        udisks # for mounting devices
-      ] ++ gcpExtraLibraries;
+      extraLibraries =
+        with pkgs;
+        [
+          self.packages.${system}.focus-stack # main aligning and focus stacking
+          self.packages.${system}.zerene-stacker # for zerene-stacker integration
+          hugin # provides align_image_stack, for alternative aligning
+          glew # for parallel processing
+          enblend-enfuse # provides enfuse, for alternative focus stacking
+          imagemagick # for composing colages and more
+          exiftool # for extracting metadata
+          ffmpeg-headless # for extracting imgs from video
+          libraw # for converting raw files like ARW to tiff, provides dcraw_emu
+          libheif # for converting heif files
+          udisks # for mounting devices
+        ]
+        ++ gcpExtraLibraries;
       project =
         devTools:
         let
@@ -74,7 +77,6 @@
             hl.disableLibraryProfiling
             hl.disableExecutableProfiling
             ((t.flip hl.appendBuildFlags) [
-              /* "--ghc-options=\" -threaded -rtsopts -with-rtsopts=-N\"" */
               "--ghc-options=-threaded"
               "--ghc-options=-rtsopts"
               "--ghc-options=-with-rtsopts=-N"
@@ -293,13 +295,15 @@
         };
         myphoto-gcp = {
           type = "app";
-          program = let
+          program =
+            let
               docker-image = "${self.packages.${system}.myphoto-docker}";
               myphoto-gcp-with-docker-image-argument = pkgs.writeShellScriptBin "myphoto-gcp" ''
                 #!${pkgs.stdenv.shell}
                 exec ${self.packages.${system}.myphoto}/bin/myphoto-gcp --docker-image "${docker-image}" "$@"
               '';
-            in "${myphoto-gcp-with-docker-image-argument}/bin/myphoto-gcp";
+            in
+            "${myphoto-gcp-with-docker-image-argument}/bin/myphoto-gcp";
         };
         myphoto-docker-in-gcp = {
           type = "app";
