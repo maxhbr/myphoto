@@ -30,7 +30,7 @@ instance Default EnblendEnfuseActionOptions where
   def =
     EnblendEnfuseActionOptions
       { eeOptions = def,
-        eeaMaxCapabilities = 9, -- with to many threads the memory seems to be insufficient
+        eeaMaxCapabilities = 24, -- with to many threads the memory seems to be insufficient
         eeaOutputBN = Nothing,
         eeaChunk = def,
         eeaConcurrent = True,
