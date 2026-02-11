@@ -340,6 +340,7 @@ options =
       ["help"]
       ( NoArg
           ( \_ -> do
+              numCapabilities <- getNumCapabilities
               prg <- getProgName
               IO.hPutStr IO.stderr (usageInfo prg options)
               IO.hPutStrLn IO.stderr "  IMG0 [IMG1]..."
@@ -348,6 +349,8 @@ options =
               IO.hPutStrLn IO.stderr "  --import-dir DIR [ARG1[,ARG2[,...]]]"
               IO.hPutStrLn IO.stderr "  --video VID [ARG1[,ARG2[,...]]]"
               IO.hPutStrLn IO.stderr "  --only-stack [ARG1[,ARG2[,...]]]"
+
+              IO.hPutStrLn IO.stderr ("( numCapabilities: " ++ show numCapabilities ++ " )")
 
               exitWith ExitSuccess
           )
