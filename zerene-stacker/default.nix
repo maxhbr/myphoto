@@ -116,7 +116,6 @@ let
 
     ZS_DIR="@out@/opt/zerene-stacker"
     cd "$ZS_DIR"
-    set -x
     exec "$ZS_DIR/jre/bin/java" \
       "''${JAVA_ARGS[@]}" \
       "''${ABS_ARGS[@]}"
