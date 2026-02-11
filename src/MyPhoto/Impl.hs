@@ -421,10 +421,18 @@ maybeClean = do
       MTL.liftIO $ removeDirectoryRecursive wd
 
 mkStage :: MyPhotoM a -> MyPhotoState -> IO (a, MyPhotoState)
-mkStage stage startState = do
-  (a, endState) <- MTL.runStateT stage startState
-  print endState
-  return (a, endState)
+mkStage stage startState = let
+    stageWithTrace = do
+      traceFileWrite "\nmkStage..."
+      traceFileWrite (show startState)
+      a <-stage
+      endState <- MTL.get
+      traceFileWrite (show endState)
+      return a
+  in do
+    (a, endState) <- MTL.runStateT stageWithTrace startState
+    print endState
+    return (a, endState)
 
 withinCurrentWorkdir :: MyPhotoM a -> MyPhotoM a
 withinCurrentWorkdir action = do

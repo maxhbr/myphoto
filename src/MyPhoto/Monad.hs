@@ -20,12 +20,14 @@ instance Show MyPhotoState where
   show s =
     "MyPhotoState {\n  myPhotoStateOpts = "
       ++ show (myPhotoStateOpts s)
-      ++ ",\n  myPhotoStateImgs = "
+      ++ ",\n  myPhotoStateImgs = #"
       ++ show (length (myPhotoStateImgs s))
       ++ ",\n  myPhotoStateOuts = "
       ++ show (myPhotoStateOuts s)
       ++ ",\n  myPhotoStateWd = "
       ++ show (myPhotoStateWd s)
+      ++ ",\n  myPhotoStartTime = "
+      ++ show (myPhotoStartTime s)
       ++ "\n}"
 
 startMyPhotoState :: Options -> Imgs -> IO MyPhotoState
@@ -134,6 +136,17 @@ withOutsReplaceIO f = do
 setWd :: FilePath -> MyPhotoM ()
 setWd wd = MTL.modify (\s -> s {myPhotoStateWd = Just wd})
 
+traceFileWrite :: String -> MyPhotoM ()
+traceFileWrite msg = do
+  wd <- MTL.gets myPhotoStateWd
+  case wd of
+    Nothing -> pure ()
+    Just wd' -> do
+      let traceFile = wd' </> "myphoto.trace"
+      MTL.liftIO $ do
+        createDirectoryIfMissing True wd'
+        IO.appendFile traceFile (msg ++ "\n")
+
 logTimeSinceStart :: String -> MyPhotoM ()
 logTimeSinceStart msg = do
   startTime <- MTL.gets myPhotoStartTime
@@ -141,14 +154,18 @@ logTimeSinceStart msg = do
   currentTime <- MTL.liftIO getCurrentTime
   let diff = diffUTCTime currentTime startTime
   let diffSinceLastLog = diffUTCTime currentTime lastLogTime
-  logInfo $ msg ++ " (elapsed time: " ++ show diff ++ ", elapsed since last log: " ++ show diffSinceLastLog ++ ")"
+  let completeMsg = msg ++ " (elapsed time: " ++ show diff ++ ", elapsed since last log: " ++ show diffSinceLastLog ++ ")"
+  logInfo $ completeMsg
+  traceFileWrite completeMsg
   MTL.modify (\s -> s {myPhotoLastLogTime = currentTime})
 
 step :: String -> MyPhotoM a -> MyPhotoM a
 step stepName action = do
   let border = replicate 79 '─'
       logBoxStart = logInfo $ "┌" ++ border
-      logInBox msg = logInfo $ "│ " ++ msg
+      logInBox msg = do
+        logInfo $ "│ " ++ msg
+        traceFileWrite msg
       logBoxEnd = logInfo $ "└" ++ border
   logBoxStart
   logInBox ("Starting step: " ++ stepName)
@@ -165,7 +182,7 @@ redirectLogToLogFile action = do
   case wd of
     Nothing -> action
     Just wd' -> do
-      let logFile = wd' ++ "/myphoto.log"
+      let logFile = wd' </> "myphoto.log"
       logInfo $ "Redirecting log to " ++ logFile
       state <- MTL.get
       (ret, endState) <- MTL.liftIO $ IO.withFile logFile IO.AppendMode $ \logFile' -> do
