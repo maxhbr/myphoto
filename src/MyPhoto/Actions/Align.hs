@@ -41,6 +41,7 @@ instance Default AlignOptions where
 callAlignImageStack :: [String] -> String -> [Img] -> IO [Img]
 callAlignImageStack alignArgs prefix imgs =
   let args = alignArgs ++ ["-a", prefix]
+     -- TODO: set `--gpu` if gpu is requested
    in do
         logDebugIO (unwords ["$ align_image_stack", unwords args, "[img [img [...]]]"])
         (_, _, _, pHandle) <- createProcess (proc "align_image_stack" (args ++ imgs))

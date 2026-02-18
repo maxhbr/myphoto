@@ -17,20 +17,21 @@ import qualified System.IO as IO
 backoffStrategy :: [(Maybe Int, Maybe Int)]
 backoffStrategy = [(Nothing, Nothing), (Just 6, Just 14), (Just 4, Just 6), (Just 3, Just 3)]
 
-mkOptions :: Bool -> [String] -> [FilePath] -> IO FocusStackOptions
-mkOptions verbose additionalParameters imgs = do
+mkOptions :: Bool -> Bool -> [String] -> [FilePath] -> IO FocusStackOptions
+mkOptions verbose noOpenCL additionalParameters imgs = do
   outputBN <- getStackOutputBN imgs
   output <- makeAbsolute (outputBN ++ "_focus-stack.png")
   let focusStackWorkdir = output -<.> "workdir"
   return $
     (initFocusStackOptions imgs focusStackWorkdir output)
       { _verbose = verbose,
+        _noOpenCL = noOpenCL,
         _additionalParameters = additionalParameters
       }
 
-focusStackImgs :: Bool -> [String] -> [FilePath] -> IO (FilePath, [FilePath])
-focusStackImgs verbose additionalParameters imgs = do
-  options@FocusStackOptions {_output = output} <- mkOptions verbose additionalParameters imgs
+focusStackImgs :: Bool -> Bool -> [String] -> [FilePath] -> IO (FilePath, [FilePath])
+focusStackImgs verbose noOpenCL additionalParameters imgs = do
+  options@FocusStackOptions {_output = output} <- mkOptions verbose noOpenCL additionalParameters imgs
   outputExists <- doesFileExist output
   if outputExists
     then do

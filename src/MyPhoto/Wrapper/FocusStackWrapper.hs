@@ -23,6 +23,7 @@ data FocusStackOptions = FocusStackOptions
     _cropping :: FocusStackCropping,
     _threads :: Maybe Int,
     _batchsize :: Maybe Int,
+    _noOpenCL :: Bool,
     _additionalParameters :: [String],
     _imgs :: Imgs,
     _workdir :: FilePath,
@@ -39,6 +40,7 @@ initFocusStackOptions imgs workdir output =
       _cropping = FocusStackCroppingDefault,
       _threads = Nothing,
       _batchsize = Nothing,
+      _noOpenCL = False,
       _additionalParameters = [],
       _imgs = imgs,
       _workdir = workdir,
@@ -54,6 +56,7 @@ focusStackOptionsToArgs
       _cropping = cropping,
       _threads = threads,
       _batchsize = batchsize,
+      _noOpenCL = noOpenCL,
       _additionalParameters = additionalParameters,
       _output = output
     } =
@@ -68,12 +71,13 @@ focusStackOptionsToArgs
         batchsizeOpt = case batchsize of
           Just n -> ["--batchsize=" ++ show n]
           Nothing -> []
+        openCLOpt = ["--no-opencl" | noOpenCL]
         outputOpt =
           ["--output=" ++ output]
             ++ (if depthMap then ["--depthmap=" ++ output ++ ".depthmap.png"] else [])
             ++ (if d3DView then ["--3dview=" ++ output ++ ".3dviewpt.png"] else [])
             ++ ["--save-steps", "--jpgquality=100", "--no-whitebalance", "--no-contrast"]
-     in verbosityOpt ++ croppingOpt ++ outputOpt ++ additionalParameters ++ threadsOpt ++ batchsizeOpt
+     in verbosityOpt ++ croppingOpt ++ openCLOpt ++ outputOpt ++ additionalParameters ++ threadsOpt ++ batchsizeOpt
 
 computeAlignedImgs' :: FilePath -> Imgs -> [FilePath]
 computeAlignedImgs' workdir = map (\img -> workdir </> "aligned_" ++ takeFileName img)

@@ -329,10 +329,17 @@ options =
       )
       "Redirect log to log file in work directory",
     Option
+      ""
+      ["no-gpu"]
+      ( NoArg
+          (\opt -> return opt {optNoGpu = True})
+      )
+      "Disable GPU acceleration (adds --no-opencl to focus-stack, helps if that hangs)",
+    Option
       "v"
       ["verbose"]
       ( NoArg
-          (\opt -> return opt {optVerbose = True})
+        (\opt -> return opt {optVerbose = True})
       )
       "Enable verbose messages",
     Option

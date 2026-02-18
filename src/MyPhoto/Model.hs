@@ -115,6 +115,7 @@ data Options = Options
     optEnfuseChunkSettings :: ChunkSettings,
     optZereneStacker :: Bool,
     optZereneStackerHeadless :: Bool,
+    optNoGpu :: Bool,
     optParameters :: Map String [String]
   }
   deriving (Show, Eq)
@@ -139,6 +140,7 @@ instance Default Options where
         optEnfuseChunkSettings = def,
         optZereneStacker = True,
         optZereneStackerHeadless = False,
+        optNoGpu = False,
         optParameters = mempty
       }
 

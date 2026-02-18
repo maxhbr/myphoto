@@ -307,7 +307,7 @@ runFocusStack = step "focus stacking (and aligning) with PetteriAimonen/focus-st
   imgs <- getImgs
   opts <- getOpts
   let additionalParameters = Map.findWithDefault [] "focus-stack" (optParameters opts)
-  (focusStacked, aligned) <- MTL.liftIO $ focusStackImgs (optVerbose opts) additionalParameters imgs
+  (focusStacked, aligned) <- MTL.liftIO $ focusStackImgs (optVerbose opts) (optNoGpu opts) additionalParameters imgs
   addOut focusStacked
   -- #if 0
   --         focusStackedAlignedOut <- MTL.liftIO $ montageSample 25 200 (focusStacked -<.> ".aligned") aligned
