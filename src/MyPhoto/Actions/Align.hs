@@ -31,17 +31,17 @@ data AlignOptions = AlignOptions
   { alignOptVerbose :: Bool,
     alignOptNamingStrategy :: AlignNamingStrategy,
     alignOptSortBySize :: Bool,
-    alignOptUntiff :: Bool
+    alignOptUntiff :: Bool,
+    alignOptNoGpu :: Bool
   }
   deriving (Eq, Show)
 
 instance Default AlignOptions where
-  def = AlignOptions False AlignNamingStrategySequential False True
+  def = AlignOptions False AlignNamingStrategySequential False True False
 
 callAlignImageStack :: [String] -> String -> [Img] -> IO [Img]
 callAlignImageStack alignArgs prefix imgs =
   let args = alignArgs ++ ["-a", prefix]
-     -- TODO: set `--gpu` if gpu is requested
    in do
         logDebugIO (unwords ["$ align_image_stack", unwords args, "[img [img [...]]]"])
         (_, _, _, pHandle) <- createProcess (proc "align_image_stack" (args ++ imgs))
@@ -155,11 +155,10 @@ align opts wd imgs = do
                "-c",
                "20", -- number of control points (per grid) to create between adjacent images
                "-s",
-               "2", -- Scale down image by 2^scale (default: 1 [2x downsampling])
+               "2" -- Scale down image by 2^scale (default: 1 [2x downsampling])
                -- , "-i" -- Optimize image center shift for all images, except for first.
                -- , "-m" -- Optimize field of view for all images, except for first. Useful for aligning focus stacks with slightly different magnification.
-               "--gpu" -- Use GPU for remapping
-             ]
+              ] ++ [ "--gpu" | not (alignOptNoGpu opts) ]
 
   when (alignOptVerbose opts) $
     logInfoIO $

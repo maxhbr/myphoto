@@ -319,7 +319,7 @@ runHuginAlign = step "just aligning with hugin" $ do
   imgs <- getImgs
   opts <- getOpts
   wd <- getWdAndMaybeMoveImgs
-  aligned <- MTL.liftIO $ align (AlignOptions (optVerbose opts) AlignNamingStrategySequential False True) wd imgs
+  aligned <- MTL.liftIO $ align (AlignOptions (optVerbose opts) AlignNamingStrategySequential False True (optNoGpu opts)) wd imgs
   return aligned
 
 runEnfuse :: [FilePath] -> MyPhotoM ()
@@ -382,7 +382,6 @@ alignOuts :: MyPhotoM ()
 alignOuts = step "align outputs" $ do
   outs <- getOuts
   when (length outs >= 2) $ do
-    opts <- getOpts
     wd <- getWdOrFail
     withOutsReplaceIO $ \outs -> do
       if null outs
