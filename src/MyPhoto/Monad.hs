@@ -3,6 +3,8 @@ module MyPhoto.Monad where
 import qualified Control.Monad.State.Lazy as MTL
 import Data.List (nub)
 import Data.Time.Clock (UTCTime, diffUTCTime, getCurrentTime)
+import Data.Time.Format (defaultTimeLocale, formatTime)
+import Data.Time.LocalTime (getCurrentTimeZone, utcToLocalTime)
 import qualified GHC.IO.Handle as IO
 import MyPhoto.Model
 import qualified System.IO as IO
@@ -168,8 +170,11 @@ step stepName action = do
         traceFileWrite msg
       logBoxEnd = logInfo $ "└" ++ border
   logBoxStart
-  logInBox ("Starting step: " ++ stepName)
   currentTimeBefore <- MTL.liftIO getCurrentTime
+  tz <- MTL.liftIO getCurrentTimeZone
+  let localTime = utcToLocalTime tz currentTimeBefore
+      timeStr = formatTime defaultTimeLocale "%H:%M" localTime
+  logInBox ("Starting step: " ++ stepName ++ " (at: " ++ timeStr ++ ")")
   actionResult <- action
   currentTimeAfter <- MTL.liftIO getCurrentTime
   logInBox ("Finished step: " ++ stepName ++ " (elapsed time: " ++ show (diffUTCTime currentTimeAfter currentTimeBefore) ++ ")")
