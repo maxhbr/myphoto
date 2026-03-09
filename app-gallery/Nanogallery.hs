@@ -11,7 +11,7 @@ import qualified Data.ByteString.Lazy as BL
 import Data.FileEmbed (embedFile)
 import qualified Data.Set as Set
 import GHC.Conc (getNumCapabilities)
-import Model (PhotoMeta (..))
+import Model (PhotoMeta (..), dateFromMeta)
 import MyPhoto.Utils.ProgressBar
   ( incProgress,
     newImgsProgressBar,
@@ -25,6 +25,11 @@ import System.FilePath
     (</>),
   )
 import System.Process (callProcess)
+
+sortKey :: PhotoMeta -> String
+sortKey meta = case dateFromMeta meta of
+  Just date -> date
+  Nothing -> "19700101" -- default to epoch if no date found
 
 -- | Write a minimal nanogallery-style index.html into the gallery root.
 --   Expects summaries of imported images (metadata path, PhotoMeta, md5 hash).
@@ -66,7 +71,8 @@ renderItem root (imgPath, meta, mThumbPath, _) =
         [ "src" .= relImg,
           "caption" .= ("" :: String),
           "tags" .= tagsList,
-          "about" .= relAbouts
+          "about" .= relAbouts,
+          "sortKey" .= sortKey meta
         ]
       thumbField = maybe [] (\t -> ["srct" .= t]) relThumb
    in A.object (baseFields <> thumbField)
@@ -120,6 +126,7 @@ renderDebugPage root summaries =
       "        <th>Tags</th>",
       "        <th>Path</th>",
       "        <th>About</th>",
+      "        <th>Sort Key</th>",
       "      </tr>",
       "    </thead>",
       "    <tbody>"
@@ -162,6 +169,9 @@ renderDebugRow root (imgPath, meta, mThumbPath, _) =
         <> "</td>\n"
         <> "        <td>"
         <> aboutCell
+        <> "</td>\n"
+        <> "        <td>"
+        <> sortKey meta
         <> "</td>\n"
         <> "      </tr>\n"
 

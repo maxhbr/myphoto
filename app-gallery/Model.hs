@@ -15,17 +15,20 @@ module Model
     loadImportedMeta,
     loadGalleryConfig,
     resolveAboutPaths,
+    dateFromFilepath,
+    dateFromMeta
   )
 where
 
 import Control.Applicative ((<|>))
+import Data.Char (isNumber)
 import Data.Bifunctor (first)
 import qualified Data.Map as Map
 import Data.Maybe (fromMaybe)
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TIO
-import System.FilePath (isAbsolute, makeRelative, takeDirectory, (</>))
+import System.FilePath (isAbsolute, makeRelative, takeBaseName, takeDirectory, (</>))
 import qualified Toml
 
 data ImportedMeta = ImportedMeta
@@ -148,6 +151,20 @@ loadImportedMeta :: FilePath -> IO (Either String ImportedMeta)
 loadImportedMeta path' = do
   content <- TIO.readFile path'
   pure (first renderErrors (fmap (fromImportedPayload path') (Toml.decode importedMetaPayloadCodec content)))
+
+dateFromFilepath :: FilePath -> Maybe String
+dateFromFilepath img' = 
+  let 
+      baseName = takeBaseName img'
+      datePart = takeWhile isNumber baseName
+      normalizeDate | length datePart == 8 = Just datePart
+                    | length datePart == 6 = Just $ "20" ++ datePart
+                    | otherwise = Nothing
+  in normalizeDate
+
+dateFromMeta :: PhotoMeta -> Maybe String
+dateFromMeta (PhotoMeta {img = Just img'}) = dateFromFilepath img'
+dateFromMeta _ = Nothing
 
 writeGalleryConfig :: FilePath -> GalleryConfig -> IO ()
 writeGalleryConfig path' cfg =

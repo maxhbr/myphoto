@@ -23,6 +23,8 @@ main = do
     Right CmdUpdate -> runUpdate False
 
 parseArgs :: [String] -> Either String Command
+parseArgs ["-h"] = Left usage
+parseArgs ["--help"] = Left usage
 parseArgs ["update"] = Right CmdUpdate
 parseArgs ["import", "--init"] = Right CmdImportInit
 parseArgs ["import", "--init", _] = Left usage

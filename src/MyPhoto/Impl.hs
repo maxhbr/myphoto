@@ -38,6 +38,7 @@ import MyPhoto.Video
 import System.Console.GetOpt
 import System.Directory (executable, getPermissions, removeDirectoryRecursive, setPermissions)
 import System.Environment (getArgs, getProgName, withArgs)
+import System.Process (createProcess, proc, waitForProcess)
 import qualified System.IO as IO
 
 getStackOutputBNFromImgs :: MyPhotoM FilePath
@@ -391,6 +392,26 @@ alignOuts = step "align outputs" $ do
         else
           alignSmallerOnTopOfBiggest wd outs
 
+saveOutsAsMultilayerTiff :: FilePath -> Imgs -> IO FilePath
+saveOutsAsMultilayerTiff outputTiff imgs = do
+  let args = imgs ++ [outputTiff]
+  logInfoIO $ "creating multilayer TIFF: " ++ outputTiff
+  (_, _, _, pHandle) <- createProcess (proc "magick" args)
+  exitCode <- waitForProcess pHandle
+  unless (exitCode == ExitSuccess) $
+    fail ("creating multilayer TIFF failed with " ++ show exitCode)
+  return outputTiff
+
+createMultilayerTiff :: MyPhotoM ()
+createMultilayerTiff = step "create multilayer TIFF" $ do
+  outs <- getOuts
+  when (length outs >= 2) $ do
+    wd <- getWdOrFail
+    outputBN <- getStackOutputBNFromImgs
+    let outputTiff = inWorkdir wd (outputBN <.> "layers.tif")
+    _ <- MTL.liftIO $ saveOutsAsMultilayerTiff outputTiff outs
+    return ()
+
 makeOutsPathsAbsolute :: MyPhotoM ()
 makeOutsPathsAbsolute = do
   logDebug "makeOutsPathsAbsolute"
@@ -492,6 +513,7 @@ runStackStage =
                 guardWithOpts optZereneStacker $ getImgs >>= runZereneStacker True
 
         alignOuts
+        createMultilayerTiff
         maybeExport
         makeOutsPathsAbsolute
         maybeClean
