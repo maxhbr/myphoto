@@ -1,7 +1,7 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module CmdImport (runImport, runUpdate, runImportInit, runImportWithOpts, parseImportArgs, ImportOpts (..)) where
+module CmdImport (runImport, runUpdate, runExport, runImportInit, runImportWithOpts, parseImportArgs, ImportOpts (..)) where
 
 import Control.Concurrent.Async.Pool (mapTasks, withTaskGroup)
 import Control.Exception (SomeException, try)
@@ -118,6 +118,16 @@ runUpdate :: Bool -> IO ()
 runUpdate ioDryRun = do
   cfg <- loadGalleryConfigOrDie
   runUpdateWithConfig ioDryRun cfg
+
+runExport :: FilePath -> IO ()
+runExport targetDir = do
+  cfg <- loadGalleryConfigOrDie
+  directoryExists <- doesDirectoryExist galleryBasePath
+  unless directoryExists (die ("Gallery directory not found: " <> galleryBasePath))
+  summaries <- applyCfg cfg <$> loadImportedSummaries galleryBasePath
+  let summaries' = filter (\(_, meta, _) -> ignore meta /= Just True) summaries
+  putStrLn $ "Exporting " ++ show (length summaries') ++ " images to " ++ targetDir ++ "/_4k"
+  (createScaledGallery (targetDir </> "_4k") 3840 2160 summaries')
 
 runImportInit :: IO ()
 runImportInit = do

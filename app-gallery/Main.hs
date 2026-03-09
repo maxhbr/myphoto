@@ -1,7 +1,7 @@
 module Main where
 
 import CmdAddMeta (parseAddArgs, runAddMeta)
-import CmdImport (ImportOpts, parseImportArgs, runImportInit, runImportWithOpts, runUpdate)
+import CmdImport (ImportOpts, parseImportArgs, runExport, runImportInit, runImportWithOpts, runUpdate)
 import Model (PhotoMeta)
 import System.Environment (getArgs)
 import System.Exit (die)
@@ -11,6 +11,7 @@ data Command
   | CmdImport ImportOpts
   | CmdImportInit
   | CmdUpdate
+  | CmdExport FilePath
 
 main :: IO ()
 main = do
@@ -21,11 +22,14 @@ main = do
     Right CmdImportInit -> runImportInit
     Right (CmdAdd files cliMeta) -> mapM_ (runAddMeta cliMeta) files
     Right CmdUpdate -> runUpdate False
+    Right (CmdExport dir) -> runExport dir
 
 parseArgs :: [String] -> Either String Command
 parseArgs ["-h"] = Left usage
 parseArgs ["--help"] = Left usage
 parseArgs ["update"] = Right CmdUpdate
+parseArgs ["export", dir] = Right (CmdExport dir)
+parseArgs ["export"] = Left usage
 parseArgs ["import", "--init"] = Right CmdImportInit
 parseArgs ["import", "--init", _] = Left usage
 parseArgs ("import" : dirs)
@@ -47,5 +51,5 @@ usage =
       "  myphoto-gallery import [--dry-run] PATH/TO/DIR              # import files with sidecar metadata into CWD",
       "  myphoto-gallery import --init                               # create the root config in CWD",
       "  myphoto-gallery update                                      # update galleries based on imported metadata in CWD",
-      "  myphoto-gallery export PATH/TO/TARGET/DIR                   # writes scaled images into PATH/TO/TARGET/DIR/_4k
+      "  myphoto-gallery export PATH/TO/TARGET/DIR                   # writes scaled images into PATH/TO/TARGET/DIR/_4k"
     ]
