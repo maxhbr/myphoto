@@ -327,14 +327,20 @@ createScaledImage :: FilePath -> Int -> Int -> (FilePath, PhotoMeta, String) -> 
 createScaledImage outDir width height (src, meta, srcHash) =
   let scaledRel = makeRelative galleryBasePath src -<.> ".png"
       scaled = outDir </> scaledRel
+      jpgPath = outDir </> makeRelative galleryBasePath src -<.> ".jpg"
+      avifPath = outDir </> makeRelative galleryBasePath src -<.> ".avif"
+      webpPath = outDir </> makeRelative galleryBasePath src -<.> ".webp"
       hashPath = scaled <> ".md5"
       readHash = do
         ok <- doesFileExist hashPath
         if ok then fmap (Just . BSC.unpack) (BS.readFile hashPath) else pure Nothing
       matchesHash = do
         cached <- readHash
-        destExists <- doesFileExist scaled
-        pure (destExists && cached == Just srcHash)
+        pngExists <- doesFileExist scaled
+        jpgExists <- doesFileExist jpgPath
+        avifExists <- doesFileExist avifPath
+        webpExists <- doesFileExist webpPath
+        pure (pngExists && jpgExists && avifExists && webpExists && cached == Just srcHash)
       createScaled = do
         createDirectoryIfMissing True (takeDirectory scaled)
         let maxDimension = max width height
@@ -359,9 +365,59 @@ createScaledImage outDir width height (src, meta, srcHash) =
             IO (Either SomeException ())
         case res of
           Left err -> do
-            hPutStrLn stderr ("[" ++ outDir ++ "] Failed for " <> src <> ": " <> show err)
+            hPutStrLn stderr ("[" ++ outDir ++ "] PNG failed for " <> src <> ": " <> show err)
             pure False
           Right _ -> do
+            jpgRes <-
+              try
+                ( callProcess
+                    "magick"
+                    [ scaled,
+                      "-quality",
+                      "90",
+                      jpgPath
+                    ]
+                ) ::
+                IO (Either SomeException ())
+            case jpgRes of
+              Left err -> hPutStrLn stderr ("[" ++ outDir ++ "] JPG failed for " <> src <> ": " <> show err)
+              Right _ -> putStrLn $ "[" ++ outDir ++ "] Wrote " <> jpgPath
+            avifRes <-
+              try
+                ( callProcess
+                    "magick"
+                    [ src,
+                      "-resize",
+                      resizeArg,
+                      "-unsharp",
+                      "1.5x1.2+1.0+0.10",
+                      "-quality",
+                      "80",
+                      avifPath
+                    ]
+                ) ::
+                IO (Either SomeException ())
+            case avifRes of
+              Left err -> hPutStrLn stderr ("[" ++ outDir ++ "] AVIF failed for " <> src <> ": " <> show err)
+              Right _ -> putStrLn $ "[" ++ outDir ++ "] Wrote " <> avifPath
+            webpRes <-
+              try
+                ( callProcess
+                    "magick"
+                    [ src,
+                      "-resize",
+                      resizeArg,
+                      "-unsharp",
+                      "1.5x1.2+1.0+0.10",
+                      "-quality",
+                      "80",
+                      webpPath
+                    ]
+                ) ::
+                IO (Either SomeException ())
+            case webpRes of
+              Left err -> hPutStrLn stderr ("[" ++ outDir ++ "] WebP failed for " <> src <> ": " <> show err)
+              Right _ -> putStrLn $ "[" ++ outDir ++ "] Wrote " <> webpPath
             BS.writeFile hashPath (BSC.pack srcHash)
             putStrLn $ "[" ++ outDir ++ "] Wrote " <> scaled
             pure True
@@ -374,19 +430,23 @@ createScaledImage outDir width height (src, meta, srcHash) =
             hPutStrLn stderr ("[" ++ outDir ++ "] Source missing, skipping: " <> src)
             pure failureReturnValue
           else do
-            scaledExists <- doesFileExist scaled
+            pngExists <- doesFileExist scaled
+            jpgExists <- doesFileExist jpgPath
+            avifExists <- doesFileExist avifPath
+            webpExists <- doesFileExist webpPath
+            let allExist = pngExists && jpgExists && avifExists && webpExists
 
             success <-
-              if scaledExists
+              if allExist
                 then do
                   destHashUpToDate <- matchesHash
                   if destHashUpToDate
                     then pure True
                     else do
-                      hPutStrLn stderr ("[" ++ outDir ++ "] Scaled image outdated, recreating: " <> scaled)
+                      hPutStrLn stderr ("[" ++ outDir ++ "] Scaled images outdated, recreating: " <> scaled)
                       createScaled
                 else do
-                  hPutStrLn stderr ("[" ++ outDir ++ "] Scaled image missing, will create: " <> scaled)
+                  hPutStrLn stderr ("[" ++ outDir ++ "] Scaled images missing, will create: " <> scaled)
                   createScaled
             pure $
               if success
