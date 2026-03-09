@@ -158,7 +158,8 @@ align opts wd imgs = do
                "2" -- Scale down image by 2^scale (default: 1 [2x downsampling])
                -- , "-i" -- Optimize image center shift for all images, except for first.
                -- , "-m" -- Optimize field of view for all images, except for first. Useful for aligning focus stacks with slightly different magnification.
-              ] ++ [ "--gpu" | not (alignOptNoGpu opts) ]
+             ]
+          ++ ["--gpu" | not (alignOptNoGpu opts)]
 
   when (alignOptVerbose opts) $
     logInfoIO $

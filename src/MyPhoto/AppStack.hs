@@ -339,7 +339,7 @@ options =
       "v"
       ["verbose"]
       ( NoArg
-        (\opt -> return opt {optVerbose = True})
+          (\opt -> return opt {optVerbose = True})
       )
       "Enable verbose messages",
     Option

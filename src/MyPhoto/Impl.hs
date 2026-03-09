@@ -38,8 +38,8 @@ import MyPhoto.Video
 import System.Console.GetOpt
 import System.Directory (executable, getPermissions, removeDirectoryRecursive, setPermissions)
 import System.Environment (getArgs, getProgName, withArgs)
-import System.Process (createProcess, proc, waitForProcess)
 import qualified System.IO as IO
+import System.Process (createProcess, proc, waitForProcess)
 
 getStackOutputBNFromImgs :: MyPhotoM FilePath
 getStackOutputBNFromImgs = do
@@ -441,18 +441,18 @@ maybeClean = do
       MTL.liftIO $ removeDirectoryRecursive wd
 
 mkStage :: MyPhotoM a -> MyPhotoState -> IO (a, MyPhotoState)
-mkStage stage startState = let
-    stageWithTrace = do
-      traceFileWrite "\nmkStage..."
-      traceFileWrite (show startState)
-      a <-stage
-      endState <- MTL.get
-      traceFileWrite (show endState)
-      return a
-  in do
-    (a, endState) <- MTL.runStateT stageWithTrace startState
-    print endState
-    return (a, endState)
+mkStage stage startState =
+  let stageWithTrace = do
+        traceFileWrite "\nmkStage..."
+        traceFileWrite (show startState)
+        a <- stage
+        endState <- MTL.get
+        traceFileWrite (show endState)
+        return a
+   in do
+        (a, endState) <- MTL.runStateT stageWithTrace startState
+        print endState
+        return (a, endState)
 
 withinCurrentWorkdir :: MyPhotoM a -> MyPhotoM a
 withinCurrentWorkdir action = do
