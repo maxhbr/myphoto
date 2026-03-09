@@ -46,5 +46,6 @@ usage =
       "  myphoto-gallery [--tag TAG] [--about FILE] FILE [FILE ...]  # create sidecar metadata for FILE",
       "  myphoto-gallery import [--dry-run] PATH/TO/DIR              # import files with sidecar metadata into CWD",
       "  myphoto-gallery import --init                               # create the root config in CWD",
-      "  myphoto-gallery update                                      # update galleries based on imported metadata in CWD"
+      "  myphoto-gallery update                                      # update galleries based on imported metadata in CWD",
+      "  myphoto-gallery export PATH/TO/TARGET/DIR                   # writes scaled images into PATH/TO/TARGET/DIR/_4k
     ]
