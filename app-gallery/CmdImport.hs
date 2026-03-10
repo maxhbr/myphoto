@@ -1,7 +1,7 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module CmdImport (runImport, runUpdate, runExport, runImportInit, runImportWithOpts, parseImportArgs, ImportOpts (..)) where
+module CmdImport (runImport, runUpdate, runExport, runImportInit, runImportWithOpts, parseImportArgs, ImportOpts (..), OutputFormat (..)) where
 
 import Control.Concurrent.Async.Pool (mapTasks, withTaskGroup)
 import Control.Exception (SomeException, try)
@@ -70,6 +70,9 @@ galleryBasePath = "./gallery"
 galleryConfigPath :: FilePath
 galleryConfigPath = "./myphoto.gallery.toml"
 
+data OutputFormat = PNG | JPG | AVIF | WebP
+  deriving (Show, Eq)
+
 data ImportOpts = ImportOpts
   { ioDryRun :: Bool,
     ioDir :: FilePath
@@ -127,7 +130,9 @@ runExport targetDir = do
   summaries <- applyCfg cfg <$> loadImportedSummaries galleryBasePath
   let summaries' = filter (\(_, meta, _) -> ignore meta /= Just True) summaries
   putStrLn $ "Exporting " ++ show (length summaries') ++ " images to " ++ targetDir ++ "/_4k"
-  (createScaledGallery (targetDir </> "_4k") 3840 2160 summaries')
+  (createScaledGallery WebP (targetDir </> "_4k") 3840 2160 summaries') >>= writeNanogalleries (targetDir </> "_4k")
+  putStrLn $ "Exporting " ++ show (length summaries') ++ " images to " ++ targetDir ++ "/_8k"
+  (createScaledGallery WebP (targetDir </> "_8k") 7680 4320 summaries') >>= writeNanogalleries (targetDir </> "_8k")
 
 runImportInit :: IO ()
 runImportInit = do
@@ -171,7 +176,7 @@ runUpdateWithConfig ioDryRun cfg = do
 
   when (not ioDryRun) $ do
     writeNanogalleries galleryBasePath summaries'
-    (createScaledGallery "_4k" 3840 2160 summaries') >>= writeNanogalleries "./_4k"
+    (createScaledGallery WebP "_4k" 3840 2160 summaries') >>= writeNanogalleries "./_4k"
 
 -- (createScaledGallery "_1080p" 1920 1080 summaries') >>= writeNanogalleries "./_1080p"
 
@@ -320,119 +325,81 @@ loadImportedSummaries dir = do
               imgPath = dropImportedMetaSuffix fp
            in pure (Just (imgPath, merged, md5 im))
 
-createScaledGallery :: FilePath -> Int -> Int -> [(FilePath, PhotoMeta, String)] -> IO [(FilePath, PhotoMeta, String)]
-createScaledGallery outDir width height summaries = do
+createScaledGallery :: OutputFormat -> FilePath -> Int -> Int -> [(FilePath, PhotoMeta, String)] -> IO [(FilePath, PhotoMeta, String)]
+createScaledGallery fmt outDir width height summaries = do
   pb <- newImgsProgressBar summaries
   capabilities <- getNumCapabilities
   let poolSize = min 6 $ max 1 (capabilities `div` 2)
   results <-
     let go summary = do
-          ret <- createScaledImage outDir width height summary
+          ret <- createScaledImage fmt outDir width height summary
           pb `incProgress` 1
           pure ret
      in withTaskGroup poolSize $ \tg -> mapTasks tg (map go summaries)
   pure (catMaybes results)
 
-createScaledImage :: FilePath -> Int -> Int -> (FilePath, PhotoMeta, String) -> IO (Maybe (FilePath, PhotoMeta, String))
-createScaledImage outDir width height (src, meta, srcHash) =
-  let scaledRel = makeRelative galleryBasePath src -<.> ".png"
-      scaled = outDir </> scaledRel
-      jpgPath = outDir </> makeRelative galleryBasePath src -<.> ".jpg"
-      avifPath = outDir </> makeRelative galleryBasePath src -<.> ".avif"
-      webpPath = outDir </> makeRelative galleryBasePath src -<.> ".webp"
-      hashPath = scaled <> ".md5"
+formatExtension :: OutputFormat -> String
+formatExtension PNG = ".png"
+formatExtension JPG = ".jpg"
+formatExtension AVIF = ".avif"
+formatExtension WebP = ".webp"
+
+createScaledImage :: OutputFormat -> FilePath -> Int -> Int -> (FilePath, PhotoMeta, String) -> IO (Maybe (FilePath, PhotoMeta, String))
+createScaledImage fmt outDir width height (src, meta, srcHash) =
+  let outRel = makeRelative galleryBasePath src -<.> formatExtension fmt
+      outPath = outDir </> outRel
+      hashPath = outPath <> ".md5"
       readHash = do
         ok <- doesFileExist hashPath
         if ok then fmap (Just . BSC.unpack) (BS.readFile hashPath) else pure Nothing
       matchesHash = do
         cached <- readHash
-        pngExists <- doesFileExist scaled
-        jpgExists <- doesFileExist jpgPath
-        avifExists <- doesFileExist avifPath
-        webpExists <- doesFileExist webpPath
-        pure (pngExists && jpgExists && avifExists && webpExists && cached == Just srcHash)
+        destExists <- doesFileExist outPath
+        pure (destExists && cached == Just srcHash)
+      formatQuality = case fmt of
+        PNG -> "95"
+        JPG -> "90"
+        AVIF -> "80"
+        WebP -> "80"
+      formatArgs = case fmt of
+        PNG ->
+          [ "-interlace",
+            "Plane",
+            "-strip"
+          ]
+        _ -> []
       createScaled = do
-        createDirectoryIfMissing True (takeDirectory scaled)
+        createDirectoryIfMissing True (takeDirectory outPath)
         let maxDimension = max width height
         let resizeArg = show maxDimension ++ "x" ++ show maxDimension ++ ">"
         res <-
           try
             ( callProcess
                 "magick"
-                [ src,
-                  "-resize",
-                  resizeArg,
-                  "-unsharp",
-                  "1.5x1.2+1.0+0.10",
-                  "-interlace",
-                  "Plane",
-                  "-strip",
-                  "-quality",
-                  "95",
-                  scaled
-                ]
+                ( [ src,
+                    "-resize",
+                    resizeArg,
+                    "-unsharp",
+                    "1.5x1.2+1.0+0.10"
+                  ]
+                    ++ formatArgs
+                    ++ [ "-quality",
+                         formatQuality,
+                         outPath
+                       ]
+                )
             ) ::
             IO (Either SomeException ())
         case res of
           Left err -> do
-            hPutStrLn stderr ("[" ++ outDir ++ "] PNG failed for " <> src <> ": " <> show err)
+            hPutStrLn stderr ("[" ++ outDir ++ "] " ++ show fmt ++ " failed for " <> src <> ": " <> show err)
             pure False
           Right _ -> do
-            jpgRes <-
-              try
-                ( callProcess
-                    "magick"
-                    [ scaled,
-                      "-quality",
-                      "90",
-                      jpgPath
-                    ]
-                ) ::
-                IO (Either SomeException ())
-            case jpgRes of
-              Left err -> hPutStrLn stderr ("[" ++ outDir ++ "] JPG failed for " <> src <> ": " <> show err)
-              Right _ -> putStrLn $ "[" ++ outDir ++ "] Wrote " <> jpgPath
-            avifRes <-
-              try
-                ( callProcess
-                    "magick"
-                    [ src,
-                      "-resize",
-                      resizeArg,
-                      "-unsharp",
-                      "1.5x1.2+1.0+0.10",
-                      "-quality",
-                      "80",
-                      avifPath
-                    ]
-                ) ::
-                IO (Either SomeException ())
-            case avifRes of
-              Left err -> hPutStrLn stderr ("[" ++ outDir ++ "] AVIF failed for " <> src <> ": " <> show err)
-              Right _ -> putStrLn $ "[" ++ outDir ++ "] Wrote " <> avifPath
-            webpRes <-
-              try
-                ( callProcess
-                    "magick"
-                    [ src,
-                      "-resize",
-                      resizeArg,
-                      "-unsharp",
-                      "1.5x1.2+1.0+0.10",
-                      "-quality",
-                      "80",
-                      webpPath
-                    ]
-                ) ::
-                IO (Either SomeException ())
-            case webpRes of
-              Left err -> hPutStrLn stderr ("[" ++ outDir ++ "] WebP failed for " <> src <> ": " <> show err)
-              Right _ -> putStrLn $ "[" ++ outDir ++ "] Wrote " <> webpPath
             BS.writeFile hashPath (BSC.pack srcHash)
-            putStrLn $ "[" ++ outDir ++ "] Wrote " <> scaled
+            putStrLn $ "[" ++ outDir ++ "] Wrote " <> outPath
             pure True
    in do
-        let successReturnValue = Just (scaledRel, meta, srcHash)
+        let successReturnValue = Just (outRel, meta, srcHash)
             failureReturnValue = Nothing
         srcExists <- doesFileExist src
         if not srcExists
@@ -440,23 +407,18 @@ createScaledImage outDir width height (src, meta, srcHash) =
             hPutStrLn stderr ("[" ++ outDir ++ "] Source missing, skipping: " <> src)
             pure failureReturnValue
           else do
-            pngExists <- doesFileExist scaled
-            jpgExists <- doesFileExist jpgPath
-            avifExists <- doesFileExist avifPath
-            webpExists <- doesFileExist webpPath
-            let allExist = pngExists && jpgExists && avifExists && webpExists
-
+            destExists <- doesFileExist outPath
             success <-
-              if allExist
+              if destExists
                 then do
                   destHashUpToDate <- matchesHash
                   if destHashUpToDate
                     then pure True
                     else do
-                      hPutStrLn stderr ("[" ++ outDir ++ "] Scaled images outdated, recreating: " <> scaled)
+                      hPutStrLn stderr ("[" ++ outDir ++ "] Scaled image outdated, recreating: " <> outPath)
                       createScaled
                 else do
-                  hPutStrLn stderr ("[" ++ outDir ++ "] Scaled images missing, will create: " <> scaled)
+                  hPutStrLn stderr ("[" ++ outDir ++ "] Scaled image missing, will create: " <> outPath)
                   createScaled
             pure $
               if success

@@ -81,7 +81,7 @@ renderItem root (imgPath, meta, mThumbPath, _) =
 computeOneThumbnail :: FilePath -> FilePath -> String -> IO (Maybe FilePath)
 computeOneThumbnail root imgPath md5sum = do
   let thumbDir = root </> ".thumbnail"
-      thumbPath = thumbDir </> md5sum <> ".jpg"
+      thumbPath = thumbDir </> md5sum <> ".webp"
   exists <- doesFileExist thumbPath
   if exists
     then pure (Just thumbPath)
