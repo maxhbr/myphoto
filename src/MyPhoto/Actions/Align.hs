@@ -20,6 +20,7 @@ import MyPhoto.Actions.UnTiff (unTiff)
 import MyPhoto.Model
 import System.Directory
 import System.FilePath
+import System.IO (hGetContents)
 import System.IO.Temp
 import System.Process
 import Text.Printf
@@ -208,6 +209,64 @@ align opts wd imgs = do
           else return outTiffs
     )
 
+-- | Find the integer (x, y) translation offset of a target image relative to
+-- a reference image using ImageMagick's subimage search with NCC metric.
+-- Both images are downscaled for speed; the offset is scaled back up.
+-- Returns (dx, dy) where the target's content starts at (dx, dy) in the reference.
+findTranslationOffset :: FilePath -> Img -> Img -> IO (Int, Int)
+findTranslationOffset tmpdir refImg targetImg = do
+  let scaleFactor = 4 :: Int
+      refSmall = tmpdir </> "ref_small.png"
+      targetSmall = tmpdir </> "target_small.png"
+      pctStr = show (100 `div` scaleFactor) ++ "%"
+  -- Downscale both images for fast correlation
+  logDebugIO ("downscaling images to " ++ pctStr ++ " for offset detection")
+  (_, _, _, ph1) <-
+    createProcess (proc "magick" [refImg, "-resize", pctStr, refSmall])
+  ec1 <- waitForProcess ph1
+  unless (ec1 == ExitSuccess) $
+    fail "downscaling reference image failed"
+  (_, _, _, ph2) <-
+    createProcess (proc "magick" [targetImg, "-resize", pctStr, targetSmall])
+  ec2 <- waitForProcess ph2
+  unless (ec2 == ExitSuccess) $
+    fail "downscaling target image failed"
+  -- Use subimage-search to find the best translation offset.
+  -- magick compare writes metrics to stderr and exits 1 for "dissimilar" images,
+  -- which is expected — we only need the offset, not the similarity score.
+  logDebugIO "running subimage search for translation offset"
+  (_, _, Just herr, ph) <-
+    createProcess
+      (proc "magick" ["compare", "-metric", "NCC", "-subimage-search", refSmall, targetSmall, "null:"])
+        { std_err = CreatePipe
+        }
+  errOutput <- hGetContents herr
+  _ <- waitForProcess ph -- ignore exit code; compare returns 1 for dissimilar
+  logDebugIO ("compare stderr: " ++ errOutput)
+  -- Parse output format: "score (normalized) @ X,Y [similarity]"
+  (dx, dy) <- case parseCompareOffset errOutput of
+    Just (x, y) -> return (x, y)
+    Nothing -> do
+      logWarnIO ("unable to parse offset from compare output, assuming (0,0): " ++ errOutput)
+      return (0, 0)
+  let fullDx = dx * scaleFactor
+      fullDy = dy * scaleFactor
+  logInfoIO ("translation offset: dx=" ++ show fullDx ++ " dy=" ++ show fullDy ++ " (from downscaled " ++ show dx ++ "," ++ show dy ++ ")")
+  return (fullDx, fullDy)
+
+-- | Parse the "@ X,Y" offset from magick compare output.
+parseCompareOffset :: String -> Maybe (Int, Int)
+parseCompareOffset s = case break (== '@') s of
+  (_, '@' : rest) ->
+    let trimmed = dropWhile isSpace rest
+        (xStr, afterX) = break (\c -> c == ',' || isSpace c) trimmed
+        afterComma = drop 1 afterX
+        (yStr, _) = break (\c -> isSpace c || c == '[') (dropWhile isSpace afterComma)
+     in case (reads xStr, reads yStr) of
+          ([(x, "")], [(y, "")]) -> Just (x, y)
+          _ -> Nothing
+  _ -> Nothing
+
 alignSmallerOnTopOfBigger :: FilePath -> Img -> Img -> IO Img
 alignSmallerOnTopOfBigger wd bigImg smallImg = do
   out <- findAltFileOfFile (dropExtension smallImg ++ "_ALIGNED.tif")
@@ -217,22 +276,62 @@ alignSmallerOnTopOfBigger wd bigImg smallImg = do
   (smallX, smallY) <- getImageSize (return smallImg)
   when (bigX < smallX || bigY < smallY) $
     fail "alignSmallerOnTopOfBigger: first image must be bigger than second image"
-  if bigX == smallX && bigY == smallY
-    then do
-      logInfoIO "both images are already the same size, no need to grow"
-      [_, aligned] <- callAlignImageStack ["-v", "--use-given-order"] "align_" [bigImg, smallImg]
-      copyFile aligned out
-    else do
-      withTempDirectory
-        alignWD
-        ("_grow.tmp")
-        ( \tmpdir -> do
-            createDirectoryIfMissing True tmpdir
-            grownImgs <- makeAllImagesTheSameSize False tmpdir [bigImg, smallImg]
-            let alignArgs = ["-v", "--use-given-order"]
-            [_, aligned] <- callAlignImageStack alignArgs (tmpdir </> "align_") (map snd grownImgs)
-            copyFile aligned out
-        )
+  withTempDirectory
+    alignWD
+    "_translate.tmp"
+    ( \tmpdir -> do
+        createDirectoryIfMissing True tmpdir
+        -- Grow the smaller image to the same canvas size as the bigger one
+        -- (centered, with transparent padding)
+        grownSmall <-
+          if bigX == smallX && bigY == smallY
+            then return smallImg
+            else snd <$> growImage (bigX, bigY) tmpdir smallImg
+        -- Find the translation offset
+        (dx, dy) <- findTranslationOffset tmpdir bigImg grownSmall
+        -- Apply the offset: shift the grown image by (dx, dy) using
+        -- -distort SRT for integer translation (no interpolation needed),
+        -- or simply re-compose on a fresh canvas at the shifted position.
+        -- Using -page to set the offset and then -flatten avoids resampling.
+        logInfoIO
+          ( "aligning "
+              ++ smallImg
+              ++ " onto "
+              ++ bigImg
+              ++ " with translation ("
+              ++ show dx
+              ++ ","
+              ++ show dy
+              ++ ")"
+          )
+        -- Create the shifted output by adjusting the virtual canvas position of the
+        -- grown image and extending/cropping to match the reference dimensions.
+        -- This is pure pixel copying — no resampling or interpolation.
+        --
+        -- Steps:
+        -- 1. Set the page/offset of the grown image to (dx, dy)
+        -- 2. Use -set page to define the full canvas
+        -- 3. Use -flatten with transparent background to composite onto a canvas
+        --    of the reference dimensions, preserving alpha.
+        (_, _, _, pH) <-
+          createProcess
+            ( proc
+                "magick"
+                [ grownSmall,
+                  "-alpha",
+                  "on",
+                  "-repage",
+                  printf "%dx%d%+d%+d" bigX bigY dx dy,
+                  "-background",
+                  "transparent",
+                  "-flatten",
+                  out
+                ]
+            )
+        ec <- waitForProcess pH
+        unless (ec == ExitSuccess) $
+          fail ("translation alignment failed with " ++ show ec)
+    )
   return out
 
 alignSmallerOnTopOfBiggest :: FilePath -> Imgs -> IO Imgs
