@@ -330,6 +330,21 @@ options =
       "Redirect log to log file in work directory",
     Option
       ""
+      ["crop-to-common-intersection"]
+      ( ReqArg
+          (\arg opt -> return opt {optCropToCommonIntersectionFuzz = Just (read arg :: Int)})
+          "FUZZ_PERCENT"
+      )
+      "Crop aligned outputs to common intersection area (fuzz tolerance in percent, default 10)",
+    Option
+      ""
+      ["no-crop-to-common-intersection"]
+      ( NoArg
+          (\opt -> return opt {optCropToCommonIntersectionFuzz = Nothing})
+      )
+      "Do not crop aligned outputs to common intersection area",
+    Option
+      ""
       ["no-gpu"]
       ( NoArg
           (\opt -> return opt {optNoGpu = True})

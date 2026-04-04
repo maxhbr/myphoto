@@ -384,13 +384,17 @@ alignOuts = step "align outputs" $ do
   outs <- getOuts
   when (length outs >= 2) $ do
     wd <- getWdOrFail
+    opts <- getOpts
     withOutsReplaceIO $ \outs -> do
       if null outs
         then do
           logInfoIO "no outputs to align"
           return outs
-        else
-          alignSmallerOnTopOfBiggest wd outs
+        else do
+          aligned <- alignSmallerOnTopOfBiggest wd outs
+          case optCropToCommonIntersectionFuzz opts of
+            Nothing -> return aligned
+            Just fuzz -> cropToCommonIntersection (Just fuzz) wd aligned
 
 saveOutsAsMultilayerTiff :: FilePath -> Imgs -> IO FilePath
 saveOutsAsMultilayerTiff outputTiff imgs = do

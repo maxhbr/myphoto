@@ -116,6 +116,7 @@ data Options = Options
     optZereneStacker :: Bool,
     optZereneStackerHeadless :: Bool,
     optNoGpu :: Bool,
+    optCropToCommonIntersectionFuzz :: Maybe Int,
     optParameters :: Map String [String]
   }
   deriving (Show, Eq)
@@ -141,6 +142,7 @@ instance Default Options where
         optZereneStacker = True,
         optZereneStackerHeadless = False,
         optNoGpu = False,
+        optCropToCommonIntersectionFuzz = Just 10,
         optParameters = mempty
       }
 

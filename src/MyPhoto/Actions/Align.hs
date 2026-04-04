@@ -6,12 +6,14 @@ module MyPhoto.Actions.Align
     AlignNamingStrategy (..),
     alignSmallerOnTopOfBigger,
     alignSmallerOnTopOfBiggest,
+    cropToCommonIntersection,
   )
 where
 
 import Control.Concurrent.Async (concurrently)
 import Control.Exception (SomeException, catch)
 import Control.Monad
+import Data.Char (isSpace)
 import Data.List (sortBy)
 import MyPhoto.Actions.Metadata (getStackOutputBN)
 import MyPhoto.Actions.UnTiff (unTiff)
@@ -259,3 +261,310 @@ alignSmallerOnTopOfBiggest wd imgs = do
                   )
     )
     imgsWithSize
+
+-- | Check whether an entire rectangle in the mask image is fully opaque.
+-- Uses ImageMagick to crop to the rectangle and check the minimum pixel value.
+isRectOpaque :: FilePath -> Int -> Int -> Int -> Int -> IO Bool
+isRectOpaque maskFile x y w h = do
+  let geom = show w ++ "x" ++ show h ++ "+" ++ show x ++ "+" ++ show y
+  output <-
+    readProcess
+      "magick"
+      [maskFile, "-crop", geom, "+repage", "-format", "%[min]", "info:"]
+      ""
+  let val = read (filter (not . isSpace) output) :: Int
+  return (val == 255 || val == 65535)
+
+-- | Binary search for the minimum value in [lo, hi) where the predicate is True.
+-- Assumes monotonic transition from False to True.
+-- Returns Nothing if the predicate is False for all values.
+bsearchFirst :: (Int -> IO Bool) -> Int -> Int -> IO (Maybe Int)
+bsearchFirst predicate lo hi
+  | lo >= hi = return Nothing
+  | otherwise = do
+      lastVal <- predicate (hi - 1)
+      if not lastVal
+        then return Nothing
+        else go lo (hi - 1)
+  where
+    go low high
+      | low >= high = return (Just low)
+      | otherwise = do
+          let mid = low + (high - low) `div` 2
+          val <- predicate mid
+          if val
+            then go low mid
+            else go (mid + 1) high
+
+-- | Binary search for the maximum value in [lo, hi) where the predicate is True.
+-- Assumes monotonic transition from True to False.
+-- Returns Nothing if the predicate is False for all values.
+bsearchLast :: (Int -> IO Bool) -> Int -> Int -> IO (Maybe Int)
+bsearchLast predicate lo hi
+  | lo >= hi = return Nothing
+  | otherwise = do
+      firstVal <- predicate lo
+      if not firstVal
+        then return Nothing
+        else go lo (hi - 1)
+  where
+    go low high
+      | low >= high = return (Just low)
+      | otherwise = do
+          let mid = low + (high - low + 1) `div` 2
+          val <- predicate mid
+          if val
+            then go mid high
+            else go low (mid - 1)
+
+-- | Get the bounding box of non-black content via ImageMagick -trim.
+-- Returns (width, height, xOffset, yOffset) or Nothing on failure.
+getTrimBoundingBox :: FilePath -> IO (Maybe (Int, Int, Int, Int))
+getTrimBoundingBox img = do
+  output <-
+    readProcess
+      "magick"
+      [img, "-trim", "-print", "%w %h %X %Y\\n", "null:"]
+      ""
+  case words (head (lines output)) of
+    [w, h, xOff, yOff] ->
+      let parseOffset ('+' : s) = read s
+          parseOffset s = read s
+       in return $ Just (read w, read h, parseOffset xOff, parseOffset yOff)
+    _ -> do
+      logWarnIO ("unable to parse trim bounding box from magick output: " ++ output)
+      return Nothing
+
+-- | Find the largest fully-opaque crop rectangle inside the given binary mask.
+--
+-- Algorithm:
+-- 1. Find an initial opaque rectangle by shaving all edges uniformly
+--    (binary search on the shave percentage).
+-- 2. Expand each edge outward as far as possible while keeping the
+--    rectangle fully opaque.
+-- 3. Iterate until stable, producing the largest axis-aligned rectangle
+--    that is fully opaque.
+--
+-- Each candidate rectangle is checked with 'isRectOpaque' (full-rectangle
+-- min-pixel test), which correctly handles non-rectangular transparency
+-- like wedge-shaped corners from alignment warping.
+findOpaqueRect :: FilePath -> IO (Maybe (Int, Int, Int, Int))
+findOpaqueRect maskFile = do
+  mBbox <- getTrimBoundingBox maskFile
+  case mBbox of
+    Nothing -> do
+      logWarnIO "findOpaqueRect: could not determine trim bounding box"
+      return Nothing
+    Just (trimW, trimH, trimX, trimY) -> do
+      logInfoIO
+        ( "trim bounding box: "
+            ++ show trimW
+            ++ "x"
+            ++ show trimH
+            ++ "+"
+            ++ show trimX
+            ++ "+"
+            ++ show trimY
+        )
+      -- Outer bounds: never expand beyond the trim bounding box
+      let outerTop = trimY
+          outerBot = trimY + trimH - 1
+          outerLeft = trimX
+          outerRight = trimX + trimW - 1
+      -- Quick check: is the trim box already fully opaque?
+      alreadyOpaque <- isRectOpaque maskFile trimX trimY trimW trimH
+      if alreadyOpaque
+        then do
+          logInfoIO "trim bounding box is already fully opaque"
+          return (Just (trimX, trimY, trimW, trimH))
+        else do
+          -- Step 1: Find an initial opaque rect by uniform shaving.
+          -- Binary search on the shave percentage (0-50%) from each edge.
+          let maxShavePct = 50
+          mInitShave <-
+            bsearchFirst
+              ( \pct -> do
+                  let shaveX = (trimW * pct) `div` 200
+                      shaveY = (trimH * pct) `div` 200
+                      sx = trimX + shaveX
+                      sy = trimY + shaveY
+                      sw = trimW - 2 * shaveX
+                      sh = trimH - 2 * shaveY
+                  if sw <= 0 || sh <= 0
+                    then return False
+                    else isRectOpaque maskFile sx sy sw sh
+              )
+              0
+              (maxShavePct + 1)
+          case mInitShave of
+            Nothing -> do
+              logWarnIO "findOpaqueRect: no uniform shave percentage yields an opaque rectangle"
+              return Nothing
+            Just pct -> do
+              let shaveX = (trimW * pct) `div` 200
+                  shaveY = (trimH * pct) `div` 200
+                  initLeft = trimX + shaveX
+                  initTop = trimY + shaveY
+                  initRight = trimX + trimW - 1 - shaveX
+                  initBot = trimY + trimH - 1 - shaveY
+              logInfoIO
+                ( "initial opaque rect at "
+                    ++ show pct
+                    ++ "% shave: "
+                    ++ show (initRight - initLeft + 1)
+                    ++ "x"
+                    ++ show (initBot - initTop + 1)
+                    ++ "+"
+                    ++ show initLeft
+                    ++ "+"
+                    ++ show initTop
+                )
+              -- Step 2: Expand each edge outward toward trim bounds
+              expand outerTop outerBot outerLeft outerRight initTop initBot initLeft initRight (0 :: Int)
+  where
+    maxIter = 20
+    expand oTop oBot oLeft oRight topY botY leftX rightX iter
+      | iter >= maxIter = do
+          logInfoIO "findOpaqueRect: max expand iterations reached"
+          returnRect topY botY leftX rightX
+      | otherwise = do
+          let w = rightX - leftX + 1
+              h = botY - topY + 1
+          logDebugIO
+            ( "expand iteration "
+                ++ show iter
+                ++ ": "
+                ++ show w
+                ++ "x"
+                ++ show h
+                ++ "+"
+                ++ show leftX
+                ++ "+"
+                ++ show topY
+            )
+          -- Expand top edge upward (find minimum topY in [oTop..topY])
+          mNewTop <-
+            bsearchFirst
+              (\t -> isRectOpaque maskFile leftX t w (botY - t + 1))
+              oTop
+              (topY + 1)
+          let newTopY = case mNewTop of Nothing -> topY; Just t -> t
+          -- Expand bottom edge downward (find maximum botY in [botY..oBot])
+          mNewBot <-
+            bsearchLast
+              (\b -> isRectOpaque maskFile leftX newTopY w (b - newTopY + 1))
+              botY
+              (oBot + 1)
+          let newBotY = case mNewBot of Nothing -> botY; Just b -> b
+          let newH2 = newBotY - newTopY + 1
+          -- Expand left edge leftward (find minimum leftX in [oLeft..leftX])
+          mNewLeft <-
+            bsearchFirst
+              (\l -> isRectOpaque maskFile l newTopY (rightX - l + 1) newH2)
+              oLeft
+              (leftX + 1)
+          let newLeftX = case mNewLeft of Nothing -> leftX; Just l -> l
+          -- Expand right edge rightward (find maximum rightX in [rightX..oRight])
+          mNewRight <-
+            bsearchLast
+              (\r -> isRectOpaque maskFile newLeftX newTopY (r - newLeftX + 1) newH2)
+              rightX
+              (oRight + 1)
+          let newRightX = case mNewRight of Nothing -> rightX; Just r -> r
+          -- Check convergence
+          if newTopY == topY && newBotY == botY && newLeftX == leftX && newRightX == rightX
+            then do
+              let fw = newRightX - newLeftX + 1
+                  fh = newBotY - newTopY + 1
+              logInfoIO
+                ( "findOpaqueRect converged: "
+                    ++ show fw
+                    ++ "x"
+                    ++ show fh
+                    ++ "+"
+                    ++ show newLeftX
+                    ++ "+"
+                    ++ show newTopY
+                )
+              returnRect newTopY newBotY newLeftX newRightX
+            else expand oTop oBot oLeft oRight newTopY newBotY newLeftX newRightX (iter + 1)
+    returnRect topY botY leftX rightX =
+      let w = rightX - leftX + 1
+          h = botY - topY + 1
+       in if w > 0 && h > 0
+            then return (Just (leftX, topY, w, h))
+            else return Nothing
+
+cropToCommonIntersection :: Maybe Int -> FilePath -> Imgs -> IO Imgs
+cropToCommonIntersection _ _ [] = return []
+cropToCommonIntersection _ _ [img] = return [img]
+cropToCommonIntersection fuzzPct wd imgs = do
+  logInfoIO
+    ( "finding fully-opaque crop rectangle for "
+        ++ show (length imgs)
+        ++ " images (fuzz="
+        ++ show fuzzPct
+        ++ ")"
+    )
+  -- Get image dimensions (all should be the same after alignment)
+  (imgW, imgH) <- getImageSize (return (head imgs))
+  logInfoIO ("image dimensions: " ++ show imgW ++ "x" ++ show imgH)
+  -- Create combined alpha mask: pixel-wise minimum of all alpha channels
+  -- Threshold so that "almost opaque" (within fuzz%) counts as opaque.
+  -- E.g. fuzz=10 means threshold at 90%: pixels with alpha >= 90% become white.
+  let thresholdPct = case fuzzPct of
+        Nothing -> "90%"
+        Just pct -> show (100 - pct) ++ "%"
+  withSystemTempDirectory "myphoto-crop" $ \tmpDir -> do
+    let combinedMask = tmpDir </> "combined_alpha.png"
+    logInfoIO "creating combined alpha mask (pixel-wise minimum across all images)..."
+    let maskArgs =
+          imgs
+            ++ [ "-alpha",
+                 "extract",
+                 "-evaluate-sequence",
+                 "Min",
+                 "-threshold",
+                 thresholdPct,
+                 combinedMask
+               ]
+    (_, _, _, pHandle) <- createProcess (proc "magick" maskArgs)
+    exitCode <- waitForProcess pHandle
+    unless (exitCode == ExitSuccess) $
+      fail ("creating combined alpha mask failed with " ++ show exitCode)
+    logInfoIO "combined alpha mask created, searching for largest fully-opaque rectangle..."
+    result <- findOpaqueRect combinedMask
+    case result of
+      Nothing -> do
+        logWarnIO "no fully-opaque rectangle found, skipping crop"
+        return imgs
+      Just (cropX, cropY, cropW, cropH) -> do
+        logInfoIO
+          ( "fully-opaque rectangle: "
+              ++ show cropW
+              ++ "x"
+              ++ show cropH
+              ++ "+"
+              ++ show cropX
+              ++ "+"
+              ++ show cropY
+          )
+        mapM
+          ( \img -> do
+              let (bn, ext) = splitExtensions img
+                  outImg = inWorkdir wd (takeFileName bn ++ "_CROPPED" ++ ext)
+              altOut <- findAltFileOfFile outImg
+              let geometryStr = show cropW ++ "x" ++ show cropH ++ "+" ++ show cropX ++ "+" ++ show cropY
+              logInfoIO ("cropping " ++ img ++ " to " ++ geometryStr ++ " into " ++ altOut)
+              (_, _, _, pH) <-
+                createProcess
+                  ( proc
+                      "magick"
+                      [img, "-crop", geometryStr, "+repage", altOut]
+                  )
+              ec <- waitForProcess pH
+              unless (ec == ExitSuccess) $
+                fail ("cropping image failed with " ++ show ec)
+              return altOut
+          )
+          imgs

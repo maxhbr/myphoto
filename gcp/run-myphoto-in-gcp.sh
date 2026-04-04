@@ -32,7 +32,14 @@ if [ -f "$HOME/.myphoto/gcp.env" ]; then
         exit 1
     fi
 else
-    echo "GCP configuration file ~/.myphoto/gcp.env not found." >&2
+    cat >&2 <<'ENVHELP'
+GCP configuration file ~/.myphoto/gcp.env not found.
+Create it with the following required variables:
+
+    PROJECT="your-gcp-project-id"
+    REGION="your-gcp-region"       # e.g. us-central1
+    ZONE="your-gcp-zone"           # e.g. us-central1-a
+ENVHELP
     exit 1
 fi
 
