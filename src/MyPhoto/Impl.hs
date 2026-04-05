@@ -394,7 +394,7 @@ alignOuts = step "align outputs" $ do
           aligned <- alignSmallerOnTopOfBiggest wd outs
           case optCropToCommonIntersectionFuzz opts of
             Nothing -> return aligned
-            Just fuzz -> cropToCommonIntersection (Just fuzz) wd aligned
+            Just fuzz -> cropToCommonIntersection fuzz wd aligned
 
 saveOutsAsMultilayerTiff :: FilePath -> Imgs -> IO FilePath
 saveOutsAsMultilayerTiff outputTiff imgs = do

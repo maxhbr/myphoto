@@ -332,7 +332,12 @@ options =
       ""
       ["crop-to-common-intersection"]
       ( ReqArg
-          (\arg opt -> return opt {optCropToCommonIntersectionFuzz = Just (read arg :: Int)})
+          ( \arg opt ->
+              let pct = read arg :: Int
+               in if pct < 0 || pct > 100
+                    then fail ("--crop-to-common-intersection: fuzz percentage must be 0-100, got " ++ arg)
+                    else return opt {optCropToCommonIntersectionFuzz = Just pct}
+          )
           "FUZZ_PERCENT"
       )
       "Crop aligned outputs to common intersection area (fuzz tolerance in percent, default 10)",

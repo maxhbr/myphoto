@@ -7,6 +7,7 @@ module MyPhoto.Actions.Align
     alignSmallerOnTopOfBigger,
     alignSmallerOnTopOfBiggest,
     cropToCommonIntersection,
+    parseCompareOffset,
   )
 where
 
@@ -20,10 +21,11 @@ import MyPhoto.Actions.UnTiff (unTiff)
 import MyPhoto.Model
 import System.Directory
 import System.FilePath
-import System.IO (hGetContents)
+import System.IO (hGetContents')
 import System.IO.Temp
 import System.Process
 import Text.Printf
+import Text.Read (readMaybe)
 
 data AlignNamingStrategy
   = AlignNamingStrategyOriginal
@@ -219,16 +221,20 @@ findTranslationOffset tmpdir refImg targetImg = do
       refSmall = tmpdir </> "ref_small.png"
       targetSmall = tmpdir </> "target_small.png"
       pctStr = show (100 `div` scaleFactor) ++ "%"
-  -- Downscale both images for fast correlation
+  -- Downscale both images in parallel for fast correlation
   logDebugIO ("downscaling images to " ++ pctStr ++ " for offset detection")
-  (_, _, _, ph1) <-
-    createProcess (proc "magick" [refImg, "-resize", pctStr, refSmall])
-  ec1 <- waitForProcess ph1
+  (ec1, ec2) <-
+    concurrently
+      ( do
+          (_, _, _, ph1) <- createProcess (proc "magick" [refImg, "-resize", pctStr, refSmall])
+          waitForProcess ph1
+      )
+      ( do
+          (_, _, _, ph2) <- createProcess (proc "magick" [targetImg, "-resize", pctStr, targetSmall])
+          waitForProcess ph2
+      )
   unless (ec1 == ExitSuccess) $
     fail "downscaling reference image failed"
-  (_, _, _, ph2) <-
-    createProcess (proc "magick" [targetImg, "-resize", pctStr, targetSmall])
-  ec2 <- waitForProcess ph2
   unless (ec2 == ExitSuccess) $
     fail "downscaling target image failed"
   -- Use subimage-search to find the best translation offset.
@@ -240,7 +246,7 @@ findTranslationOffset tmpdir refImg targetImg = do
       (proc "magick" ["compare", "-metric", "NCC", "-subimage-search", refSmall, targetSmall, "null:"])
         { std_err = CreatePipe
         }
-  errOutput <- hGetContents herr
+  errOutput <- hGetContents' herr
   _ <- waitForProcess ph -- ignore exit code; compare returns 1 for dissimilar
   logDebugIO ("compare stderr: " ++ errOutput)
   -- Parse output format: "score (normalized) @ X,Y [similarity]"
@@ -289,10 +295,9 @@ alignSmallerOnTopOfBigger wd bigImg smallImg = do
             else snd <$> growImage (bigX, bigY) tmpdir smallImg
         -- Find the translation offset
         (dx, dy) <- findTranslationOffset tmpdir bigImg grownSmall
-        -- Apply the offset: shift the grown image by (dx, dy) using
-        -- -distort SRT for integer translation (no interpolation needed),
-        -- or simply re-compose on a fresh canvas at the shifted position.
-        -- Using -page to set the offset and then -flatten avoids resampling.
+        -- Apply the offset: shift the grown image by (dx, dy) by setting
+        -- its virtual canvas position and using -flatten to composite.
+        -- This is pure pixel copying — no resampling or interpolation.
         logInfoIO
           ( "aligning "
               ++ smallImg
@@ -361,18 +366,25 @@ alignSmallerOnTopOfBiggest wd imgs = do
     )
     imgsWithSize
 
+-- | Format a WxH+X+Y geometry string for ImageMagick.
+showGeom :: Int -> Int -> Int -> Int -> String
+showGeom w h x y = show w ++ "x" ++ show h ++ "+" ++ show x ++ "+" ++ show y
+
 -- | Check whether an entire rectangle in the mask image is fully opaque.
 -- Uses ImageMagick to crop to the rectangle and check the minimum pixel value.
 isRectOpaque :: FilePath -> Int -> Int -> Int -> Int -> IO Bool
 isRectOpaque maskFile x y w h = do
-  let geom = show w ++ "x" ++ show h ++ "+" ++ show x ++ "+" ++ show y
+  let geom = showGeom w h x y
   output <-
     readProcess
       "magick"
       [maskFile, "-crop", geom, "+repage", "-format", "%[min]", "info:"]
       ""
-  let val = read (filter (not . isSpace) output) :: Int
-  return (val == 255 || val == 65535)
+  case readMaybe (filter (not . isSpace) output) :: Maybe Int of
+    Just val -> return (val == 255 || val == 65535)
+    Nothing -> do
+      logWarnIO ("isRectOpaque: unexpected magick output: " ++ show output)
+      return False
 
 -- | Binary search for the minimum value in [lo, hi) where the predicate is True.
 -- Assumes monotonic transition from False to True.
@@ -425,14 +437,23 @@ getTrimBoundingBox img = do
       "magick"
       [img, "-trim", "-print", "%w %h %X %Y\\n", "null:"]
       ""
-  case words (head (lines output)) of
-    [w, h, xOff, yOff] ->
-      let parseOffset ('+' : s) = read s
-          parseOffset s = read s
-       in return $ Just (read w, read h, parseOffset xOff, parseOffset yOff)
-    _ -> do
-      logWarnIO ("unable to parse trim bounding box from magick output: " ++ output)
+  let safeRead s = readMaybe s :: Maybe Int
+      parseOffset ('+' : s) = safeRead s
+      parseOffset s = safeRead s
+  case lines output of
+    [] -> do
+      logWarnIO ("unable to parse trim bounding box: empty magick output")
       return Nothing
+    (firstLine : _) -> case words firstLine of
+      [wS, hS, xS, yS] ->
+        case (safeRead wS, safeRead hS, parseOffset xS, parseOffset yS) of
+          (Just w, Just h, Just x, Just y) -> return $ Just (w, h, x, y)
+          _ -> do
+            logWarnIO ("unable to parse trim bounding box values: " ++ firstLine)
+            return Nothing
+      _ -> do
+        logWarnIO ("unable to parse trim bounding box from magick output: " ++ output)
+        return Nothing
 
 -- | Find the largest fully-opaque crop rectangle inside the given binary mask.
 --
@@ -455,16 +476,7 @@ findOpaqueRect maskFile = do
       logWarnIO "findOpaqueRect: could not determine trim bounding box"
       return Nothing
     Just (trimW, trimH, trimX, trimY) -> do
-      logInfoIO
-        ( "trim bounding box: "
-            ++ show trimW
-            ++ "x"
-            ++ show trimH
-            ++ "+"
-            ++ show trimX
-            ++ "+"
-            ++ show trimY
-        )
+      logInfoIO ("trim bounding box: " ++ showGeom trimW trimH trimX trimY)
       -- Outer bounds: never expand beyond the trim bounding box
       let outerTop = trimY
           outerBot = trimY + trimH - 1
@@ -510,13 +522,7 @@ findOpaqueRect maskFile = do
                 ( "initial opaque rect at "
                     ++ show pct
                     ++ "% shave: "
-                    ++ show (initRight - initLeft + 1)
-                    ++ "x"
-                    ++ show (initBot - initTop + 1)
-                    ++ "+"
-                    ++ show initLeft
-                    ++ "+"
-                    ++ show initTop
+                    ++ showGeom (initRight - initLeft + 1) (initBot - initTop + 1) initLeft initTop
                 )
               -- Step 2: Expand each edge outward toward trim bounds
               expand outerTop outerBot outerLeft outerRight initTop initBot initLeft initRight (0 :: Int)
@@ -530,17 +536,7 @@ findOpaqueRect maskFile = do
           let w = rightX - leftX + 1
               h = botY - topY + 1
           logDebugIO
-            ( "expand iteration "
-                ++ show iter
-                ++ ": "
-                ++ show w
-                ++ "x"
-                ++ show h
-                ++ "+"
-                ++ show leftX
-                ++ "+"
-                ++ show topY
-            )
+            ("expand iteration " ++ show iter ++ ": " ++ showGeom w h leftX topY)
           -- Expand top edge upward (find minimum topY in [oTop..topY])
           mNewTop <-
             bsearchFirst
@@ -573,17 +569,9 @@ findOpaqueRect maskFile = do
           -- Check convergence
           if newTopY == topY && newBotY == botY && newLeftX == leftX && newRightX == rightX
             then do
-              let fw = newRightX - newLeftX + 1
-                  fh = newBotY - newTopY + 1
               logInfoIO
                 ( "findOpaqueRect converged: "
-                    ++ show fw
-                    ++ "x"
-                    ++ show fh
-                    ++ "+"
-                    ++ show newLeftX
-                    ++ "+"
-                    ++ show newTopY
+                    ++ showGeom (newRightX - newLeftX + 1) (newBotY - newTopY + 1) newLeftX newTopY
                 )
               returnRect newTopY newBotY newLeftX newRightX
             else expand oTop oBot oLeft oRight newTopY newBotY newLeftX newRightX (iter + 1)
@@ -594,7 +582,7 @@ findOpaqueRect maskFile = do
             then return (Just (leftX, topY, w, h))
             else return Nothing
 
-cropToCommonIntersection :: Maybe Int -> FilePath -> Imgs -> IO Imgs
+cropToCommonIntersection :: Int -> FilePath -> Imgs -> IO Imgs
 cropToCommonIntersection _ _ [] = return []
 cropToCommonIntersection _ _ [img] = return [img]
 cropToCommonIntersection fuzzPct wd imgs = do
@@ -603,17 +591,12 @@ cropToCommonIntersection fuzzPct wd imgs = do
         ++ show (length imgs)
         ++ " images (fuzz="
         ++ show fuzzPct
-        ++ ")"
+        ++ "%)"
     )
-  -- Get image dimensions (all should be the same after alignment)
-  (imgW, imgH) <- getImageSize (return (head imgs))
-  logInfoIO ("image dimensions: " ++ show imgW ++ "x" ++ show imgH)
   -- Create combined alpha mask: pixel-wise minimum of all alpha channels
   -- Threshold so that "almost opaque" (within fuzz%) counts as opaque.
   -- E.g. fuzz=10 means threshold at 90%: pixels with alpha >= 90% become white.
-  let thresholdPct = case fuzzPct of
-        Nothing -> "90%"
-        Just pct -> show (100 - pct) ++ "%"
+  let thresholdPct = show (100 - fuzzPct) ++ "%"
   withSystemTempDirectory "myphoto-crop" $ \tmpDir -> do
     let combinedMask = tmpDir </> "combined_alpha.png"
     logInfoIO "creating combined alpha mask (pixel-wise minimum across all images)..."
@@ -638,22 +621,13 @@ cropToCommonIntersection fuzzPct wd imgs = do
         logWarnIO "no fully-opaque rectangle found, skipping crop"
         return imgs
       Just (cropX, cropY, cropW, cropH) -> do
-        logInfoIO
-          ( "fully-opaque rectangle: "
-              ++ show cropW
-              ++ "x"
-              ++ show cropH
-              ++ "+"
-              ++ show cropX
-              ++ "+"
-              ++ show cropY
-          )
+        let geometryStr = showGeom cropW cropH cropX cropY
+        logInfoIO ("fully-opaque rectangle: " ++ geometryStr)
         mapM
           ( \img -> do
               let (bn, ext) = splitExtensions img
                   outImg = inWorkdir wd (takeFileName bn ++ "_CROPPED" ++ ext)
               altOut <- findAltFileOfFile outImg
-              let geometryStr = show cropW ++ "x" ++ show cropH ++ "+" ++ show cropX ++ "+" ++ show cropY
               logInfoIO ("cropping " ++ img ++ " to " ++ geometryStr ++ " into " ++ altOut)
               (_, _, _, pH) <-
                 createProcess

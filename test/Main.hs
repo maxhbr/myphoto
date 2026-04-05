@@ -4,6 +4,7 @@ module Main (main) where
 
 import Control.Monad
 import Data.Monoid
+import MyPhoto.Actions.Align (parseCompareOffset)
 import MyPhoto.Model
 import MyPhoto.Utils.Chunking
 import Test.Framework as TF
@@ -49,10 +50,26 @@ chunkTestCases =
     testCase "fixed chunking" fixedChunkingTest
   ]
 
+parseCompareOffsetTests :: [TF.Test]
+parseCompareOffsetTests =
+  [ testCase "typical NCC output" $
+      assertEqual "should parse offset" (Just (10, 20)) (parseCompareOffset "0.998 (0.998) @ 10,20"),
+    testCase "output with similarity tag" $
+      assertEqual "should parse offset" (Just (5, 3)) (parseCompareOffset "0.95 (0.95) @ 5,3 [similar]"),
+    testCase "zero offset" $
+      assertEqual "should parse zero" (Just (0, 0)) (parseCompareOffset "1.0 (1.0) @ 0,0"),
+    testCase "no @ symbol" $
+      assertEqual "should return Nothing" Nothing (parseCompareOffset "0.998 (0.998) 10,20"),
+    testCase "empty string" $
+      assertEqual "should return Nothing" Nothing (parseCompareOffset ""),
+    testCase "large offsets" $
+      assertEqual "should parse large values" (Just (1234, 5678)) (parseCompareOffset "0.5 @ 1234,5678")
+  ]
+
 main :: IO ()
 main =
   defaultMainWithOpts
-    [testGroup "chunking" chunkTestCases]
-    -- [testCase "push" pushTest
-    -- ,testCase "push-pop" pushPopTest]
+    [ testGroup "chunking" chunkTestCases,
+      testGroup "parseCompareOffset" parseCompareOffsetTests
+    ]
     mempty
