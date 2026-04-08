@@ -144,9 +144,13 @@ traceFileWrite msg = do
   case wd of
     Nothing -> pure ()
     Just wd' -> do
-      let traceFile = wd' </> "myphoto.trace"
+      opts <- MTL.gets myPhotoStateOpts
+      let traceDir = case optExport opts of
+            ExportToParent -> takeDirectory wd'
+            _ -> wd'
+          traceFile = traceDir </> "myphoto.trace"
       MTL.liftIO $ do
-        createDirectoryIfMissing True wd'
+        createDirectoryIfMissing True traceDir
         IO.appendFile traceFile (msg ++ "\n")
 
 logTimeSinceStart :: String -> MyPhotoM ()
@@ -187,7 +191,11 @@ redirectLogToLogFile action = do
   case wd of
     Nothing -> action
     Just wd' -> do
-      let logFile = wd' </> "myphoto.log"
+      opts <- MTL.gets myPhotoStateOpts
+      let logDir = case optExport opts of
+            ExportToParent -> takeDirectory wd'
+            _ -> wd'
+          logFile = logDir </> "myphoto.log"
       logInfo $ "Redirecting log to " ++ logFile
       state <- MTL.get
       (ret, endState) <- MTL.liftIO $ IO.withFile logFile IO.AppendMode $ \logFile' -> do
