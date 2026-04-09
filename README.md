@@ -9,8 +9,8 @@ This implements a pipeline to filter, align and stack images with [PetteriAimone
       A1("Arguments:\nlist of images");
       A2("Arguments:\ndirectory");
       A3("Arguments:\n--dirs and list of directories");
+      A1 --> A[/"images\n either .jpg, .png, raw or .tiff"/];
       subgraph preprocessing
-        A1 --> A[/"images\n either .jpg, .png, raw or .tiff"/];
         A2 -- "all files in directory" --> A;
         A3 --> A;
         A --> B["sort images based on exif CreateDate\nif --sort-on-create-date\n(default)"];
