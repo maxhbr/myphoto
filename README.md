@@ -6,9 +6,11 @@ This is a collection of scripts, tools and workflows that I use for developping 
 This implements a pipeline to filter, align and stack images with [PetteriAimonen/focus-stack](https://github.com/PetteriAimonen/focus-stack) and [Enblend Enfuse](https://enblend.sourceforge.net/).
 ```mermaid
   graph TD;
-      A1("Arguments:\nlist of images");
-      A2("Arguments:\ndirectory");
-      A3("Arguments:\n--dirs and list of directories");
+      subgraph input
+        A1("Arguments:\nlist of images");
+        A2("Arguments:\ndirectory");
+        A3("Arguments:\n--dirs and list of directories");
+      end
       A1 --> A[/"images\n either .jpg, .png, raw or .tiff"/];
       subgraph preprocessing
         A2 -- "all files in directory" --> A;
