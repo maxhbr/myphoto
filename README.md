@@ -31,7 +31,7 @@ This implements a pipeline to filter, align and stack images with [PetteriAimone
       H2' -- "if --no-enfuse" --> K
       K --> Z3[/"Image stacked with zerene-stacker"/]
       G --> ZZ[/"Montage of subset of images"/]
-      G' -- "if --only-zerene-stacker" --> K
+      G -- "if --only-zerene-stacker" --> K
 
       Z1 -----> ZA[/"Aligned output Images"/]
       Z2 -----> ZA
