@@ -316,6 +316,13 @@ options =
       "only import images, no processing",
     Option
       ""
+      ["only-zerene-stacker"]
+      ( NoArg
+          (\opt -> return opt {optFocusStack = False, optEnfuse = False, optZereneStacker = True})
+      )
+      "skip focus-stack and enfuse, only run Zerene Stacker (with alignment)",
+    Option
+      ""
       ["clean-workdir-recursively"]
       ( NoArg
           (\opt -> return opt {optClean = RemoveWorkdirRecursively})

@@ -20,16 +20,18 @@ This implements a pipeline to filter, align and stack images with [PetteriAimone
       F --> G["remove images that are outliers\nif --remove-outliers"];
       G --> G'{"if --focus-stack"}
       G' -- "(default)" --> H1["run\nPetteriAimonen/focus-stack"];
-      G' -- "if --no-focus-stack" --> H2["run\nHugin Align"]
+      G' -- "if --no-focus-stack" --> H2'{"if --enfuse"}
+      H2' -- "(default)" --> H2["run\nHugin Align"]
       H1 --> Z1[/"Image stacked with focus-stack"/]
       H1 -- "always 8bit" --> I[/"aligned images"/]
       H2 -- "maybe 16bit" --> I
       I --> J["run enblend enfuse (if --enfuse)"]
       J --> Z2[/"Image stacked with enfuse"/]
-      I --> K[/"run zerene-stacker (if --zerene-stacker)"/]
-      G -.-> K
+      I --> K["run zerene-stacker (if --zerene-stacker)"]
+      H2' -- "if --no-enfuse" --> K
       K --> Z3[/"Image stacked with zerene-stacker"/]
       G --> ZZ[/"Montage of subset of images"/]
+      G' -- "if --only-zerene-stacker" --> K
 
       Z1 -----> ZA[/"Aligned output Images"/]
       Z2 -----> ZA
