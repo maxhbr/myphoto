@@ -5,7 +5,6 @@ import Data.List (nub)
 import Data.Time.Clock (UTCTime, diffUTCTime, getCurrentTime)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Data.Time.LocalTime (getCurrentTimeZone, utcToLocalTime)
-import qualified GHC.IO.Handle as IO
 import MyPhoto.Model
 import qualified System.IO as IO
 
@@ -15,7 +14,8 @@ data MyPhotoState = MyPhotoState
     myPhotoStateOuts :: Imgs,
     myPhotoStateWd :: Maybe FilePath,
     myPhotoStartTime :: UTCTime,
-    myPhotoLastLogTime :: UTCTime
+    myPhotoLastLogTime :: UTCTime,
+    myPhotoLogHandle :: Maybe IO.Handle
   }
 
 instance Show MyPhotoState where
@@ -30,6 +30,8 @@ instance Show MyPhotoState where
       ++ show (myPhotoStateWd s)
       ++ ",\n  myPhotoStartTime = "
       ++ show (myPhotoStartTime s)
+      ++ ",\n  myPhotoLogHandle = "
+      ++ maybe "Nothing" (const "Just <handle>") (myPhotoLogHandle s)
       ++ "\n}"
 
 startMyPhotoState :: Options -> Imgs -> IO MyPhotoState
@@ -42,24 +44,56 @@ startMyPhotoState startOptions' imgs = do
         myPhotoStateOuts = [],
         myPhotoStateWd = Nothing,
         myPhotoStartTime = startTime,
-        myPhotoLastLogTime = startTime
+        myPhotoLastLogTime = startTime,
+        myPhotoLogHandle = Nothing
       }
 
 type MyPhotoM = MTL.StateT MyPhotoState IO
 
+getLogHandle :: MyPhotoM (Maybe IO.Handle)
+getLogHandle = MTL.gets myPhotoLogHandle
+
+setLogHandle :: Maybe IO.Handle -> MyPhotoM ()
+setLogHandle h = MTL.modify (\s -> s {myPhotoLogHandle = h})
+
+logToHandle :: IO.Handle -> String -> IO ()
+logToHandle h msg = do
+  IO.hPutStrLn h msg
+  IO.hFlush h
+
 logDebug :: String -> MyPhotoM ()
 logDebug msg = do
   opts <- getOpts
-  when (optVerbose opts) $ MTL.liftIO $ logDebugIO msg
+  when (optVerbose opts) $ do
+    MTL.liftIO $ logDebugIO msg
+    mh <- getLogHandle
+    case mh of
+      Just h -> MTL.liftIO $ logToHandle h ("DEBUG: " ++ msg)
+      Nothing -> return ()
 
 logInfo :: String -> MyPhotoM ()
-logInfo msg = MTL.liftIO $ logInfoIO msg
+logInfo msg = do
+  MTL.liftIO $ logInfoIO msg
+  mh <- getLogHandle
+  case mh of
+    Just h -> MTL.liftIO $ logToHandle h ("INFO: " ++ msg)
+    Nothing -> return ()
 
 logWarn :: String -> MyPhotoM ()
-logWarn msg = MTL.liftIO $ logWarnIO msg
+logWarn msg = do
+  MTL.liftIO $ logWarnIO msg
+  mh <- getLogHandle
+  case mh of
+    Just h -> MTL.liftIO $ logToHandle h ("WARN: " ++ msg)
+    Nothing -> return ()
 
 logError :: String -> MyPhotoM ()
-logError msg = MTL.liftIO $ logErrorIO msg
+logError msg = do
+  MTL.liftIO $ logErrorIO msg
+  mh <- getLogHandle
+  case mh of
+    Just h -> MTL.liftIO $ logToHandle h ("ERROR: " ++ msg)
+    Nothing -> return ()
 
 getOpts :: MyPhotoM Options
 getOpts = MTL.gets myPhotoStateOpts
@@ -138,21 +172,6 @@ withOutsReplaceIO f = do
 setWd :: FilePath -> MyPhotoM ()
 setWd wd = MTL.modify (\s -> s {myPhotoStateWd = Just wd})
 
-traceFileWrite :: String -> MyPhotoM ()
-traceFileWrite msg = do
-  wd <- MTL.gets myPhotoStateWd
-  case wd of
-    Nothing -> pure ()
-    Just wd' -> do
-      opts <- MTL.gets myPhotoStateOpts
-      let traceDir = case optExport opts of
-            ExportToParent -> takeDirectory wd'
-            _ -> wd'
-          traceFile = traceDir </> "myphoto.trace"
-      MTL.liftIO $ do
-        createDirectoryIfMissing True traceDir
-        IO.appendFile traceFile (msg ++ "\n")
-
 logTimeSinceStart :: String -> MyPhotoM ()
 logTimeSinceStart msg = do
   startTime <- MTL.gets myPhotoStartTime
@@ -161,17 +180,14 @@ logTimeSinceStart msg = do
   let diff = diffUTCTime currentTime startTime
   let diffSinceLastLog = diffUTCTime currentTime lastLogTime
   let completeMsg = msg ++ " (elapsed time: " ++ show diff ++ ", elapsed since last log: " ++ show diffSinceLastLog ++ ")"
-  logInfo $ completeMsg
-  traceFileWrite completeMsg
+  logInfo completeMsg
   MTL.modify (\s -> s {myPhotoLastLogTime = currentTime})
 
 step :: String -> MyPhotoM a -> MyPhotoM a
 step stepName action = do
   let border = replicate 79 '─'
       logBoxStart = logInfo $ "┌" ++ border
-      logInBox msg = do
-        logInfo $ "│ " ++ msg
-        traceFileWrite msg
+      logInBox msg = logInfo $ "│ " ++ msg
       logBoxEnd = logInfo $ "└" ++ border
   logBoxStart
   currentTimeBefore <- MTL.liftIO getCurrentTime
@@ -185,26 +201,25 @@ step stepName action = do
   logBoxEnd
   return actionResult
 
-redirectLogToLogFile :: MyPhotoM a -> MyPhotoM a
-redirectLogToLogFile action = do
-  wd <- MTL.gets myPhotoStateWd
-  case wd of
-    Nothing -> action
-    Just wd' -> do
-      opts <- MTL.gets myPhotoStateOpts
-      let logDir = case optExport opts of
-            ExportToParent -> takeDirectory wd'
-            _ -> wd'
-          logFile = logDir </> "myphoto.log"
-      logInfo $ "Redirecting log to " ++ logFile
-      state <- MTL.get
-      (ret, endState) <- MTL.liftIO $ IO.withFile logFile IO.AppendMode $ \logFile' -> do
-        -- redirect stdout to log file without losing the actual output
-        IO.hDuplicateTo logFile' IO.stdout
-        IO.hSetBuffering IO.stdout IO.LineBuffering
-        IO.hDuplicateTo logFile' IO.stderr
-        IO.hSetBuffering IO.stderr IO.LineBuffering
+openLogFileAt :: FilePath -> MyPhotoM ()
+openLogFileAt logFile = do
+  existing <- getLogHandle
+  case existing of
+    Just _ -> return ()
+    Nothing -> do
+      opts <- getOpts
+      when (optRedirectLog opts) $ do
+        MTL.liftIO $ createDirectoryIfMissing True (takeDirectory logFile)
+        h <- MTL.liftIO $ IO.openFile logFile IO.AppendMode
+        MTL.liftIO $ IO.hSetBuffering h IO.LineBuffering
+        setLogHandle (Just h)
+        logInfo $ "Logging to " ++ logFile
 
-        MTL.runStateT action state
-      MTL.put endState
-      return ret
+closeLogFile :: MyPhotoM ()
+closeLogFile = do
+  mh <- getLogHandle
+  case mh of
+    Just h -> do
+      MTL.liftIO $ IO.hClose h
+      setLogHandle Nothing
+    Nothing -> return ()

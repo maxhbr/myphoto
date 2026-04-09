@@ -334,7 +334,14 @@ options =
       ( NoArg
           (\opt -> return opt {optRedirectLog = True})
       )
-      "Redirect log to log file in work directory",
+      "Redirect log to log file in work directory (default)",
+    Option
+      ""
+      ["no-redirect-log-to-file"]
+      ( NoArg
+          (\opt -> return opt {optRedirectLog = False})
+      )
+      "Do not redirect log to log file",
     Option
       ""
       ["crop-to-common-intersection"]

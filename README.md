@@ -9,15 +9,17 @@ This implements a pipeline to filter, align and stack images with [PetteriAimone
       A1("Arguments:\nlist of images");
       A2("Arguments:\ndirectory");
       A3("Arguments:\n--dirs and list of directories");
-      A1 --> A[/"images\n either .jpg, .png, raw or .tiff"/];
-      A2 -- "all files in directory" --> A;
-      A3 --> A;
-      A --> B["sort images based on exif CreateDate\nif --sort-on-create-date\n(default)"];
-      B --> C["take only every nth image\nif --every-nth=?"];
-      C --> D["drop images that happened after a time break\nif --breaking"];
-      D --> E["convert raw files to .tiff with 16bit"];
-      E --> F["convert .tiff to .png with 16bit\nif --untiff"];
-      F --> G["remove images that are outliers\nif --remove-outliers"];
+      subgrap preprocessing
+        A1 --> A[/"images\n either .jpg, .png, raw or .tiff"/];
+        A2 -- "all files in directory" --> A;
+        A3 --> A;
+        A --> B["sort images based on exif CreateDate\nif --sort-on-create-date\n(default)"];
+        B --> C["take only every nth image\nif --every-nth=?"];
+        C --> D["drop images that happened after a time break\nif --breaking"];
+        D --> E["convert raw files to .tiff with 16bit"];
+        E --> F["convert .tiff to .png with 16bit\nif --untiff"];
+        F --> G["remove images that are outliers\nif --remove-outliers"];
+      end
       G --> G'{"if --focus-stack"}
       G' -- "(default)" --> H1["run\nPetteriAimonen/focus-stack"];
       G' -- "if --no-focus-stack" --> H2'{"if --enfuse"}

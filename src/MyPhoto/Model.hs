@@ -125,7 +125,7 @@ instance Default Options where
   def =
     Options
       { optVerbose = False,
-        optRedirectLog = False,
+        optRedirectLog = True,
         optWorkdirStrategy = def,
         optExport = def,
         optClean = def,

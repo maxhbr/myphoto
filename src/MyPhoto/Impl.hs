@@ -51,6 +51,21 @@ getRawImportDirInWorkdir wd imgs = do
   outputBN <- getStackOutputBN imgs
   return $ inWorkdir wd (outputBN <.> "raw")
 
+openLogFileForImgs :: MyPhotoM ()
+openLogFileForImgs = do
+  outputBN <- getStackOutputBNFromImgs
+  wd <- MTL.gets myPhotoStateWd
+  case wd of
+    Nothing -> return ()
+    Just wd' -> do
+      opts <- getOpts
+      let logDir = case optExport opts of
+            ExportToParent -> takeDirectory wd'
+            _ -> wd'
+          logFile = logDir </> (outputBN <.> "myphoto.log")
+      openLogFileAt logFile
+      logDebug ("Options: " ++ show opts)
+
 getWdOrFail :: MyPhotoM FilePath
 getWdOrFail = do
   wd <- MTL.gets myPhotoStateWd
@@ -134,13 +149,6 @@ getWdAndMaybeMoveImgs =
                 implForImportToWorkdir wdWithSubdir
             setWd wd
             return wd
-
-maybeRedirectLogToLogFile :: MyPhotoM a -> MyPhotoM a
-maybeRedirectLogToLogFile action = do
-  opts <- getOpts
-  if optRedirectLog opts
-    then redirectLogToLogFile action
-    else action
 
 readDirectoryIfOnlyOneWasSpecified :: MyPhotoM ()
 readDirectoryIfOnlyOneWasSpecified = do
@@ -446,15 +454,14 @@ maybeClean = do
 
 mkStage :: MyPhotoM a -> MyPhotoState -> IO (a, MyPhotoState)
 mkStage stage startState =
-  let stageWithTrace = do
-        traceFileWrite "\nmkStage..."
-        traceFileWrite (show startState)
+  let stageWithLog = do
+        logDebug ("mkStage start: " ++ show startState)
         a <- stage
         endState <- MTL.get
-        traceFileWrite (show endState)
+        logDebug ("mkStage end: " ++ show endState)
         return a
    in do
-        (a, endState) <- MTL.runStateT stageWithTrace startState
+        (a, endState) <- MTL.runStateT stageWithLog startState
         print endState
         return (a, endState)
 
@@ -464,6 +471,7 @@ withinCurrentWorkdir action = do
   MTL.liftIO $ do
     setCurrentDirectory wd
     logInfoIO ("work directory: " ++ wd)
+  openLogFileForImgs
   action
 
 runImportStage :: MyPhotoState -> IO (FilePath, MyPhotoState)
@@ -522,4 +530,5 @@ runStackStage =
         makeOutsPathsAbsolute
         maybeClean
         logTimeSinceStart "finished stateFun"
+        closeLogFile
     )
