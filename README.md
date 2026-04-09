@@ -34,7 +34,7 @@ This implements a pipeline to filter, align and stack images with [PetteriAimone
       J --> Z2[/"Image stacked with enfuse"/]
       I --> K["run zerene-stacker\n(if --zerene-stacker)"]
       H2' -- "if --no-enfuse" --> K
-      K --> Z3[/"Image stacked with zerene-stacker"/]
+      K --> Z3[/"Images stacked with zerene-stacker\nDMap and PMax"/]
       G -.-> ZZ[/"Montage of subset of images"/]
       G -- "if --only-zerene-stacker" --> K
 
@@ -51,3 +51,12 @@ This implements a pipeline to filter, align and stack images with [PetteriAimone
 
 ## myphoto-watch
 An application to watch a folder (e.g. a FTP folder, to which the camera pushes its images) and automatically run the stacking logic from above on completed stacks.
+
+
+## myphoto-gcp
+
+see [./gcp/README.md](./gcp/README.md)
+
+## myphoto-gallery
+
+Tooling to manage the gallery and metadata next to images.
