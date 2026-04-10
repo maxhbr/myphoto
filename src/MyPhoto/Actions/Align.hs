@@ -623,21 +623,43 @@ cropToCommonIntersection fuzzPct wd imgs = do
       Just (cropX, cropY, cropW, cropH) -> do
         let geometryStr = showGeom cropW cropH cropX cropY
         logInfoIO ("fully-opaque rectangle: " ++ geometryStr)
-        mapM
-          ( \img -> do
-              let (bn, ext) = splitExtensions img
-                  outImg = inWorkdir wd (takeFileName bn ++ "_CROPPED" ++ ext)
-              altOut <- findAltFileOfFile outImg
-              logInfoIO ("cropping " ++ img ++ " to " ++ geometryStr ++ " into " ++ altOut)
-              (_, _, _, pH) <-
-                createProcess
-                  ( proc
-                      "magick"
-                      [img, "-crop", geometryStr, "+repage", altOut]
-                  )
-              ec <- waitForProcess pH
-              unless (ec == ExitSuccess) $
-                fail ("cropping image failed with " ++ show ec)
-              return altOut
-          )
-          imgs
+        -- Check that cropping retains at least 85% of the original pixels
+        (origW, origH) <- getImageSize (return (head imgs))
+        let origPixels = origW * origH
+            cropPixels = cropW * cropH
+            ratio = fromIntegral cropPixels / fromIntegral origPixels :: Double
+            minRatio = 0.85 :: Double
+        if ratio < minRatio
+          then do
+            logWarnIO
+              ( "crop would retain only "
+                  ++ show (round (ratio * 100) :: Int)
+                  ++ "% of pixels (minimum is "
+                  ++ show (round (minRatio * 100) :: Int)
+                  ++ "%), skipping crop"
+              )
+            return imgs
+          else do
+            logInfoIO
+              ( "crop retains "
+                  ++ show (round (ratio * 100) :: Int)
+                  ++ "% of pixels, proceeding"
+              )
+            mapM
+              ( \img -> do
+                  let (bn, ext) = splitExtensions img
+                      outImg = inWorkdir wd (takeFileName bn ++ "_CROPPED" ++ ext)
+                  altOut <- findAltFileOfFile outImg
+                  logInfoIO ("cropping " ++ img ++ " to " ++ geometryStr ++ " into " ++ altOut)
+                  (_, _, _, pH) <-
+                    createProcess
+                      ( proc
+                          "magick"
+                          [img, "-crop", geometryStr, "+repage", altOut]
+                      )
+                  ec <- waitForProcess pH
+                  unless (ec == ExitSuccess) $
+                    fail ("cropping image failed with " ++ show ec)
+                  return altOut
+              )
+              imgs
