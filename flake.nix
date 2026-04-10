@@ -181,6 +181,27 @@
 
             makeWrapper ${self.packages.${system}.myphoto-unwrapped}/bin/myphoto-gcp $out/bin/myphoto-gcp \
               --set PATH ${pkgs.lib.makeBinPath extraLibraries}
+
+            mkdir -p $out/share/myphoto/examples
+            cp ${./examples/options.json} $out/share/myphoto/examples/options.json
+            cp ${./examples/watch-options.json} $out/share/myphoto/examples/watch-options.json
+
+            cat > $out/bin/myphoto-init <<EOF
+            #!/bin/sh
+            set -euo pipefail
+            config_dir="\$HOME/.myphoto"
+            mkdir -p "\$config_dir"
+            for f in options.json watch-options.json; do
+                target="\$config_dir/\$f"
+                if [ -e "\$target" ]; then
+                    echo "Skipping \$target (already exists)"
+                else
+                    cp "$out/share/myphoto/examples/\$f" "\$target"
+                    echo "Created \$target"
+                fi
+            done
+            EOF
+            chmod +x $out/bin/myphoto-init
           '';
         };
         inherit (zerene) zerene-stacker;
