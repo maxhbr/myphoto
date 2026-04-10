@@ -93,8 +93,9 @@ zereneStackerChunked headless verbose chunkSettings outputBN imgs = do
   when (isTodo pmaxOutput) $ do
     logInfoIO "Zerene Stacker chunked: starting PMax pass"
     let pmaxBN = bnInWorkdir ++ "_zerene-PMax"
+    let pmaxLayersTiff = pmaxOutput' -<.> "layers.tif"
     pmaxResult <-
-      resolveChunks
+      resolveChunksAndSaveLayersTiff
         sem
         ( \bn' imgs' -> do
             let outFile = bn' ++ ".tif"
@@ -102,6 +103,7 @@ zereneStackerChunked headless verbose chunkSettings outputBN imgs = do
         )
         pmaxBN
         chunks
+        pmaxLayersTiff
     case pmaxResult of
       Right generatedFile -> do
         logDebugIO ("Zerene Stacker chunked: renaming " ++ generatedFile ++ " to " ++ pmaxOutput')
@@ -113,8 +115,9 @@ zereneStackerChunked headless verbose chunkSettings outputBN imgs = do
   when (isTodo dmapOutput) $ do
     logInfoIO "Zerene Stacker chunked: starting DMap pass"
     let dmapBN = bnInWorkdir ++ "_zerene-DMap"
+    let dmapLayersTiff = dmapOutput' -<.> "layers.tif"
     dmapResult <-
-      resolveChunks
+      resolveChunksAndSaveLayersTiff
         sem
         ( \bn' imgs' -> do
             let outFile = bn' ++ ".tif"
@@ -122,6 +125,7 @@ zereneStackerChunked headless verbose chunkSettings outputBN imgs = do
         )
         dmapBN
         chunks
+        dmapLayersTiff
     case dmapResult of
       Right generatedFile -> do
         logDebugIO ("Zerene Stacker chunked: renaming " ++ generatedFile ++ " to " ++ dmapOutput')

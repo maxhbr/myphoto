@@ -5,6 +5,7 @@ import Control.Concurrent.MSem as MS
 import Data.List.Split (chunksOf)
 import MyPhoto.Model
 import MyPhoto.Utils.ProgressBar (Progress (..), ProgressBar, incProgress, newProgressBarDefault)
+import System.Process (CreateProcess (..), StdStream (..), createProcess, proc, waitForProcess)
 
 data Chunks
   = Chunk Imgs
@@ -42,10 +43,61 @@ resolveChunks' pb sem f bn (Chunks chunks) = do
     Right imgs -> resolveChunks' pb sem f bn (Chunk imgs)
     Left err -> return (Left err)
 
+-- | Like 'resolveChunks'' but also collects the intermediate chunk images
+-- at each merge level.
+resolveChunksCollecting' :: ProgressBar () -> MS.MSem Int -> (FilePath -> Imgs -> IO (Either String Img)) -> FilePath -> Chunks -> IO (Either String (Img, Imgs))
+resolveChunksCollecting' pb sem f bn (Chunk imgs) = MS.with sem $ do
+  ret <- f bn imgs
+  incProgress pb 1
+  return $ case ret of
+    Right img -> Right (img, [])
+    Left err -> Left err
+resolveChunksCollecting' pb sem f bn (Chunks chunks) = do
+  let chunkSize = length chunks
+  let chunkBn = \i -> bn ++ "_chunk" ++ show i ++ "of" ++ show chunkSize
+  results <- mapConcurrently (\(i, c) -> resolveChunksCollecting' pb sem f (chunkBn i) c) (zip [1 ..] chunks)
+  let foldResults :: Either String ([FilePath], Imgs) -> Either String (FilePath, Imgs) -> Either String ([FilePath], Imgs)
+      foldResults (Left err1) (Left err2) = Left (unlines [err1, err2])
+      foldResults r1@(Left _) _ = r1
+      foldResults (Right (imgs1, intermediates1)) (Right (img, intermediates2)) = Right (imgs1 ++ [img], intermediates1 ++ intermediates2)
+      foldResults _ (Left e) = Left e
+  let result = foldl foldResults (Right ([], [])) results
+  case result of
+    Right (imgs, subIntermediates) -> do
+      mergeResult <- resolveChunksCollecting' pb sem f bn (Chunk imgs)
+      return $ case mergeResult of
+        Right (finalImg, _) -> Right (finalImg, subIntermediates ++ imgs)
+        Left err -> Left err
+    Left err -> return (Left err)
+
 resolveChunks :: MS.MSem Int -> (FilePath -> Imgs -> IO (Either String Img)) -> FilePath -> Chunks -> IO (Either String Img)
 resolveChunks sem f bn chunks = do
   pb <- newProgressBarDefault (Progress 0 (countChunks chunks) ())
   resolveChunks' pb sem f bn chunks
+
+-- | Resolve chunks and return the final image along with all intermediate
+-- chunk images produced during merging.  When more than one intermediate
+-- exists, a multilayer TIFF is automatically saved at the given path
+-- containing the intermediates with the final result on top.
+resolveChunksAndSaveLayersTiff :: MS.MSem Int -> (FilePath -> Imgs -> IO (Either String Img)) -> FilePath -> Chunks -> FilePath -> IO (Either String Img)
+resolveChunksAndSaveLayersTiff sem f bn chunks layersTiffPath = do
+  pb <- newProgressBarDefault (Progress 0 (countChunks chunks) ())
+  result <- resolveChunksCollecting' pb sem f bn chunks
+  case result of
+    Right (finalImg, intermediates) -> do
+      when (length intermediates >= 2) $
+        saveLayersTiff layersTiffPath (intermediates ++ [finalImg])
+      return (Right finalImg)
+    Left err -> return (Left err)
+
+saveLayersTiff :: FilePath -> Imgs -> IO ()
+saveLayersTiff outputTiff imgs = do
+  let args = imgs ++ [outputTiff]
+  logInfoIO $ "creating chunk layers TIFF: " ++ outputTiff
+  (_, _, _, pHandle) <- createProcess (proc "magick" args) {std_out = CreatePipe, std_err = CreatePipe}
+  exitCode <- waitForProcess pHandle
+  unless (exitCode == ExitSuccess) $
+    logWarnIO ("creating chunk layers TIFF failed with " ++ show exitCode)
 
 joinLastTwoChunksIfNeeded :: Int -> [[a]] -> [[a]]
 joinLastTwoChunksIfNeeded _ [] = []
