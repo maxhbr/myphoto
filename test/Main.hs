@@ -1,10 +1,19 @@
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell #-}
+
 module Main (main) where
 
 -- import Test.Hspec
 
 import Control.Monad
+import qualified Data.Aeson as A
+import qualified Data.ByteString.Lazy as BL
+import Data.Default
+import Data.FileEmbed (embedFile)
+import qualified Data.Map as Map
 import Data.Monoid
 import MyPhoto.Actions.Align (parseCompareOffset)
+import MyPhoto.Config ()
 import MyPhoto.Model
 import MyPhoto.Utils.Chunking
 import Test.Framework as TF
@@ -66,10 +75,80 @@ parseCompareOffsetTests =
       assertEqual "should parse large values" (Just (1234, 5678)) (parseCompareOffset "0.5 @ 1234,5678")
   ]
 
+-- ############################################################################
+-- ## Config parsing tests
+-- ############################################################################
+
+exampleOptionsJson :: BL.ByteString
+exampleOptionsJson = BL.fromStrict $(embedFile "examples/options.json")
+
+exampleOptionsPartialJson :: BL.ByteString
+exampleOptionsPartialJson = BL.fromStrict $(embedFile "examples/options-partial.json")
+
+exampleWatchOptionsJson :: BL.ByteString
+exampleWatchOptionsJson = BL.fromStrict $(embedFile "examples/watch-options.json")
+
+parseFullOptionsTest :: Assertion
+parseFullOptionsTest = do
+  case A.eitherDecode exampleOptionsJson of
+    Left err -> assertFailure ("Failed to parse examples/options.json: " ++ err)
+    Right opts -> assertEqual "full options should equal def" (def :: Options) opts
+
+parsePartialOptionsTest :: Assertion
+parsePartialOptionsTest = do
+  case A.eitherDecode exampleOptionsPartialJson of
+    Left err -> assertFailure ("Failed to parse examples/options-partial.json: " ++ err)
+    Right opts -> do
+      assertEqual "verbose" True (optVerbose opts)
+      assertEqual "noGpu" True (optNoGpu opts)
+      assertEqual "enfuseChunkSettings" NoChunks (optEnfuseChunkSettings opts)
+      assertEqual "zereneStackerChunkSettings" (SparseChunksOfSize 4) (optZereneStackerChunkSettings opts)
+      assertEqual "workdirStrategy" NextToImgFiles (optWorkdirStrategy opts)
+      assertEqual "export" ExportToParent (optExport opts)
+      assertEqual "clean" RemoveWorkdirRecursively (optClean opts)
+      assertEqual "parameters" (Map.fromList [("focus-stack", ["--batchsize=6", "--threads=14"])]) (optParameters opts)
+      -- Fields not in the partial config should keep defaults
+      assertEqual "redirectLog stays default" (optRedirectLog (def :: Options)) (optRedirectLog opts)
+      assertEqual "enfuse stays default" (optEnfuse (def :: Options)) (optEnfuse opts)
+      assertEqual "downscalePct stays default" (optDownscalePct (def :: Options)) (optDownscalePct opts)
+
+parseEmptyOptionsTest :: Assertion
+parseEmptyOptionsTest = do
+  case A.eitherDecode "{}" of
+    Left err -> assertFailure ("Failed to parse empty object: " ++ err)
+    Right opts -> assertEqual "empty object should equal def" (def :: Options) opts
+
+roundtripOptionsTest :: Assertion
+roundtripOptionsTest = do
+  let encoded = A.encode (def :: Options)
+  case A.eitherDecode encoded of
+    Left err -> assertFailure ("Failed to roundtrip def: " ++ err)
+    Right opts -> assertEqual "roundtrip should preserve def" (def :: Options) opts
+
+parseWatchOptionsTest :: Assertion
+parseWatchOptionsTest = do
+  case A.eitherDecode exampleWatchOptionsJson of
+    Left err -> assertFailure ("Failed to parse examples/watch-options.json: " ++ err)
+    Right val ->
+      -- Just verify it parses as a valid JSON Value with expected structure
+      case val of
+        A.Object _ -> return ()
+        _ -> assertFailure "Expected a JSON object"
+
+configTestCases :: [TF.Test]
+configTestCases =
+  [ testCase "parse full options.json" parseFullOptionsTest,
+    testCase "parse partial options.json" parsePartialOptionsTest,
+    testCase "parse empty object as Options" parseEmptyOptionsTest,
+    testCase "roundtrip Options through JSON" roundtripOptionsTest,
+    testCase "parse watch-options.json" parseWatchOptionsTest
+  ]
+
 main :: IO ()
 main =
   defaultMainWithOpts
     [ testGroup "chunking" chunkTestCases,
-      testGroup "parseCompareOffset" parseCompareOffsetTests
+      testGroup "parseCompareOffset" parseCompareOffsetTests,
+      testGroup "config" configTestCases
     ]
     mempty

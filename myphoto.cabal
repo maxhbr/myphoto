@@ -149,6 +149,12 @@ test-suite test-myphoto
   hs-source-dirs:     test
   build-depends:      base,
                       myphoto,
+                      aeson,
+                      bytestring,
+                      containers,
+                      data-default,
+                      file-embed,
+                      template-haskell,
                       test-framework,
                       test-framework-hunit,
                       HUnit

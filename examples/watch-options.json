@@ -1,0 +1,13 @@
+{
+  "verbose": false,
+  "headless": false,
+  "once": false,
+  "onlyImport": false,
+  "useRaw": false,
+  "clusterDistance": 6,
+  "offset": 43200,
+  "stackOpts": {
+    "enfuse": false,
+    "zereneStackerHeadless": true
+  }
+}

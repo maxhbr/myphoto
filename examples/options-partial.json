@@ -1,0 +1,12 @@
+{
+  "verbose": true,
+  "noGpu": true,
+  "enfuseChunkSettings": "NoChunks",
+  "zereneStackerChunkSettings": { "type": "SparseChunksOfSize", "size": 4 },
+  "workdirStrategy": "NextToImgFiles",
+  "export": "ExportToParent",
+  "clean": "RemoveWorkdirRecursively",
+  "parameters": {
+    "focus-stack": ["--batchsize=6", "--threads=14"]
+  }
+}
