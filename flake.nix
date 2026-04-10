@@ -196,7 +196,7 @@
                 if [ -e "\$target" ]; then
                     echo "Skipping \$target (already exists)"
                 else
-                    cp "$out/share/myphoto/examples/\$f" "\$target"
+                    ${pkgs.coreutils}/bin/install -m 644 "$out/share/myphoto/examples/\$f" "\$target"
                     echo "Created \$target"
                 fi
             done
