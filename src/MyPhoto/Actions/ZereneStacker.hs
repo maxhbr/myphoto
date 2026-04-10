@@ -83,7 +83,8 @@ zereneStackerChunked headless verbose chunkSettings outputBN imgs = do
   let bnInWorkdir = workdir </> takeFileName outputBN
 
   numCapabilities <- getNumCapabilities
-  let numThreads = max 1 (ceiling (fromIntegral numCapabilities * 0.75 :: Double))
+  let numThreadsFactor = 8
+  let numThreads = max 1 (ceiling (fromIntegral numCapabilities / numThreadsFactor :: Double))
   sem <- MS.new numThreads
 
   let chunks = mkChunks chunkSettings imgs
