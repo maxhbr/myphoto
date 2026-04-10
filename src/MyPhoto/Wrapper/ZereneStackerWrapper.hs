@@ -12,7 +12,8 @@ data ZereneStackerOptions = ZereneStackerOptions
     _Verbose :: Bool,
     _Align :: Bool,
     _DMapOutput :: Maybe Img,
-    _PMaxOutput :: Maybe Img
+    _PMaxOutput :: Maybe Img,
+    _Cwd :: Maybe FilePath
   }
 
 runZereneStacker :: ZereneStackerOptions -> Imgs -> IO ()
@@ -30,9 +31,15 @@ runZereneStacker opts imgs = do
       args = alignArgs ++ pmaxArgs ++ dmapArgs
 
   logDebugIO (unwords ["$", cmd, unwords args, "[img [img [...]]]"])
+  let proc = (System.Process.proc cmd (args ++ imgs)) {cwd = _Cwd opts}
   if _Verbose opts
     then do
-      callProcess cmd (args ++ imgs)
+      (_, _, _, ph) <- createProcess proc
+      ec <- waitForProcess ph
+      case ec of
+        ExitSuccess -> return ()
+        _ -> exitWith ec
     else do
-      _ <- readProcess cmd (args ++ imgs) ""
+      (_, _, _, ph) <- createProcess proc {std_out = CreatePipe, std_err = CreatePipe}
+      _ <- waitForProcess ph
       return ()

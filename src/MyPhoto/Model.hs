@@ -116,6 +116,7 @@ data Options = Options
     optZereneStacker :: Bool,
     optZereneStackerHeadless :: Bool,
     optZereneStackerParallel :: Bool,
+    optZereneStackerChunkSettings :: ChunkSettings,
     optNoGpu :: Bool,
     optCropToCommonIntersectionFuzz :: Maybe Int,
     optParameters :: Map String [String]

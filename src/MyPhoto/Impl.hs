@@ -353,10 +353,16 @@ runZereneStacker :: Bool -> [FilePath] -> MyPhotoM ()
 runZereneStacker align imgs = step "focus stacking with Zerene Stacker" $ do
   outputBN <- getStackOutputBNFromImgs
   opts <- getOpts
+  let chunkSettings =
+        if align && optZereneStackerChunkSettings opts /= NoChunks
+          then NoChunks
+          else optZereneStackerChunkSettings opts
+  when (align && optZereneStackerChunkSettings opts /= NoChunks) $
+    logWarn "Zerene Stacker chunking disabled: images are not pre-aligned"
   zereneStackerResult <-
     if optZereneStackerParallel opts
-      then MTL.liftIO $ zereneStackerImgsParallel (optVerbose opts) align outputBN imgs
-      else MTL.liftIO $ zereneStackerImgs (optZereneStackerHeadless opts) (optVerbose opts) align outputBN imgs
+      then MTL.liftIO $ zereneStackerImgsParallel (optVerbose opts) align chunkSettings outputBN imgs
+      else MTL.liftIO $ zereneStackerImgs (optZereneStackerHeadless opts) (optVerbose opts) align chunkSettings outputBN imgs
   case zereneStackerResult of
     Left err -> fail err
     Right zereneStackerOuts -> addOuts zereneStackerOuts
