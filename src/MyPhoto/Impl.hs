@@ -433,7 +433,7 @@ alignOuts = step "align outputs" $ do
 
 saveOutsAsMultilayerTiff :: FilePath -> Imgs -> IO FilePath
 saveOutsAsMultilayerTiff outputTiff imgs = do
-  let args = imgs ++ [outputTiff]
+  let args = imgs ++ ["-compress", "LZW", outputTiff]
   logInfoIO $ "creating multilayer TIFF: " ++ outputTiff
   (_, _, _, pHandle) <- createProcess (proc "magick" args)
   exitCode <- waitForProcess pHandle

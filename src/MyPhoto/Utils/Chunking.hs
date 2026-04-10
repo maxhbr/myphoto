@@ -92,7 +92,7 @@ resolveChunksAndSaveLayersTiff sem f bn chunks layersTiffPath = do
 
 saveLayersTiff :: FilePath -> Imgs -> IO ()
 saveLayersTiff outputTiff imgs = do
-  let args = imgs ++ [outputTiff]
+  let args = imgs ++ ["-compress", "LZW", outputTiff]
   logInfoIO $ "creating chunk layers TIFF: " ++ outputTiff
   (_, _, _, pHandle) <- createProcess (proc "magick" args) {std_out = CreatePipe, std_err = CreatePipe}
   exitCode <- waitForProcess pHandle
