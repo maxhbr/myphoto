@@ -42,7 +42,7 @@ This implements a pipeline to filter, align and stack images with [PetteriAimone
       Z2 -----> Z
       Z3 -----> Z
       subgraph postprocessing
-        Z --> ZA'[/"Image stacked with enfuse\nCrop to overlap"/]
+        Z --> ZA'[/"Image stacked with enfuse\nCrop to common intersection"/]
         ZA' --> ZA[/"Aligned output Images"/]
         ZA' --> ZL[/"Tiff with all the layers"/]
       end
