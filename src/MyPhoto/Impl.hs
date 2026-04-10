@@ -6,6 +6,7 @@ module MyPhoto.Impl
   ( runImportStage,
     runStackStage,
     getRawImportDirInWorkdir,
+    earlyExport,
   )
 where
 
@@ -347,7 +348,9 @@ runEnfuse aligned = step "focus stacking with enfuse" $ do
         aligned
   case enfuseResult of
     Left err -> fail err
-    Right enfuseOuts -> addOuts enfuseOuts
+    Right enfuseOuts -> do
+      mapM_ earlyExportLayersTiff enfuseOuts
+      addOuts enfuseOuts
 
 runZereneStacker :: Bool -> [FilePath] -> MyPhotoM ()
 runZereneStacker align imgs = step "focus stacking with Zerene Stacker" $ do
@@ -365,35 +368,51 @@ runZereneStacker align imgs = step "focus stacking with Zerene Stacker" $ do
       else MTL.liftIO $ zereneStackerImgs (optZereneStackerHeadless opts) (optVerbose opts) align chunkSettings outputBN imgs
   case zereneStackerResult of
     Left err -> fail err
-    Right zereneStackerOuts -> addOuts zereneStackerOuts
+    Right zereneStackerOuts -> do
+      mapM_ earlyExportLayersTiff zereneStackerOuts
+      addOuts zereneStackerOuts
+
+getExportTarget :: MyPhotoM (Maybe FilePath)
+getExportTarget = do
+  opts <- getOpts
+  wd <- getWdOrFail
+  case optExport opts of
+    NoExport -> return Nothing
+    Export -> return (Just "../0_stacked")
+    ExportToParent -> return (Just (takeDirectory wd))
+
+earlyExport :: FilePath -> MyPhotoM ()
+earlyExport filePath = do
+  target <- getExportTarget
+  case target of
+    Nothing -> return ()
+    Just dir -> do
+      logInfo $ "early exporting: " ++ filePath
+      _ <- MTL.liftIO $ reverseLink dir [filePath]
+      return ()
+
+earlyExportLayersTiff :: FilePath -> MyPhotoM ()
+earlyExportLayersTiff outFile = do
+  let layersTiff = outFile -<.> "layers.tif"
+  exists <- MTL.liftIO $ doesFileExist layersTiff
+  when exists $ earlyExport layersTiff
 
 maybeExport :: MyPhotoM ()
 maybeExport = do
-  opts <- getOpts
-  wd <- getWdOrFail
-  let exportStrategy = optExport opts
-  when (exportStrategy /= NoExport) $ do
-    logInfo "exporting images"
-    outs <- getOuts
-    if (null outs)
-      then do
-        logWarn "no outputs to export"
-        return ()
-      else do
-        let outputDir = "../0_stacked"
-        case exportStrategy of
-          Export -> do
-            logInfo $ "Export to " ++ outputDir
-            _ <- MTL.liftIO $ reverseLink outputDir outs
-            return ()
-          ExportToParent -> do
-            logInfo $ "Export to parent directory of " ++ wd
-            _ <- MTL.liftIO $ do
-              let parentDir = takeDirectory wd
-              MTL.liftIO $ reverseLink parentDir outs
-            return ()
-    return ()
-  return ()
+  target <- getExportTarget
+  case target of
+    Nothing -> return ()
+    Just dir -> do
+      logInfo "exporting images"
+      outs <- getOuts
+      if null outs
+        then do
+          logWarn "no outputs to export"
+          return ()
+        else do
+          logInfo $ "Export to " ++ dir
+          _ <- MTL.liftIO $ reverseLink dir outs
+          return ()
 
 alignOuts :: MyPhotoM ()
 alignOuts = step "align outputs" $ do
@@ -430,7 +449,7 @@ createMultilayerTiff = step "create multilayer TIFF" $ do
     outputBN <- getStackOutputBNFromImgs
     let outputTiff = inWorkdir wd (outputBN <.> "layers.tif")
     _ <- MTL.liftIO $ saveOutsAsMultilayerTiff outputTiff outs
-    return ()
+    earlyExport outputTiff
 
 makeOutsPathsAbsolute :: MyPhotoM ()
 makeOutsPathsAbsolute = do
