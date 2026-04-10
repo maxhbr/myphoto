@@ -29,6 +29,7 @@ library
         MyPhoto.AppToPNG,
         MyPhoto.AppGcp,
         MyPhoto.Model,
+        MyPhoto.Config,
         MyPhoto.Utils.Chunking,
         MyPhoto.Utils.ProgressBar,
         MyPhoto.Actions.Align

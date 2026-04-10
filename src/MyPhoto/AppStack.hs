@@ -28,6 +28,7 @@ import MyPhoto.Actions.Outliers
 import MyPhoto.Actions.UnHeif
 import MyPhoto.Actions.UnRAW
 import MyPhoto.Actions.UnTiff
+import MyPhoto.Config (loadOptionsConfig)
 import MyPhoto.Impl
 import MyPhoto.Model
 import MyPhoto.Monad
@@ -473,7 +474,8 @@ runMyPhotoStack' args = do
   unless (null errors) $ do
     mapM_ (IO.hPutStrLn IO.stderr) errors
     exitWith (ExitFailure 1)
-  _ <- runMyPhotoStack'' def actions startImgs
+  configOpts <- loadOptionsConfig
+  _ <- runMyPhotoStack'' configOpts actions startImgs
   return ()
 
 runMyPhotoStackForVideo :: FilePath -> [String] -> IO ()

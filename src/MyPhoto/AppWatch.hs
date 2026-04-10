@@ -1,4 +1,5 @@
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module MyPhoto.AppWatch where
@@ -7,6 +8,7 @@ import Control.Concurrent as Thread
 import Control.Exception (SomeException, catch)
 import Control.Monad ((>=>))
 import qualified Control.Monad.State.Lazy as MTL
+import qualified Data.Aeson as A
 import Data.List (isPrefixOf)
 import Data.Time.Clock (UTCTime, diffUTCTime)
 import Data.Time.Clock.POSIX (getCurrentTime, posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
@@ -14,6 +16,7 @@ import MyPhoto.Actions.FileSystem (copy)
 import MyPhoto.Actions.Metadata
 import MyPhoto.Actions.UnRAW (unrawExtensions)
 import MyPhoto.AppStack
+import MyPhoto.Config (applyOptionsOverrides, configDir, loadJsonConfig, loadOptionsConfig)
 import MyPhoto.Impl
 import MyPhoto.Model
 import MyPhoto.Monad
@@ -484,6 +487,89 @@ getDirs [indir, outdir] = do
   return (absIndir, absOutdir, [])
 getDirs _ = return (undefined, undefined, ["ERROR: Too many arguments specified"])
 
+-- ############################################################################
+-- ## Watch config loading
+-- ############################################################################
+
+-- | Partial watch config that can be loaded from JSON.
+--   The 'stackOpts' sub-object is merged on top of the provided base Options.
+data WatchOptionsConfig = WatchOptionsConfig
+  { wocVerbose :: Maybe Bool,
+    wocHeadless :: Maybe Bool,
+    wocOnce :: Maybe Bool,
+    wocOnlyImport :: Maybe Bool,
+    wocUseRaw :: Maybe Bool,
+    wocClusterDistance :: Maybe Int,
+    wocOffset :: Maybe Int,
+    wocIndir :: Maybe FilePath,
+    wocOutdir :: Maybe FilePath,
+    wocStackOpts :: Maybe A.Object
+  }
+
+instance A.FromJSON WatchOptionsConfig where
+  parseJSON = A.withObject "WatchOptionsConfig" $ \v ->
+    WatchOptionsConfig
+      <$> v A..:? "verbose"
+      <*> v A..:? "headless"
+      <*> v A..:? "once"
+      <*> v A..:? "onlyImport"
+      <*> v A..:? "useRaw"
+      <*> v A..:? "clusterDistance"
+      <*> v A..:? "offset"
+      <*> v A..:? "indir"
+      <*> v A..:? "outdir"
+      <*> v A..:? "stackOpts"
+
+defaultWatchOptions :: Options -> WatchOptions
+defaultWatchOptions baseStackOpts =
+  WatchOptions
+    { optWatchVerbose = False,
+      optWatchHeadless = False,
+      optWatchStackOpts = baseStackOpts,
+      optWatchOnce = False,
+      optWatchOnlyImport = False,
+      optUseRaw = False,
+      optClusterDistance = 6,
+      optOffset = 12 * 60 * 60,
+      optIndir = "",
+      optOutdir = ""
+    }
+
+applyWatchConfig :: Options -> WatchOptionsConfig -> WatchOptions
+applyWatchConfig baseStackOpts WatchOptionsConfig {..} =
+  let dw = defaultWatchOptions baseStackOpts
+      finalStackOpts = case wocStackOpts of
+        Nothing -> baseStackOpts
+        Just obj -> applyOptionsOverrides obj baseStackOpts
+   in dw
+        { optWatchVerbose = maybe (optWatchVerbose dw) id wocVerbose,
+          optWatchHeadless = maybe (optWatchHeadless dw) id wocHeadless,
+          optWatchStackOpts = finalStackOpts,
+          optWatchOnce = maybe (optWatchOnce dw) id wocOnce,
+          optWatchOnlyImport = maybe (optWatchOnlyImport dw) id wocOnlyImport,
+          optUseRaw = maybe (optUseRaw dw) id wocUseRaw,
+          optClusterDistance = maybe (optClusterDistance dw) id wocClusterDistance,
+          optOffset = maybe (optOffset dw) id wocOffset,
+          optIndir = maybe (optIndir dw) id wocIndir,
+          optOutdir = maybe (optOutdir dw) id wocOutdir
+        }
+
+-- | Load WatchOptions from ~/.myphoto/watch-options.json.
+--   The base 'Options' (typically loaded from options.json) is used as the
+--   starting point for 'optWatchStackOpts'. The optional "stackOpts" sub-object
+--   in watch-options.json is applied on top of that base.
+--   Returns default WatchOptions with the given base if the file does not exist.
+loadWatchOptionsConfig :: Options -> IO WatchOptions
+loadWatchOptionsConfig baseStackOpts = do
+  dir <- configDir
+  let path = dir </> "watch-options.json"
+  woc <- loadJsonConfig path Nothing
+  case woc of
+    Nothing -> return (defaultWatchOptions baseStackOpts)
+    Just woc' -> return (applyWatchConfig baseStackOpts woc')
+
+-- ############################################################################
+
 runMyPhotoWatchForStacks :: IO ()
 runMyPhotoWatchForStacks =
   let computeStackOpts :: Options -> [String] -> IO Options
@@ -517,20 +603,21 @@ runMyPhotoWatchForStacks =
           printHelp
           exitWith (ExitFailure 1)
 
+        -- Load config files as starting point
+        configStackOpts <- loadOptionsConfig
+        watchConfig <- loadWatchOptionsConfig configStackOpts
+
+        -- Apply watch-mode-specific stack option overrides on top of config
+        let watchStackOpts =
+              (optWatchStackOpts watchConfig)
+                { optWorkdirStrategy = ImportToWorkdirWithSubdir outdir,
+                  optExport = ExportToParent,
+                  optRedirectLog = False
+                }
+
         let startOpts =
-              WatchOptions
-                { optWatchVerbose = False,
-                  optWatchStackOpts =
-                    def
-                      { optWorkdirStrategy = ImportToWorkdirWithSubdir outdir,
-                        optExport = ExportToParent,
-                        optRedirectLog = False
-                      },
-                  optWatchOnce = False,
-                  optWatchOnlyImport = False,
-                  optUseRaw = False,
-                  optClusterDistance = 6,
-                  optOffset = 12 * 60 * 60, -- 12 hours ago
+              watchConfig
+                { optWatchStackOpts = watchStackOpts,
                   optIndir = indir,
                   optOutdir = outdir
                 }
