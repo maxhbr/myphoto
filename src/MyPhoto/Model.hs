@@ -115,6 +115,7 @@ data Options = Options
     optEnfuseChunkSettings :: ChunkSettings,
     optZereneStacker :: Bool,
     optZereneStackerHeadless :: Bool,
+    optZereneStackerParallel :: Bool,
     optNoGpu :: Bool,
     optCropToCommonIntersectionFuzz :: Maybe Int,
     optParameters :: Map String [String]
@@ -141,6 +142,7 @@ instance Default Options where
         optEnfuseChunkSettings = def,
         optZereneStacker = True,
         optZereneStackerHeadless = False,
+        optZereneStackerParallel = False,
         optNoGpu = False,
         optCropToCommonIntersectionFuzz = Just 10,
         optParameters = mempty

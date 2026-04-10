@@ -302,6 +302,20 @@ options =
       "Run Zerene Stacker in headless mode (no GUI), implies Zerene Stacker is used",
     Option
       ""
+      ["zerene-stacker-parallel"]
+      ( OptArg
+          ( \arg opt -> do
+              let flag = case arg of
+                    Nothing -> True
+                    Just "true" -> True
+                    Just _ -> False
+              return opt {optZereneStackerParallel = flag, optZereneStacker = True, optZereneStackerHeadless = True}
+          )
+          "FLAG"
+      )
+      "Run Zerene Stacker in parallel mode, implies Zerene Stacker is used",
+    Option
+      ""
       ["no-zerene-stacker"]
       ( NoArg
           (\opt -> return opt {optZereneStacker = False})

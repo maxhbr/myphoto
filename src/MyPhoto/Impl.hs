@@ -31,7 +31,7 @@ import MyPhoto.Actions.Outliers
 import MyPhoto.Actions.UnHeif
 import MyPhoto.Actions.UnRAW
 import MyPhoto.Actions.UnTiff
-import MyPhoto.Actions.ZereneStacker (zereneStackerImgs)
+import MyPhoto.Actions.ZereneStacker (zereneStackerImgs, zereneStackerImgsParallel)
 import MyPhoto.Model
 import MyPhoto.Monad
 import MyPhoto.Video
@@ -353,8 +353,10 @@ runZereneStacker :: Bool -> [FilePath] -> MyPhotoM ()
 runZereneStacker align imgs = step "focus stacking with Zerene Stacker" $ do
   outputBN <- getStackOutputBNFromImgs
   opts <- getOpts
-  zereneStackerResult <- do
-    MTL.liftIO $ zereneStackerImgs (optZereneStackerHeadless opts) (optVerbose opts) align outputBN imgs
+  zereneStackerResult <-
+    if optZereneStackerParallel opts
+      then MTL.liftIO $ zereneStackerImgsParallel (optVerbose opts) align outputBN imgs
+      else MTL.liftIO $ zereneStackerImgs (optZereneStackerHeadless opts) (optVerbose opts) align outputBN imgs
   case zereneStackerResult of
     Left err -> fail err
     Right zereneStackerOuts -> addOuts zereneStackerOuts

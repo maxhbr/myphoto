@@ -1,8 +1,10 @@
 module MyPhoto.Actions.ZereneStacker
   ( zereneStackerImgs,
+    zereneStackerImgsParallel,
   )
 where
 
+import Control.Concurrent.Async (concurrently)
 import Data.Maybe (catMaybes)
 import MyPhoto.Model
 import MyPhoto.Wrapper.ZereneStackerWrapper
@@ -57,5 +59,50 @@ zereneStackerImgs headless verbose align outputBN imgs = do
                 _DMapOutput = toOpts dmapOutput
               }
       runZereneStacker opts imgs
+
+  return (Right (catMaybes [toResult pmaxOutput, toResult dmapOutput]))
+
+-- | Run PMax and DMap as two separate Zerene Stacker processes in parallel.
+zereneStackerImgsParallel :: Bool -> Bool -> FilePath -> [FilePath] -> IO (Either String [FilePath])
+zereneStackerImgsParallel verbose align outputBN imgs = do
+  pmaxOutput' <- makeAbsolute (outputBN ++ "_zerene-PMax.tif")
+  dmapOutput' <- makeAbsolute (outputBN ++ "_zerene-DMap.tif")
+
+  pmaxOutput <- fromFilePath pmaxOutput'
+  dmapOutput <- fromFilePath dmapOutput'
+
+  let runPMax =
+        if isTodo pmaxOutput
+          then do
+            logInfoIO ("Zerene Stacker parallel: starting PMax")
+            runZereneStacker
+              ZereneStackerOptions
+                { _Headless = True,
+                  _Verbose = verbose,
+                  _Align = align,
+                  _PMaxOutput = toOpts pmaxOutput,
+                  _DMapOutput = Nothing
+                }
+              imgs
+            logInfoIO ("Zerene Stacker parallel: PMax done")
+          else logInfoIO ("Zerene Stacker parallel: PMax output already exists, skipping")
+
+      runDMap =
+        if isTodo dmapOutput
+          then do
+            logInfoIO ("Zerene Stacker parallel: starting DMap")
+            runZereneStacker
+              ZereneStackerOptions
+                { _Headless = True,
+                  _Verbose = verbose,
+                  _Align = align,
+                  _PMaxOutput = Nothing,
+                  _DMapOutput = toOpts dmapOutput
+                }
+              imgs
+            logInfoIO ("Zerene Stacker parallel: DMap done")
+          else logInfoIO ("Zerene Stacker parallel: DMap output already exists, skipping")
+
+  _ <- concurrently runPMax runDMap
 
   return (Right (catMaybes [toResult pmaxOutput, toResult dmapOutput]))
