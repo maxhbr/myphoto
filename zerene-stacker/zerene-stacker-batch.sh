@@ -267,8 +267,12 @@ EOF
 mkSourceDir() {
     local source_dir
     source_dir="$(mktemp -d "${PREFIX}_zerene_input.XXXXXX")"
+    local counter=0
     for img in "${POSITIONAL[@]}"; do
-        ln -s "$img" "$source_dir/$(basename "$img")"
+        ((++counter))
+        local numbered_name
+        numbered_name=$(printf "%05d.%s" "$counter" "$(basename "$img")")
+        ln -s "$img" "$source_dir/$numbered_name"
     done
     echo "$source_dir"
 }
