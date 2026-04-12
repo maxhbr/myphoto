@@ -5,20 +5,35 @@ module MyPhoto.Wrapper.ZereneStackerWrapper
 where
 
 import MyPhoto.Model
+import System.FilePath (dropExtension)
 import System.Process
 
 data ZereneStackerOptions = ZereneStackerOptions
   { _Headless :: Bool,
     _Verbose :: Bool,
+    _Wait :: Bool,
     _Align :: Bool,
     _DMapOutput :: Maybe Img,
     _PMaxOutput :: Maybe Img,
     _Cwd :: Maybe FilePath
   }
 
+getProjectDir :: Maybe Img -> Maybe Img -> Maybe FilePath
+getProjectDir Nothing Nothing = Nothing
+getProjectDir (Just pmax) Nothing = Just (dropExtension pmax)
+getProjectDir Nothing (Just dmap) = Just (dropExtension dmap)
+getProjectDir (Just pmax) (Just dmap) =
+  let getCombined (a : as) (b : bs)
+        | a == b = a : getCombined as bs
+        | otherwise = (a : as) ++ (b : bs)
+      getCombined as [] = as
+      getCombined [] bs = bs
+   in Just (getCombined (dropExtension pmax) (dropExtension dmap))
+
 runZereneStacker :: ZereneStackerOptions -> Imgs -> IO ()
 runZereneStacker opts imgs = do
   let cmd = if _Headless opts then "zerene-stacker-batch-headless" else "zerene-stacker-batch"
+      waitArg = if _Wait opts then ["--wait"] else []
       alignArgs = if not (_Align opts) then ["--already-aligned"] else []
       pmaxArgs =
         case _PMaxOutput opts of
@@ -28,7 +43,14 @@ runZereneStacker opts imgs = do
         case _DMapOutput opts of
           Just dmapOutput -> ["--dmap-output", dmapOutput]
           Nothing -> ["--no-dmap"]
-      args = alignArgs ++ pmaxArgs ++ dmapArgs
+      projectDir = getProjectDir (_PMaxOutput opts) (_DMapOutput opts)
+      projectArgs = case projectDir of
+        Just projectDir ->
+          [ "--project-folder",
+            projectDir -<.> "zsp-folder"
+          ]
+        Nothing -> []
+      args = waitArg ++ alignArgs ++ pmaxArgs ++ dmapArgs ++ projectArgs
 
   logDebugIO (unwords ["$", cmd, unwords args, "[img [img [...]]]"])
   let proc = (System.Process.proc cmd (args ++ imgs)) {cwd = _Cwd opts}
