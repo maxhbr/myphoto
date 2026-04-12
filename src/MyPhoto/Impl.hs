@@ -416,6 +416,7 @@ maybeExport = do
 
 alignOuts :: MyPhotoM ()
 alignOuts = step "align outputs" $ do
+  logWarn "Aligning outputs is currently flaky, might crop to much or might reduce quality"
   outs <- getOuts
   when (length outs >= 2) $ do
     wd <- getWdOrFail
@@ -551,7 +552,7 @@ runStackStage =
               else do
                 guardWithOpts optZereneStacker $ getImgs >>= runZereneStacker True
 
-        alignOuts
+        when (optAlignOutputs opts) $ alignOuts
         createMultilayerTiff
         maybeExport
         makeOutsPathsAbsolute

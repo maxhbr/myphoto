@@ -118,6 +118,7 @@ data Options = Options
     optZereneStackerHeadless :: Bool,
     optZereneStackerParallel :: Bool,
     optZereneStackerChunkSettings :: ChunkSettings,
+    optAlignOutputs :: Bool,
     optNoGpu :: Bool,
     optCropToCommonIntersectionFuzz :: Maybe Int,
     optParameters :: Map String [String]
@@ -146,6 +147,7 @@ instance Default Options where
         optZereneStackerHeadless = False,
         optZereneStackerParallel = False,
         optZereneStackerChunkSettings = NoChunks,
+        optAlignOutputs = False,
         optNoGpu = False,
         optCropToCommonIntersectionFuzz = Just 10,
         optParameters = mempty

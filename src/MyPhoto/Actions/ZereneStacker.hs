@@ -73,8 +73,8 @@ zereneChunkLeaf headless verbose workdir pmaxOutput dmapOutput _outputBN imgs = 
 -- Runs two passes: one for PMax, one for DMap.
 zereneStackerChunked :: Bool -> Bool -> ChunkSettings -> FilePath -> [FilePath] -> IO (Either String [FilePath])
 zereneStackerChunked headless verbose chunkSettings outputBN imgs = do
-  pmaxOutput' <- makeAbsolute (outputBN ++ "_zerene-PMax.tif")
-  dmapOutput' <- makeAbsolute (outputBN ++ "_zerene-DMap.tif")
+  pmaxOutput' <- makeAbsolute (outputBN ++ "_zerene-PMax-Chunked.tif")
+  dmapOutput' <- makeAbsolute (outputBN ++ "_zerene-DMap-Chunked.tif")
 
   pmaxOutput <- fromFilePath pmaxOutput'
   dmapOutput <- fromFilePath dmapOutput'
