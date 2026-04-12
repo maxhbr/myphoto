@@ -17,7 +17,7 @@
   "zereneStacker": true,
   "zereneStackerHeadless": false,
   "zereneStackerParallel": false,
-  "zereneStackerChunkSettings": { "type": "ChunkSize", "size": 8 },
+  "zereneStackerChunkSettings": "NoChunks",
   "noGpu": false,
   "cropToCommonIntersectionFuzz": 10,
   "parameters": {}
