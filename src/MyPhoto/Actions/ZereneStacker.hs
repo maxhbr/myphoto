@@ -152,6 +152,9 @@ zereneStackerImgsNoChunks headless verbose align outputBN imgs = do
   pmaxOutput <- fromFilePath pmaxOutput'
   dmapOutput <- fromFilePath dmapOutput'
 
+  workdir <- makeAbsolute (outputBN ++ "_zerene-stacker.workdir")
+  createDirectoryIfMissing True workdir
+
   if not (isTodo pmaxOutput) && not (isTodo dmapOutput)
     then do
       logInfoIO ("Zerene Stacker outputs " ++ show pmaxOutput ++ " and " ++ show dmapOutput ++ " already exist, check that all aligned images are present")
@@ -164,7 +167,7 @@ zereneStackerImgsNoChunks headless verbose align outputBN imgs = do
                 _Align = align,
                 _PMaxOutput = toOpts pmaxOutput,
                 _DMapOutput = toOpts dmapOutput,
-                _Cwd = Nothing
+                _Cwd = Just workdir
               }
       runZereneStacker opts imgs
 
@@ -186,6 +189,9 @@ zereneStackerImgsParallelNoChunks verbose align outputBN imgs = do
   pmaxOutput <- fromFilePath pmaxOutput'
   dmapOutput <- fromFilePath dmapOutput'
 
+  workdir <- makeAbsolute (outputBN ++ "_zerene-stacker.workdir")
+  createDirectoryIfMissing True workdir
+
   let runPMax =
         if isTodo pmaxOutput
           then do
@@ -198,7 +204,7 @@ zereneStackerImgsParallelNoChunks verbose align outputBN imgs = do
                   _Align = align,
                   _PMaxOutput = toOpts pmaxOutput,
                   _DMapOutput = Nothing,
-                  _Cwd = Nothing
+                  _Cwd = Just workdir
                 }
               imgs
             logInfoIO ("Zerene Stacker parallel: PMax done")
@@ -216,7 +222,7 @@ zereneStackerImgsParallelNoChunks verbose align outputBN imgs = do
                   _Align = align,
                   _PMaxOutput = Nothing,
                   _DMapOutput = toOpts dmapOutput,
-                  _Cwd = Nothing
+                  _Cwd = Just workdir
                 }
               imgs
             logInfoIO ("Zerene Stacker parallel: DMap done")
