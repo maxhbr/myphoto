@@ -8,6 +8,7 @@ Usage: $0 [OPTIONS] IMG1 IMG2 ...
 
 Options:
   --project-file FILE                           Use specific project file
+  --project-folder DIR                          Use specific project folder
   --already-aligned                             Skip alignment step
   --no-pmax                                     Disable PMax stacking method
   --no-dmap                                     Disable DMap stacking method
@@ -21,13 +22,17 @@ By default, both PMax and DMap stacking methods are enabled.
 EOF
 }
 
-if [ "$#" -lt 1 ] || [ "$1" == "--help" ]; then
+if [ "$#" -lt 1 ]; then
   help_msg
   exit 1
 fi
+if [ "$1" == "--help" ]; then
+  help_msg
+  exit 0
+fi
 
-PREFIX=""
 PROJECT_FILE=""
+PROJECT_FOLDER=""
 DO_NOT_ALIGN="false"
 DO_PMAX="true"
 DO_DMAP="true"
@@ -35,13 +40,18 @@ PMAX_OUTPUT=""
 DMAP_OUTPUT=""
 DMAP_FIXED_CONTRAST_THRESHOLD_PERCENTILE=""
 DMAP_FIXED_CONTRAST_THRESHOLD_LEVEL="0.0016078169"
-EXIT_ARG="-exitOnBatchScriptCompletion"
+EXTRA_ARGS=("-exitOnBatchScriptCompletion")
 POSITIONAL=()
 while [[ $# -gt 0 ]]; do
   key="$1"
   case $key in
     --project-file)
       PROJECT_FILE="$(readlink -f "$2")"
+      shift # past argument
+      shift # past value
+      ;;
+    --project-folder)
+      PROJECT_FOLDER="$(readlink -f "$2")"
       shift # past argument
       shift # past value
       ;;
@@ -82,7 +92,7 @@ while [[ $# -gt 0 ]]; do
       shift # past value
       ;;
     --wait)
-      EXIT_ARG=""
+      EXTRA_ARGS=()
       shift # past argument
       ;;
     *)
@@ -92,17 +102,51 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [ -z "$PREFIX" ]; then
-  length="${#POSITIONAL[@]}"
-  basenameFirstImage="$(basename "${POSITIONAL[0]}")"
-  basenameLastImage="$(basename "${POSITIONAL[-1]}")"
-  PREFIX="$(pwd)/${basenameFirstImage%%.*}_to_${basenameLastImage%%.*}_stack_of_${length}"
+# --- Handle directory argument: expand to contained image files ---
+if [[ "${#POSITIONAL[@]}" -eq 1 && -d "${POSITIONAL[0]}" ]]; then
+  img_dir="$(readlink -f "${POSITIONAL[0]}")"
+  POSITIONAL=()
+  shopt -s nullglob
+  for ext in jpg jpeg tif tiff png bmp; do
+    for f in "$img_dir"/*."$ext" "$img_dir"/*."${ext^^}"; do
+      POSITIONAL+=("$f")
+    done
+  done
+  shopt -u nullglob
+  if [[ "${#POSITIONAL[@]}" -eq 0 ]]; then
+    echo "ERROR: No image files found in directory: $img_dir" >&2
+    exit 1
+  fi
+  # Sort for deterministic order
+  mapfile -t POSITIONAL < <(printf '%s\n' "${POSITIONAL[@]}" | sort)
 fi
 
-# if [ -z "$PROJECT_FILE" ]; then
-#   PROJECT_FILE="${PREFIX}_zerene-stack.zsp"
-#   mkdir -p "$PROJECT_FILE"
-# fi
+# --- Input validation ---
+if [[ "${#POSITIONAL[@]}" -eq 0 ]]; then
+  echo "ERROR: No input images specified" >&2
+  help_msg
+  exit 1
+fi
+
+for img in "${POSITIONAL[@]}"; do
+  if [[ ! -f "$img" ]]; then
+    echo "ERROR: File does not exist: $img" >&2
+    exit 1
+  fi
+  case "${img,,}" in
+    *.jpg|*.jpeg|*.tif|*.tiff|*.png|*.bmp) ;;
+    *)
+      echo "ERROR: Unrecognized image extension: $img" >&2
+      exit 1
+      ;;
+  esac
+done
+
+# --- Compute output prefix ---
+length="${#POSITIONAL[@]}"
+basenameFirstImage="$(basename "${POSITIONAL[0]}")"
+basenameLastImage="$(basename "${POSITIONAL[-1]}")"
+PREFIX="$(pwd)/${basenameFirstImage%%.*}_to_${basenameLastImage%%.*}_stack_of_${length}"
 
 mkTask() {
   local taskIndicatorCode="$1"
@@ -185,15 +229,24 @@ EOF
 }
 
 mkProject() {
-  if [ -z "$PROJECT_FILE" ]; then
+  if [[ -z "$PROJECT_FILE" && -z "$PROJECT_FOLDER" ]]; then
     cat << EOF
         <ProjectDispositionCode value="101" />
 EOF
   else
     cat << EOF
         <ProjectDispositionCode value="103" />
+EOF
+    if  [[ -n "$PROJECT_FILE" ]]; then
+      cat << EOF
         <ProjectFilePath value="$PROJECT_FILE" />
 EOF
+    fi
+    if [[ -n "$PROJECT_FOLDER" ]]; then
+      cat << EOF
+        <ProjectsDesignatedFolder value="$PROJECT_FOLDER" />
+EOF
+    fi
   fi
 }
 
@@ -219,12 +272,46 @@ EOF
 }
 
 main() {
-  # xml=$(mktemp "$TMP/zerene-batch-XXXXXX.xml")
-  local xml="${PREFIX}_zerene_batch.xml"
-  mkXml |tee "$xml"
+  local xml="${PREFIX}_zerene_batch"
+  if [[ "$DO_PMAX" == "true" ]]; then
+    xml="${xml}_PMax"
+  fi
+  if [[ "$DO_DMAP" == "true" ]]; then
+    xml="${xml}_DMap"
+  fi
+  xml="${xml}.xml"
+  mkXml | tee "$xml"
 
-  echo "DEBUG: $ zerene-stacker -batchScript $xml $EXIT_ARG ..." >&2
-  exec zerene-stacker -batchScript "$xml" $EXIT_ARG "${POSITIONAL[@]}"
+  local cmd=(zerene-stacker -batchScript "$xml" "${EXTRA_ARGS[@]}" "${POSITIONAL[@]}")
+  echo "DEBUG: \$ ${cmd[*]}" >&2
+  local rc=0
+  "${cmd[@]}" || rc=$?
+
+  # Verify expected outputs exist
+  local missing=0
+  if [[ "$DO_PMAX" == "true" ]]; then
+    local pmax_output="${PMAX_OUTPUT:-${PREFIX}_zerene_PMax.tif}"
+    if [[ ! -f "$pmax_output" ]]; then
+      echo "WARNING: Expected PMax output not found: $pmax_output" >&2
+      missing=1
+    fi
+  fi
+  if [[ "$DO_DMAP" == "true" ]]; then
+    local dmap_output="${DMAP_OUTPUT:-${PREFIX}_zerene_DMap.tif}"
+    if [[ ! -f "$dmap_output" ]]; then
+      echo "WARNING: Expected DMap output not found: $dmap_output" >&2
+      missing=1
+    fi
+  fi
+
+  if [[ "$rc" -ne 0 ]]; then
+    echo "ERROR: zerene-stacker exited with code $rc" >&2
+    exit "$rc"
+  fi
+  if [[ "$missing" -eq 1 ]]; then
+    echo "ERROR: One or more expected output files were not produced" >&2
+    exit 1
+  fi
 }
 
 main
