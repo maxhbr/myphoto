@@ -67,7 +67,7 @@ let
     #Zerene Stacker configuration
     #Sun Jan 04 12:21:36 CET 2026
     AutoUpdateCheck.IntervalInDays=0.0
-    AutoUpdateCheck.LastKnownBuild=1.04 Build T2024-11-18-1210
+    AutoUpdateCheck.LastKnownBuild=1.04 Build T2026-02-27-1525
     ColorManagement.InputOption.AssumedProfile=sRGB IEC61966-2.1
     ColorManagement.InputOption=Use_EXIF_and_DCF_rules
     ColorManagement.OutputOption=CopyInput
@@ -166,11 +166,11 @@ in
 {
   zerene-stacker = pkgs.stdenv.mkDerivation rec {
     pname = "zerene-stacker";
-    version = "2024-11-18-1210";
+    version = "2026-02-27-1525";
 
     src = pkgs.fetchurl {
       url = "https://zerenesystems.com/stacker/downloads/ZS-Linux-Intel-64bit-T${version}.zip";
-      sha256 = "0biwhmy1h09n1mply30dbqg7nyykq9m1xd50ylck9rghl8rl3jww";
+      sha256 = "0fpagmnk8ckxcbwar97lfzcps3wksccrzw212bh6xdynbwpppsrc";
     };
 
     nativeBuildInputs = with pkgs; [
