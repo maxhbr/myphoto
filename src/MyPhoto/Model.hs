@@ -145,7 +145,7 @@ instance Default Options where
         optZereneStacker = True,
         optZereneStackerHeadless = False,
         optZereneStackerParallel = False,
-        optZereneStackerChunkSettings = def,
+        optZereneStackerChunkSettings = NoChunks,
         optNoGpu = False,
         optCropToCommonIntersectionFuzz = Just 10,
         optParameters = mempty
