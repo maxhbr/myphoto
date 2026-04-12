@@ -260,6 +260,22 @@ options =
       "Chunk size for enfuse using sparse chunking",
     Option
       ""
+      ["enfuse-chunk-tree-height"]
+      ( ReqArg
+          ( \arg opt ->
+              return
+                opt
+                  { optEnfuseChunkSettings = case read arg :: Int of
+                      0 -> NoChunks
+                      1 -> NoChunks
+                      n -> ChunkTreeHeight n
+                  }
+          )
+          "N"
+      )
+      "Tree height for enfuse chunking (number of hierarchical merge levels)",
+    Option
+      ""
       ["enfuse-all-variants"]
       ( NoArg
           (\opt -> return opt {optEnfuse = True})
@@ -347,6 +363,22 @@ options =
           "N"
       )
       "Chunk size for Zerene Stacker using sparse chunking (only effective with pre-aligned images)",
+    Option
+      ""
+      ["zerene-stacker-chunk-tree-height"]
+      ( ReqArg
+          ( \arg opt ->
+              return
+                opt
+                  { optZereneStackerChunkSettings = case read arg :: Int of
+                      0 -> NoChunks
+                      1 -> NoChunks
+                      n -> ChunkTreeHeight n
+                  }
+          )
+          "N"
+      )
+      "Tree height for Zerene Stacker chunking (number of hierarchical merge levels, only effective with pre-aligned images)",
     Option
       ""
       ["no-zerene-stacker-chunks"]

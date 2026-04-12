@@ -152,3 +152,12 @@ mkChunks (SparseChunksOfSize chunkSize) imgs =
 mkChunks (ChunkSize chunkSize) imgs =
   let imgChunks = mkChunks' chunkSize imgs
    in chunkChunks chunkSize (map Chunk imgChunks)
+mkChunks (ChunkTreeHeight h) imgs
+  | h <= 1 = Chunk imgs
+  | length imgs <= 1 = Chunk imgs
+  | otherwise =
+      let n = length imgs
+          b = ceiling (fromIntegral n ** (1.0 / fromIntegral h) :: Double)
+          chunkSize = max 2 b
+          imgChunks = mkChunks' chunkSize imgs
+       in Chunks (map (\chunk -> mkChunks (ChunkTreeHeight (h - 1)) chunk) imgChunks)

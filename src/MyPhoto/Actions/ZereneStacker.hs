@@ -59,6 +59,7 @@ zereneChunkLeaf headless verbose workdir pmaxOutput dmapOutput _outputBN imgs = 
       let opts =
             ZereneStackerOptions
               { _Headless = headless,
+                _Wait = False,
                 _Verbose = verbose,
                 _Align = False, -- chunking only allowed when already aligned
                 _PMaxOutput = pmaxOutput,
@@ -158,6 +159,7 @@ zereneStackerImgsNoChunks headless verbose align outputBN imgs = do
       let opts =
             ZereneStackerOptions
               { _Headless = headless,
+                _Wait = False,
                 _Verbose = verbose,
                 _Align = align,
                 _PMaxOutput = toOpts pmaxOutput,
@@ -191,6 +193,7 @@ zereneStackerImgsParallelNoChunks verbose align outputBN imgs = do
             runZereneStacker
               ZereneStackerOptions
                 { _Headless = True,
+                  _Wait = False,
                   _Verbose = verbose,
                   _Align = align,
                   _PMaxOutput = toOpts pmaxOutput,
@@ -208,6 +211,7 @@ zereneStackerImgsParallelNoChunks verbose align outputBN imgs = do
             runZereneStacker
               ZereneStackerOptions
                 { _Headless = True,
+                  _Wait = False,
                   _Verbose = verbose,
                   _Align = align,
                   _PMaxOutput = Nothing,

@@ -12,4 +12,4 @@ log "tmpdir=$tmpdir"
 prepare_pcb "$tmpdir"
 
 cd "$tmpdir"
-"$(repo_root)/myphoto-stack.sh" --export-to-parent --no-enfuse --zerene-stacker --zerene-stacker-chunk-size 3 "$@" "$tmpdir/pcb/pcb_"*".jpg"
+"$(repo_root)/myphoto-stack.sh" --export-to-parent --no-enfuse --zerene-stacker --zerene-stacker-chunk-tree-height 2 "$@" "$tmpdir/pcb/pcb_"*".jpg"

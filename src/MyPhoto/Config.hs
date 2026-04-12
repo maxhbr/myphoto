@@ -74,6 +74,7 @@ instance A.FromJSON CleanupStrategy where
 instance A.ToJSON ChunkSettings where
   toJSON (ChunkSize n) = A.object ["type" A..= ("ChunkSize" :: String), "size" A..= n]
   toJSON (SparseChunksOfSize n) = A.object ["type" A..= ("SparseChunksOfSize" :: String), "size" A..= n]
+  toJSON (ChunkTreeHeight n) = A.object ["type" A..= ("ChunkTreeHeight" :: String), "height" A..= n]
   toJSON NoChunks = A.String "NoChunks"
 
 instance A.FromJSON ChunkSettings where
@@ -83,6 +84,7 @@ instance A.FromJSON ChunkSettings where
     case (t :: String) of
       "ChunkSize" -> ChunkSize <$> v A..: "size"
       "SparseChunksOfSize" -> SparseChunksOfSize <$> v A..: "size"
+      "ChunkTreeHeight" -> ChunkTreeHeight <$> v A..: "height"
       _ -> fail ("Unknown ChunkSettings type: " ++ t)
   parseJSON _ = fail "Invalid ChunkSettings"
 

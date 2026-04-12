@@ -91,6 +91,7 @@ instance Default CleanupStrategy where
 data ChunkSettings
   = ChunkSize Int
   | SparseChunksOfSize Int
+  | ChunkTreeHeight Int
   | NoChunks
   deriving (Show, Eq)
 
