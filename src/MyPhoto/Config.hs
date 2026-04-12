@@ -115,6 +115,7 @@ instance A.ToJSON Options where
         "zereneStackerParallel" A..= optZereneStackerParallel,
         "zereneStackerChunkSettings" A..= optZereneStackerChunkSettings,
         "noGpu" A..= optNoGpu,
+        "alignOutputs" A..= optAlignOutputs,
         "cropToCommonIntersectionFuzz" A..= optCropToCommonIntersectionFuzz,
         "parameters" A..= optParameters
       ]
@@ -142,6 +143,7 @@ instance A.FromJSON Options where
       <*> v A..:? "zereneStackerHeadless" A..!= optZereneStackerHeadless d
       <*> v A..:? "zereneStackerParallel" A..!= optZereneStackerParallel d
       <*> v A..:? "zereneStackerChunkSettings" A..!= optZereneStackerChunkSettings d
+      <*> v A..:? "alignOutputs" A..!= optAlignOutputs d
       <*> v A..:? "noGpu" A..!= optNoGpu d
       <*> v A..:? "cropToCommonIntersectionFuzz" A..!= optCropToCommonIntersectionFuzz d
       <*> v A..:? "parameters" A..!= optParameters d

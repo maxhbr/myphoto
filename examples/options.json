@@ -19,6 +19,7 @@
   "zereneStackerParallel": false,
   "zereneStackerChunkSettings": "NoChunks",
   "noGpu": false,
+  "alignOutputs": false,
   "cropToCommonIntersectionFuzz": 10,
   "parameters": {}
 }

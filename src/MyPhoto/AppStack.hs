@@ -341,28 +341,14 @@ options =
                   { optZereneStackerChunkSettings = case read arg :: Int of
                       0 -> NoChunks
                       1 -> NoChunks
-                      n -> ChunkSize n
+                      n -> ChunkSize n,
+                    optZereneStackerHeadless = False,
+                    optZereneStackerParallel = False
                   }
           )
           "N"
       )
       "Chunk size for Zerene Stacker (only effective with pre-aligned images)",
-    Option
-      ""
-      ["zerene-stacker-sparse-chunk-size"]
-      ( ReqArg
-          ( \arg opt ->
-              return
-                opt
-                  { optZereneStackerChunkSettings = case read arg :: Int of
-                      0 -> NoChunks
-                      1 -> NoChunks
-                      n -> SparseChunksOfSize n
-                  }
-          )
-          "N"
-      )
-      "Chunk size for Zerene Stacker using sparse chunking (only effective with pre-aligned images)",
     Option
       ""
       ["zerene-stacker-chunk-tree-height"]
@@ -373,7 +359,9 @@ options =
                   { optZereneStackerChunkSettings = case read arg :: Int of
                       0 -> NoChunks
                       1 -> NoChunks
-                      n -> ChunkTreeHeight n
+                      n -> ChunkTreeHeight n,
+                    optZereneStackerHeadless = False,
+                    optZereneStackerParallel = False
                   }
           )
           "N"

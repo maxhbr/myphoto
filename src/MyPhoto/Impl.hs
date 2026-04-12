@@ -552,7 +552,7 @@ runStackStage =
               else do
                 guardWithOpts optZereneStacker $ getImgs >>= runZereneStacker True
 
-        when (optAlignOutputs opts) $ alignOuts
+        guardWithOpts optAlignOutputs alignOuts
         createMultilayerTiff
         maybeExport
         makeOutsPathsAbsolute
