@@ -292,8 +292,8 @@ main() {
     local rc=0
     "${cmd[@]}" || rc=$?
 
-    # Clean up the temporary symlink directory
-    rm -rf "$source_dir"
+    # # Clean up the temporary symlink directory
+    # rm -rf "$source_dir"
 
     # Verify expected outputs exist
     local missing=0
