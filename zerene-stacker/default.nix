@@ -50,9 +50,14 @@ let
     ZS_CONFIG_DIR="$HOME/.ZereneStacker"
     mkdir -p "$ZS_CONFIG_DIR"
 
+    # Java ignores TMPDIR/TMP/TEMP env vars; pass -Djava.io.tmpdir explicitly
+    JAVA_TMPDIR="''${TMPDIR:-/tmp}"
+    mkdir -p "$JAVA_TMPDIR"
+
     JAVA_ARGS=(
       "-Xmx''${memoryLimitMB}m"
       "-DjavaBits=64bitJava"
+      "-Djava.io.tmpdir=$JAVA_TMPDIR"
       "-Duser.home=$HOME"
       "-Duser.name=$USER_NAME"
       "-Dlaunchcmddir=$ZS_CONFIG_DIR"

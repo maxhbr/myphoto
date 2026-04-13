@@ -307,8 +307,15 @@ main() {
     mkXml "$source_dir" | tee "$xml"
 
     # set TMPDIR to $PREFIX.tmp
-    export TMPDIR="${PREFIX}.tmp"
+    local TMPDIR
+    if [[ -z $PROJECT_FOLDER ]]; then
+        TMPDIR="${PREFIX}.tmp"
+    else
+        # If a project folder is specified, put temp files in a subdirectory of the project folder to ensure they are on the same drive (avoid "Error creating temporary file: No such file or directory" on Windows)
+        TMPDIR="${PROJECT_FOLDER}.tmp"
+    fi
     mkdir -p "$TMPDIR"
+    export TMPDIR
     export TMP="${TMPDIR}"
     export TEMP="${TMPDIR}"
 
