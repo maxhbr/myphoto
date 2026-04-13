@@ -362,12 +362,10 @@ runZereneStacker align imgs = step "focus stacking with Zerene Stacker" $ do
           else optZereneStackerChunkSettings opts
   when (align && optZereneStackerChunkSettings opts /= NoChunks) $
     logWarn "Zerene Stacker chunking disabled: images are not pre-aligned"
-  workdir <- MTL.liftIO $ makeAbsolute (outputBN ++ "_zerene-stacker.workdir")
   let zsOpts =
         ZereneStackerActionOptions
           { zsVerbose = optVerbose opts,
             zsHeadless = optZereneStackerHeadless opts,
-            zsWorkdir = workdir,
             zsParallel = optZereneStackerParallel opts,
             zsAlign = align,
             zsChunkSettings = chunkSettings
