@@ -19,17 +19,26 @@ data ZereneStackerOptions = ZereneStackerOptions
     _Cwd :: Maybe FilePath
   }
 
-getProjectDir :: Maybe Img -> Maybe Img -> Maybe FilePath
-getProjectDir Nothing Nothing = Nothing
-getProjectDir (Just pmax) Nothing = Just (dropExtension pmax)
-getProjectDir Nothing (Just dmap) = Just (dropExtension dmap)
-getProjectDir (Just pmax) (Just dmap) =
+getCommonNameForOpts :: ZereneStackerOptions -> Maybe FilePath
+getCommonNameForOpts opts =
+  let commonBaseName = getCommonBaseName (_PMaxOutput opts) (_DMapOutput opts)
+   in case commonBaseName of
+        Just baseName -> case _Cwd opts of
+          Just cwd -> Just (cwd </> baseName)
+          Nothing -> Just baseName
+        Nothing -> Nothing
+
+getCommonBaseName :: Maybe Img -> Maybe Img -> Maybe FilePath
+getCommonBaseName Nothing Nothing = Nothing
+getCommonBaseName (Just pmax) Nothing = Just (takeBaseName pmax)
+getCommonBaseName Nothing (Just dmap) = Just (takeBaseName dmap)
+getCommonBaseName (Just pmax) (Just dmap) =
   let getCombined (a : as) (b : bs)
         | a == b = a : getCombined as bs
         | otherwise = (a : as) ++ (b : bs)
       getCombined as [] = as
       getCombined [] bs = bs
-   in Just (getCombined (dropExtension pmax) (dropExtension dmap))
+   in Just (getCombined (takeBaseName pmax) (takeBaseName dmap))
 
 runZereneStacker :: ZereneStackerOptions -> Imgs -> IO ()
 runZereneStacker opts imgs = do
@@ -44,11 +53,11 @@ runZereneStacker opts imgs = do
         case _DMapOutput opts of
           Just dmapOutput -> ["--dmap-output", dmapOutput]
           Nothing -> ["--no-dmap"]
-      projectDir = getProjectDir (_PMaxOutput opts) (_DMapOutput opts)
-      projectArgs = case projectDir of
-        Just projectDir ->
+      commonName = getCommonNameForOpts opts
+      projectArgs = case commonName of
+        Just commonName ->
           [ "--project-folder",
-            projectDir -<.> "zsp-folder"
+            commonName -<.> "zsp-folder"
           ]
         Nothing -> []
       args = waitArg ++ alignArgs ++ pmaxArgs ++ dmapArgs ++ projectArgs
@@ -63,10 +72,13 @@ runZereneStacker opts imgs = do
         ExitSuccess -> return ()
         _ -> exitWith ec
     else do
-      devNull <- openFile "/dev/null" WriteMode
-      (_, _, _, ph) <- createProcess proc {std_out = UseHandle devNull, std_err = UseHandle devNull}
+      let logFile = case commonName of
+            Just cn -> cn <.> "log"
+            Nothing -> "/dev/null"
+      logHandle <- openFile logFile WriteMode
+      (_, _, _, ph) <- createProcess proc {std_out = UseHandle logHandle, std_err = UseHandle logHandle}
       ec <- waitForProcess ph
-      hClose devNull
+      hClose logHandle
       case ec of
         ExitSuccess -> return ()
         _ -> exitWith ec
