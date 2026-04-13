@@ -15,6 +15,7 @@ Options:
   --dmap-output FILE                            Override DMap output filename
   --dmap-fixed-contrast-threshold-percentile N  Set DMap contrast threshold percentile
   --dmap-fixed-contrast-threshold-level N       Set DMap contrast threshold level (default: 0.0016078169)
+  --prefix PREFIX                                Override output prefix (default: auto-generated from filenames)
   --wait                                        Wait for completion instead of exiting
 
 By default, both PMax and DMap stacking methods are enabled.
@@ -36,6 +37,7 @@ DO_PMAX="true"
 DO_DMAP="true"
 PMAX_OUTPUT=""
 DMAP_OUTPUT=""
+PREFIX=""
 DMAP_FIXED_CONTRAST_THRESHOLD_PERCENTILE=""
 DMAP_FIXED_CONTRAST_THRESHOLD_LEVEL="0.0016078169"
 EXTRA_ARGS=("-exitOnBatchScriptCompletion")
@@ -86,6 +88,11 @@ while [[ $# -gt 0 ]]; do
         --dmap-fixed-contrast-threshold-level)
             DMAP_FIXED_CONTRAST_THRESHOLD_LEVEL="$2"
             DMAP_FIXED_CONTRAST_THRESHOLD_PERCENTILE=""
+            shift # past argument
+            shift # past value
+            ;;
+        --prefix)
+            PREFIX="$2"
             shift # past argument
             shift # past value
             ;;
@@ -141,10 +148,12 @@ for img in "${POSITIONAL[@]}"; do
 done
 
 # --- Compute output prefix ---
-length="${#POSITIONAL[@]}"
-basenameFirstImage="$(basename "${POSITIONAL[0]}")"
-basenameLastImage="$(basename "${POSITIONAL[-1]}")"
-PREFIX="$(pwd)/${basenameFirstImage%%.*}_to_${basenameLastImage%%.*}_stack_of_${length}"
+if [[ -z $PREFIX ]]; then
+    length="${#POSITIONAL[@]}"
+    basenameFirstImage="$(basename "${POSITIONAL[0]}")"
+    basenameLastImage="$(basename "${POSITIONAL[-1]}")"
+    PREFIX="$(pwd)/${basenameFirstImage%%.*}_to_${basenameLastImage%%.*}_stack_of_${length}"
+fi
 
 mkTask() {
     local taskIndicatorCode="$1"
@@ -265,15 +274,21 @@ EOF
 # Zerene Stacker batch mode requires a directory source (not %CurrentProject%)
 # for project saving (ProjectDispositionCode) to work correctly.
 mkSourceDir() {
-    local source_dir
-    source_dir="$(mktemp -d "${PREFIX}_zerene_input.XXXXXX")"
-    local counter=0
-    for img in "${POSITIONAL[@]}"; do
-        ((++counter))
-        local numbered_name
-        numbered_name=$(printf "%05d.%s" "$counter" "$(basename "$img")")
-        ln -s "$img" "$source_dir/$numbered_name"
-    done
+    local hash_from_POSITIONAL
+    hash_from_POSITIONAL=$(printf "%s\0" "${POSITIONAL[@]}" | sha256sum | cut -d' ' -f1 | cut -c1-8)
+    local source_dir="${PREFIX}_zerene_input.${hash_from_POSITIONAL}"
+
+    if [[ ! -d $source_dir ]]; then
+        mkdir -p "$source_dir"
+
+        local counter=0
+        for img in "${POSITIONAL[@]}"; do
+            ((++counter))
+            local numbered_name
+            numbered_name=$(printf "%05d.%s" "$counter" "$(basename "$img")")
+            ln -s "$img" "$source_dir/$numbered_name"
+        done
+    fi
     echo "$source_dir"
 }
 

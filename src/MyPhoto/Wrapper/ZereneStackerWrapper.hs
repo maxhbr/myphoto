@@ -57,7 +57,9 @@ runZereneStacker opts imgs = do
       projectArgs = case commonName of
         Just commonName ->
           [ "--project-folder",
-            commonName -<.> "zsp-folder"
+            commonName -<.> "zsp-folder",
+            "--prefix",
+            commonName
           ]
         Nothing -> []
       args = waitArg ++ alignArgs ++ pmaxArgs ++ dmapArgs ++ projectArgs
