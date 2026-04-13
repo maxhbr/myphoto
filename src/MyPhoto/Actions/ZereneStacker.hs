@@ -70,7 +70,7 @@ zereneStackerInternal opts outputBN imgs =
 
 -- | Run a single pass of Zerene Stacker on a chunk of images, producing one output file.
 -- Used as the leaf function for resolveChunks.
-zereneChunkLeaf :: ZereneStackerActionOptions -> Maybe FilePath -> Maybe FilePath -> FilePath -> Imgs -> IO (Either String Img)
+zereneChunkLeaf :: ZereneStackerActionOptions -> Maybe FilePath -> Maybe FilePath -> FilePath -> Imgs -> IO (Either String FilePath)
 zereneChunkLeaf opts pmaxOutput dmapOutput _outputBN imgs = do
   let outFile = case (pmaxOutput, dmapOutput) of
         (Just fp, _) -> fp
