@@ -243,53 +243,6 @@ zereneStackerImgsParallelNoChunks opts@ZereneStackerActionOptions {zsWorkdir = w
   _ <- concurrently runPMax runDMap
 
   return (Right (catMaybes [toResult pmaxOutput, toResult dmapOutput]))
-  pmaxOutput' <- makeAbsolute (outputBN ++ "_zerene-PMax.tif")
-  dmapOutput' <- makeAbsolute (outputBN ++ "_zerene-DMap.tif")
-
-  pmaxOutput <- fromFilePath pmaxOutput'
-  dmapOutput <- fromFilePath dmapOutput'
-
-  createDirectoryIfMissing True workdir
-
-  let runPMax =
-        if isTodo pmaxOutput
-          then do
-            logInfoIO ("Zerene Stacker parallel: starting PMax")
-            runZereneStacker
-              ZereneStackerOptions
-                { _Headless = True,
-                  _Wait = False,
-                  _Verbose = zsVerbose opts,
-                  _Align = zsAlign opts,
-                  _PMaxOutput = toOpts pmaxOutput,
-                  _DMapOutput = Nothing,
-                  _Cwd = Just workdir
-                }
-              imgs
-            logInfoIO ("Zerene Stacker parallel: PMax done")
-          else logInfoIO ("Zerene Stacker parallel: PMax output already exists, skipping")
-
-      runDMap =
-        if isTodo dmapOutput
-          then do
-            logInfoIO ("Zerene Stacker parallel: starting DMap")
-            runZereneStacker
-              ZereneStackerOptions
-                { _Headless = True,
-                  _Wait = False,
-                  _Verbose = zsVerbose opts,
-                  _Align = zsAlign opts,
-                  _PMaxOutput = Nothing,
-                  _DMapOutput = toOpts dmapOutput,
-                  _Cwd = Just workdir
-                }
-              imgs
-            logInfoIO ("Zerene Stacker parallel: DMap done")
-          else logInfoIO ("Zerene Stacker parallel: DMap output already exists, skipping")
-
-  _ <- concurrently runPMax runDMap
-
-  return (Right (catMaybes [toResult pmaxOutput, toResult dmapOutput]))
 
 -- | Backward compatibility: Run Zerene Stacker using individual parameters.
 zereneStackerImgs :: Bool -> Bool -> Bool -> ChunkSettings -> FilePath -> [FilePath] -> IO (Either String [FilePath])
