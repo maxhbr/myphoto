@@ -306,13 +306,16 @@ main() {
     source_dir="$(mkSourceDir)"
     mkXml "$source_dir" | tee "$xml"
 
+    # set TMPDIR to $PREFIX.tmp
+    export TMPDIR="${PREFIX}.tmp"
+    mkdir -p "$TMPDIR"
+    export TMP="${TMPDIR}"
+    export TEMP="${TMPDIR}"
+
     local cmd=(zerene-stacker -batchScript "$xml" "${EXTRA_ARGS[@]}")
     echo "DEBUG: \$ ${cmd[*]}" >&2
     local rc=0
     "${cmd[@]}" || rc=$?
-
-    # # Clean up the temporary symlink directory
-    # rm -rf "$source_dir"
 
     # Verify expected outputs exist
     local missing=0
