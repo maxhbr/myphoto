@@ -12,4 +12,4 @@ log "tmpdir=$tmpdir"
 prepare_pcb "$tmpdir"
 
 cd "$tmpdir"
-"$(repo_root)/myphoto-stack.sh" --enfuse-chunk-size 3 "$@" "$tmpdir/pcb/pcb_"*".jpg"
+"$(repo_root)/myphoto-stack.sh" --verbose --enfuse-chunk-size 3 "$@" "$tmpdir/pcb/pcb_"*".jpg"

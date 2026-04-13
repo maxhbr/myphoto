@@ -4,10 +4,9 @@ module MyPhoto.Wrapper.ZereneStackerWrapper
   )
 where
 
-import Control.Concurrent.Async (concurrently)
-import GHC.IO.Handle (hGetContents)
 import MyPhoto.Model
 import System.FilePath (dropExtension)
+import System.IO (IOMode (..), hClose, openFile)
 import System.Process
 
 data ZereneStackerOptions = ZereneStackerOptions
@@ -64,11 +63,10 @@ runZereneStacker opts imgs = do
         ExitSuccess -> return ()
         _ -> exitWith ec
     else do
-      (_, Just hout, Just herr, ph) <- createProcess proc {std_out = CreatePipe, std_err = CreatePipe}
-      ((out, err), ec) <- concurrently (concurrently (hGetContents hout) (hGetContents herr)) (waitForProcess ph)
+      devNull <- openFile "/dev/null" WriteMode
+      (_, _, _, ph) <- createProcess proc {std_out = UseHandle devNull, std_err = UseHandle devNull}
+      ec <- waitForProcess ph
+      hClose devNull
       case ec of
         ExitSuccess -> return ()
-        _ -> do
-          logErrorIO ("zerene-stacker stdout: " ++ out)
-          logErrorIO ("zerene-stacker stderr: " ++ err)
-          exitWith ec
+        _ -> exitWith ec
