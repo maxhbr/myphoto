@@ -1,11 +1,11 @@
 module MyPhoto.Actions.ZereneStacker
   ( zereneStacker,
-    zereneStackerImgs,
-    zereneStackerImgsParallel,
     ZereneStackerActionOptions (..),
+    ZereneStackerMode (..),
   )
 where
 
+import Control.Concurrent (threadDelay)
 import Control.Concurrent.Async (concurrently)
 import qualified Control.Concurrent.MSem as MS
 import Data.Maybe (catMaybes)
@@ -14,6 +14,22 @@ import MyPhoto.Model
 import MyPhoto.Utils.Chunking
 import MyPhoto.Wrapper.ZereneStackerWrapper
 import System.Directory (renameFile)
+
+data ZereneStackerMode
+  = ZereneStackerDefault Bool
+  | ZereneStackerHeadless Bool
+  | ZereneStackerParallel
+  | ZereneStackerChunked (ChunkSettings)
+  deriving (Show, Eq)
+
+instance Default ZereneStackerMode where
+  def = ZereneStackerDefault False
+
+shouldAlign :: ZereneStackerMode -> Bool
+shouldAlign (ZereneStackerHeadless align) = align
+shouldAlign ZereneStackerParallel = False
+shouldAlign (ZereneStackerChunked _) = False
+shouldAlign (ZereneStackerDefault align) = align
 
 data ZereneStackerActionOptions = ZereneStackerActionOptions
   { zsVerbose :: Bool,
@@ -33,6 +49,18 @@ instance Default ZereneStackerActionOptions where
         zsAlign = True,
         zsChunkSettings = NoChunks
       }
+
+fixZereneStackerActionOptions :: ZereneStackerActionOptions -> IO ZereneStackerActionOptions
+fixZereneStackerActionOptions opts@ZereneStackerActionOptions {zsHeadless = True, zsParallel = True} = do
+  logWarnIO "Zerene Stacker: headless mode does not support parallel execution, disabling parallel mode"
+  fixZereneStackerActionOptions (opts {zsParallel = False})
+fixZereneStackerActionOptions opts@ZereneStackerActionOptions {zsAlign = False, zsChunkSettings = cs} =
+  if cs /= NoChunks
+    then do
+      logWarnIO "Zerene Stacker: chunking does not support --already-aligned, disabling chunking"
+      fixZereneStackerActionOptions (opts {zsChunkSettings = NoChunks})
+    else return opts
+fixZereneStackerActionOptions opts = return opts
 
 data ZereneStackerImagePlan
   = Planned FilePath
@@ -69,9 +97,7 @@ zereneStacker opts outputBN imgs = do
   workdir <- makeAbsolute (outputBN ++ "_zerene-stacker.workdir")
   createDirectoryIfMissing True workdir
   case zsChunkSettings opts of
-    NoChunks
-      | zsParallel opts -> zereneStackerImgsParallelNoChunks opts workdir outputBN imgs
-      | otherwise -> zereneStackerImgsNoChunks opts workdir outputBN imgs
+    NoChunks -> zereneStackerImgsNoChunks opts workdir outputBN imgs
     _ -> zereneStackerChunked opts workdir outputBN imgs
 
 -- | Run a single pass of Zerene Stacker on a chunk of images, producing one output file.
@@ -109,10 +135,11 @@ zereneStackerChunked opts workdir outputBN imgs = do
   pmaxOutput' <- makeAbsolute (outputBN ++ "_zerene-PMax-Chunked.tif")
   dmapOutput' <- makeAbsolute (outputBN ++ "_zerene-DMap-Chunked.tif")
 
+  let pmaxBN = workdir </> takeBaseName pmaxOutput'
+      dmapBN = workdir </> takeBaseName dmapOutput'
+
   pmaxOutput <- fromFilePath pmaxOutput'
   dmapOutput <- fromFilePath dmapOutput'
-
-  let bnInWorkdir = workdir </> takeFileName outputBN
 
   numCapabilities <- getNumCapabilities
   let numThreadsFactor = 8
@@ -125,7 +152,6 @@ zereneStackerChunked opts workdir outputBN imgs = do
   -- Pass 1: PMax
   when (isTodo pmaxOutput) $ do
     logInfoIO "Zerene Stacker chunked: starting PMax pass"
-    let pmaxBN = bnInWorkdir ++ "_zerene-PMax"
     let pmaxLayersTiff = pmaxOutput' -<.> "layers.tif"
     pmaxResult <-
       resolveChunksAndSaveLayersTiff
@@ -147,7 +173,6 @@ zereneStackerChunked opts workdir outputBN imgs = do
   -- Pass 2: DMap
   when (isTodo dmapOutput) $ do
     logInfoIO "Zerene Stacker chunked: starting DMap pass"
-    let dmapBN = bnInWorkdir ++ "_zerene-DMap"
     let dmapLayersTiff = dmapOutput' -<.> "layers.tif"
     dmapResult <-
       resolveChunksAndSaveLayersTiff
@@ -177,95 +202,42 @@ zereneStackerImgsNoChunks opts workdir outputBN imgs = do
   pmaxOutput <- fromFilePath pmaxOutput'
   dmapOutput <- fromFilePath dmapOutput'
 
+  let mkZerenStackerOptions pmax dmap =
+        ZereneStackerOptions
+          { _Headless = zsHeadless opts,
+            _Wait = False,
+            _Verbose = zsVerbose opts,
+            _Align = zsAlign opts,
+            _PMaxOutput = pmax,
+            _DMapOutput = dmap,
+            _Cwd = Just workdir
+          }
+
   if not (isTodo pmaxOutput) && not (isTodo dmapOutput)
     then do
       logInfoIO ("Zerene Stacker outputs " ++ show pmaxOutput ++ " and " ++ show dmapOutput ++ " already exist, check that all aligned images are present")
-    else do
-      let wrapperOpts =
-            ZereneStackerOptions
-              { _Headless = zsHeadless opts,
-                _Wait = False,
-                _Verbose = zsVerbose opts,
-                _Align = zsAlign opts,
-                _PMaxOutput = toOpts pmaxOutput,
-                _DMapOutput = toOpts dmapOutput,
-                _Cwd = Just workdir
-              }
-      runZereneStacker wrapperOpts imgs
+    else
+      if zsParallel opts
+        then do
+          let runPMax =
+                if isTodo pmaxOutput
+                  then do
+                    logInfoIO ("Zerene Stacker parallel: starting PMax")
+                    runZereneStacker (mkZerenStackerOptions (toOpts pmaxOutput) Nothing) imgs
+                    logInfoIO ("Zerene Stacker parallel: PMax done")
+                  else logInfoIO ("Zerene Stacker parallel: PMax output already exists, skipping")
+              runDMap =
+                if isTodo dmapOutput
+                  then do
+                    logInfoIO ("Zerene Stacker parallel: starting DMap")
+                    runZereneStacker (mkZerenStackerOptions Nothing (toOpts dmapOutput)) imgs
+                    logInfoIO ("Zerene Stacker parallel: DMap done")
+                  else logInfoIO ("Zerene Stacker parallel: DMap output already exists, skipping")
+
+          logInfoIO "Zerene Stacker parallel: starting parallel execution"
+          _ <- concurrently (threadDelay (1 * 1000) >> runPMax) (threadDelay (2 * 1000) >> runDMap)
+          return ()
+        else
+          runZereneStacker (mkZerenStackerOptions (toOpts pmaxOutput) (toOpts dmapOutput)) imgs
 
   return (Right (catMaybes [toResult pmaxOutput, toResult dmapOutput]))
-
--- | Original non-chunked parallel implementation.
-zereneStackerImgsParallelNoChunks :: ZereneStackerActionOptions -> FilePath -> FilePath -> [FilePath] -> IO (Either String [FilePath])
-zereneStackerImgsParallelNoChunks opts workdir outputBN imgs = do
-  pmaxOutput' <- makeAbsolute (outputBN ++ "_zerene-PMax.tif")
-  dmapOutput' <- makeAbsolute (outputBN ++ "_zerene-DMap.tif")
-
-  pmaxOutput <- fromFilePath pmaxOutput'
-  dmapOutput <- fromFilePath dmapOutput'
-
-  let runPMax =
-        if isTodo pmaxOutput
-          then do
-            logInfoIO ("Zerene Stacker parallel: starting PMax")
-            runZereneStacker
-              ZereneStackerOptions
-                { _Headless = True,
-                  _Wait = False,
-                  _Verbose = zsVerbose opts,
-                  _Align = zsAlign opts,
-                  _PMaxOutput = toOpts pmaxOutput,
-                  _DMapOutput = Nothing,
-                  _Cwd = Just workdir
-                }
-              imgs
-            logInfoIO ("Zerene Stacker parallel: PMax done")
-          else logInfoIO ("Zerene Stacker parallel: PMax output already exists, skipping")
-
-      runDMap =
-        if isTodo dmapOutput
-          then do
-            logInfoIO ("Zerene Stacker parallel: starting DMap")
-            runZereneStacker
-              ZereneStackerOptions
-                { _Headless = True,
-                  _Wait = False,
-                  _Verbose = zsVerbose opts,
-                  _Align = zsAlign opts,
-                  _PMaxOutput = Nothing,
-                  _DMapOutput = toOpts dmapOutput,
-                  _Cwd = Just workdir
-                }
-              imgs
-            logInfoIO ("Zerene Stacker parallel: DMap done")
-          else logInfoIO ("Zerene Stacker parallel: DMap output already exists, skipping")
-
-  _ <- concurrently runPMax runDMap
-
-  return (Right (catMaybes [toResult pmaxOutput, toResult dmapOutput]))
-
--- | Backward compatibility: Run Zerene Stacker using individual parameters.
-zereneStackerImgs :: Bool -> Bool -> Bool -> ChunkSettings -> FilePath -> [FilePath] -> IO (Either String [FilePath])
-zereneStackerImgs headless verbose align chunkSettings outputBN imgs = do
-  let opts =
-        ZereneStackerActionOptions
-          { zsVerbose = verbose,
-            zsHeadless = headless,
-            zsParallel = False,
-            zsAlign = align,
-            zsChunkSettings = chunkSettings
-          }
-  zereneStacker opts outputBN imgs
-
--- | Run PMax and DMap as two separate Zerene Stacker processes in parallel.
-zereneStackerImgsParallel :: Bool -> Bool -> ChunkSettings -> FilePath -> [FilePath] -> IO (Either String [FilePath])
-zereneStackerImgsParallel verbose align chunkSettings outputBN imgs = do
-  let opts =
-        ZereneStackerActionOptions
-          { zsVerbose = verbose,
-            zsHeadless = True,
-            zsParallel = True,
-            zsAlign = align,
-            zsChunkSettings = chunkSettings
-          }
-  zereneStacker opts outputBN imgs
