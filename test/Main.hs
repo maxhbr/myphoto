@@ -23,10 +23,10 @@ import Test.HUnit
 imgs :: Imgs
 imgs = map (\i -> show i ++ ".jpg") [0 .. 30]
 
-imgChunks :: ChunkSettings -> Chunks
+imgChunks :: ChunkSettings -> Chunks String
 imgChunks chunkSettings = mkChunks chunkSettings imgs
 
-mkChunkingAssertion :: String -> ChunkSettings -> Chunks -> Assertion
+mkChunkingAssertion :: String -> ChunkSettings -> Chunks String -> Assertion
 mkChunkingAssertion description chunkSettings expected = do
   let actual = imgChunks chunkSettings
   assertEqual description expected actual
@@ -44,7 +44,7 @@ mkChunkingConsistencyAssertion description chunkSettings = do
 
 noChunkingTest :: Assertion
 noChunkingTest = do
-  mkChunkingAssertion "no chunking" NoChunks (Chunk imgs)
+  mkChunkingAssertion "no chunking" NoChunks (toChunk imgs)
   mkChunkingShowTreeAssertion "no chunking" NoChunks (show (length imgs))
   mkChunkingConsistencyAssertion "no chunking" NoChunks
 

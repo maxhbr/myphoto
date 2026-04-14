@@ -7,13 +7,13 @@ import MyPhoto.Model
 import MyPhoto.Utils.ProgressBar (Progress (..), ProgressBar, incProgress, newProgressBarDefault)
 import System.Process (CreateProcess (..), StdStream (..), createProcess, proc, waitForProcess)
 
-data (Show a, Eq a) => ChunkingResult a = ChunkingResult a [ChunkingResult a]
+data ChunkingResult a = ChunkingResult a [ChunkingResult a]
   deriving (Show, Eq)
 
 getCurrentsFromChunkingResults :: [ChunkingResult a] -> [a]
 getCurrentsFromChunkingResults = map (\(ChunkingResult a _) -> a)
 
-data (Show a, Eq a) => Chunks a
+data Chunks a
   = Chunk [ChunkingResult a]
   | Chunks [Chunks a]
   deriving (Show, Eq)
@@ -28,7 +28,6 @@ countChunks (Chunks chunks) = 1 + sum (map countChunks chunks)
 showChunkTree :: Chunks a -> String
 showChunkTree (Chunk imgs) = show (length imgs)
 showChunkTree (Chunks chunks) = show (length chunks) ++ " [" ++ (unwords (map showChunkTree chunks)) ++ "]"
-
 
 linearizeChunkingResults :: [ChunkingResult a] -> [a]
 linearizeChunkingResults [] = []
@@ -108,23 +107,24 @@ mkSparseBuckets' runningIndex bucketCount imgs@(img : imgs') acc =
 mkSparseBuckets :: Int -> [a] -> [[ChunkingResult a]]
 mkSparseBuckets chunkSize imgs =
   let bucketCount = (length imgs + chunkSize - 1) `div` chunkSize
-   in map (map (`ChunkingResult` [])) $ if chunkSize >= length imgs
-                                          then [imgs]
-                                          else mkSparseBuckets' 0 bucketCount imgs []
+   in map (map (`ChunkingResult` [])) $
+        if chunkSize >= length imgs
+          then [imgs]
+          else mkSparseBuckets' 0 bucketCount imgs []
 
 mkChunks' :: Int -> [ChunkingResult a] -> [[ChunkingResult a]]
 mkChunks' _ [] = []
 mkChunks' chunkSize crs =
-    if chunkSize >= length crs
-      then [crs]
-      else joinLastTwoChunksIfNeeded chunkSize (chunksOf chunkSize crs)
+  if chunkSize >= length crs
+    then [crs]
+    else joinLastTwoChunksIfNeeded chunkSize (chunksOf chunkSize crs)
 
 chunkChunks :: Int -> [Chunks a] -> Chunks a
 chunkChunks chunkSize chunks =
   if length chunks <= chunkSize
     then Chunks chunks
     else
-      let chunks' = mkChunks' chunkSize chunks
+      let chunks' = joinLastTwoChunksIfNeeded chunkSize (chunksOf chunkSize chunks)
        in chunkChunks chunkSize (map Chunks chunks')
 
 mkChunks :: ChunkSettings -> [a] -> Chunks a
@@ -135,7 +135,7 @@ mkChunks (SparseChunksOfSize chunkSize) imgs =
 mkChunks (ChunkSize chunkSize) imgs =
   let imgChunks = mkChunks' chunkSize (map (`ChunkingResult` []) imgs)
    in chunkChunks chunkSize (map Chunk imgChunks)
-mkChunks (ChunkTreeHeight h) as 
+mkChunks (ChunkTreeHeight h) as
   | h <= 1 = toChunk as
   | length as <= 1 = toChunk as
   | otherwise =
