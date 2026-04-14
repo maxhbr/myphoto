@@ -156,13 +156,13 @@ let
     text = ''
       #!${pkgs.stdenv.shell}
       set -e
-      ${pkgs.xvfb-run}/bin/xvfb-run -a \
+      ${pkgs.xvfb-run}/bin/xvfb-run -a --auto-servernum \
         -e /tmp/xvfb-run.log \
         -s "-screen 0 1920x1080x24 -nolisten tcp -ac -xkbdir ${runtimeEnv.XKB_CONFIG_ROOT} -fp ${runtimeEnv.XORG_FONT_PATH}" \
         --wait=5 \
         ${zerene-stacker-batch}/bin/zerene-stacker-batch "$@" || {
           code=$?
-          cat /tmp/xvfb-run.log
+          cat /tmp/xvfb-run.log 2>/dev/null || true
           exit $code
         }
     '';

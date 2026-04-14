@@ -1,6 +1,5 @@
 module MyPhoto.Actions.ZereneStacker
   ( zereneStacker,
-    ZereneStackerActionOptions (..),
     ZereneStackerMode (..),
   )
 where
@@ -30,37 +29,6 @@ shouldAlign (ZereneStackerHeadless align) = align
 shouldAlign ZereneStackerParallel = False
 shouldAlign (ZereneStackerChunked _) = False
 shouldAlign (ZereneStackerDefault align) = align
-
-data ZereneStackerActionOptions = ZereneStackerActionOptions
-  { zsVerbose :: Bool,
-    zsHeadless :: Bool,
-    zsParallel :: Bool,
-    zsAlign :: Bool,
-    zsChunkSettings :: ChunkSettings
-  }
-  deriving (Show)
-
-instance Default ZereneStackerActionOptions where
-  def =
-    ZereneStackerActionOptions
-      { zsVerbose = False,
-        zsHeadless = False,
-        zsParallel = False,
-        zsAlign = True,
-        zsChunkSettings = NoChunks
-      }
-
-fixZereneStackerActionOptions :: ZereneStackerActionOptions -> IO ZereneStackerActionOptions
-fixZereneStackerActionOptions opts@ZereneStackerActionOptions {zsHeadless = True, zsParallel = True} = do
-  logWarnIO "Zerene Stacker: headless mode does not support parallel execution, disabling parallel mode"
-  fixZereneStackerActionOptions (opts {zsParallel = False})
-fixZereneStackerActionOptions opts@ZereneStackerActionOptions {zsAlign = False, zsChunkSettings = cs} =
-  if cs /= NoChunks
-    then do
-      logWarnIO "Zerene Stacker: chunking does not support --already-aligned, disabling chunking"
-      fixZereneStackerActionOptions (opts {zsChunkSettings = NoChunks})
-    else return opts
-fixZereneStackerActionOptions opts = return opts
 
 data ZereneStackerImagePlan
   = Planned FilePath
@@ -92,18 +60,22 @@ isTodo (Done _) = False
 isTodo NotPlanned = False
 
 -- | Main entrypoint for Zerene Stacker operations.
-zereneStacker :: ZereneStackerActionOptions -> FilePath -> [FilePath] -> IO (Either String [FilePath])
-zereneStacker opts outputBN imgs = do
+zereneStacker :: Bool -> ZereneStackerMode -> FilePath -> [FilePath] -> IO (Either String [FilePath])
+zereneStacker verbose mode outputBN imgs = do
+  logInfoIO ("Running Zerene Stacker with mode " ++ show mode)
   workdir <- makeAbsolute (outputBN ++ "_zerene-stacker.workdir")
   createDirectoryIfMissing True workdir
-  case zsChunkSettings opts of
-    NoChunks -> zereneStackerImgsNoChunks opts workdir outputBN imgs
-    _ -> zereneStackerChunked opts workdir outputBN imgs
+  case mode of
+    ZereneStackerDefault align -> zereneStackerImgsNoChunks verbose False False align workdir outputBN imgs
+    ZereneStackerHeadless align -> zereneStackerImgsNoChunks verbose True False align workdir outputBN imgs
+    ZereneStackerParallel -> zereneStackerImgsNoChunks verbose False True False workdir outputBN imgs
+    ZereneStackerChunked chunkSettings -> zereneStackerChunked verbose chunkSettings workdir outputBN imgs
+
 
 -- | Run a single pass of Zerene Stacker on a chunk of images, producing one output file.
 -- Used as the leaf function for resolveChunks.
-zereneChunkLeaf :: ZereneStackerActionOptions -> Maybe FilePath -> Maybe FilePath -> FilePath -> Imgs -> IO (Either String FilePath)
-zereneChunkLeaf opts pmaxOutput dmapOutput _outputBN imgs = do
+zereneChunkLeaf :: Bool -> Maybe FilePath -> Maybe FilePath -> FilePath -> Imgs -> IO (Either String FilePath)
+zereneChunkLeaf verbose pmaxOutput dmapOutput _outputBN imgs = do
   let workdir = takeDirectory _outputBN
   let outFile = case (pmaxOutput, dmapOutput) of
         (Just fp, _) -> fp
@@ -117,9 +89,9 @@ zereneChunkLeaf opts pmaxOutput dmapOutput _outputBN imgs = do
     else do
       let wrapperOpts =
             ZereneStackerOptions
-              { _Headless = zsHeadless opts,
+              { _Headless = False, 
                 _Wait = False,
-                _Verbose = zsVerbose opts,
+                _Verbose = verbose,
                 _Align = False, -- chunking only allowed when already aligned
                 _PMaxOutput = pmaxOutput,
                 _DMapOutput = dmapOutput,
@@ -130,8 +102,8 @@ zereneChunkLeaf opts pmaxOutput dmapOutput _outputBN imgs = do
 
 -- | Run Zerene Stacker with chunking support.
 -- Runs two passes: one for PMax, one for DMap.
-zereneStackerChunked :: ZereneStackerActionOptions -> FilePath -> FilePath -> [FilePath] -> IO (Either String [FilePath])
-zereneStackerChunked opts workdir outputBN imgs = do
+zereneStackerChunked :: Bool -> ChunkSettings -> FilePath -> FilePath -> [FilePath] -> IO (Either String [FilePath])
+zereneStackerChunked verbose chunkSettings workdir outputBN imgs = do
   pmaxOutput' <- makeAbsolute (outputBN ++ "_zerene-PMax-Chunked.tif")
   dmapOutput' <- makeAbsolute (outputBN ++ "_zerene-DMap-Chunked.tif")
 
@@ -146,7 +118,7 @@ zereneStackerChunked opts workdir outputBN imgs = do
   let numThreads = max 1 (ceiling (fromIntegral numCapabilities / numThreadsFactor :: Double))
   sem <- MS.new numThreads
 
-  let chunks = mkChunks (zsChunkSettings opts) imgs
+  let chunks = mkChunks chunkSettings imgs
   logInfoIO ("Zerene Stacker chunked: " ++ showChunkTree chunks)
 
   -- Pass 1: PMax
@@ -158,7 +130,7 @@ zereneStackerChunked opts workdir outputBN imgs = do
         sem
         ( \bn' imgs' -> do
             let outFile = bn' ++ ".tif"
-            zereneChunkLeaf opts (Just outFile) Nothing bn' imgs'
+            zereneChunkLeaf verbose (Just outFile) Nothing bn' imgs'
         )
         pmaxBN
         chunks
@@ -179,7 +151,7 @@ zereneStackerChunked opts workdir outputBN imgs = do
         sem
         ( \bn' imgs' -> do
             let outFile = bn' ++ ".tif"
-            zereneChunkLeaf opts Nothing (Just outFile) bn' imgs'
+            zereneChunkLeaf verbose Nothing (Just outFile) bn' imgs'
         )
         dmapBN
         chunks
@@ -194,8 +166,8 @@ zereneStackerChunked opts workdir outputBN imgs = do
   return (Right (catMaybes [toResult pmaxOutput, toResult dmapOutput]))
 
 -- | Original non-chunked implementation.
-zereneStackerImgsNoChunks :: ZereneStackerActionOptions -> FilePath -> FilePath -> [FilePath] -> IO (Either String [FilePath])
-zereneStackerImgsNoChunks opts workdir outputBN imgs = do
+zereneStackerImgsNoChunks :: Bool -> Bool -> Bool -> Bool -> FilePath -> FilePath -> [FilePath] -> IO (Either String [FilePath])
+zereneStackerImgsNoChunks verbose parallel headless align workdir outputBN imgs = do
   pmaxOutput' <- makeAbsolute (outputBN ++ "_zerene-PMax.tif")
   dmapOutput' <- makeAbsolute (outputBN ++ "_zerene-DMap.tif")
 
@@ -204,10 +176,10 @@ zereneStackerImgsNoChunks opts workdir outputBN imgs = do
 
   let mkZerenStackerOptions pmax dmap =
         ZereneStackerOptions
-          { _Headless = zsHeadless opts,
+          { _Headless = headless,
             _Wait = False,
-            _Verbose = zsVerbose opts,
-            _Align = zsAlign opts,
+            _Verbose = verbose,
+            _Align = align,
             _PMaxOutput = pmax,
             _DMapOutput = dmap,
             _Cwd = Just workdir
@@ -217,7 +189,7 @@ zereneStackerImgsNoChunks opts workdir outputBN imgs = do
     then do
       logInfoIO ("Zerene Stacker outputs " ++ show pmaxOutput ++ " and " ++ show dmapOutput ++ " already exist, check that all aligned images are present")
     else
-      if zsParallel opts
+      if parallel
         then do
           let runPMax =
                 if isTodo pmaxOutput

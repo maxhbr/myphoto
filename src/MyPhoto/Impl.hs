@@ -32,7 +32,7 @@ import MyPhoto.Actions.Outliers
 import MyPhoto.Actions.UnHeif
 import MyPhoto.Actions.UnRAW
 import MyPhoto.Actions.UnTiff
-import MyPhoto.Actions.ZereneStacker (ZereneStackerActionOptions (..), zereneStacker)
+import MyPhoto.Actions.ZereneStacker (ZereneStackerMode (..), zereneStacker)
 import MyPhoto.Model
 import MyPhoto.Monad
 import MyPhoto.Video
@@ -362,15 +362,13 @@ runZereneStacker align imgs = step "focus stacking with Zerene Stacker" $ do
           else optZereneStackerChunkSettings opts
   when (align && optZereneStackerChunkSettings opts /= NoChunks) $
     logWarn "Zerene Stacker chunking disabled: images are not pre-aligned"
-  let zsOpts =
-        ZereneStackerActionOptions
-          { zsVerbose = optVerbose opts,
-            zsHeadless = optZereneStackerHeadless opts,
-            zsParallel = optZereneStackerParallel opts,
-            zsAlign = align,
-            zsChunkSettings = chunkSettings
-          }
-  zereneStackerResult <- MTL.liftIO $ zereneStacker zsOpts outputBN imgs
+  let zsMode =
+        case (optZereneStackerHeadless opts, optZereneStackerParallel opts, optZereneStackerChunkSettings opts) of
+          (_, True, NoChunks) -> ZereneStackerParallel
+          (True, _, NoChunks) -> ZereneStackerHeadless align
+          (_, _, NoChunks) -> ZereneStackerDefault align
+          (_, _, chunkSettings) -> ZereneStackerChunked chunkSettings
+  zereneStackerResult <- MTL.liftIO $ zereneStacker (optVerbose opts) zsMode outputBN imgs
   case zereneStackerResult of
     Left err -> fail err
     Right zereneStackerOuts -> do
