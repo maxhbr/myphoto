@@ -7,87 +7,70 @@ import MyPhoto.Model
 import MyPhoto.Utils.ProgressBar (Progress (..), ProgressBar, incProgress, newProgressBarDefault)
 import System.Process (CreateProcess (..), StdStream (..), createProcess, proc, waitForProcess)
 
-data Chunks
-  = Chunk Imgs
-  | Chunks [Chunks]
+data (Show a, Eq a) => ChunkingResult a = ChunkingResult a [ChunkingResult a]
   deriving (Show, Eq)
 
-countChunks :: Chunks -> Int
-countChunks (Chunk imgs) = 1
+getCurrentsFromChunkingResults :: [ChunkingResult a] -> [a]
+getCurrentsFromChunkingResults = map (\(ChunkingResult a _) -> a)
+
+data (Show a, Eq a) => Chunks a
+  = Chunk [ChunkingResult a]
+  | Chunks [Chunks a]
+  deriving (Show, Eq)
+
+toChunk :: [a] -> Chunks a
+toChunk as = Chunk (map (`ChunkingResult` []) as)
+
+countChunks :: Chunks a -> Int
+countChunks (Chunk _) = 1
 countChunks (Chunks chunks) = 1 + sum (map countChunks chunks)
 
-showChunkTree :: Chunks -> String
+showChunkTree :: Chunks a -> String
 showChunkTree (Chunk imgs) = show (length imgs)
 showChunkTree (Chunks chunks) = show (length chunks) ++ " [" ++ (unwords (map showChunkTree chunks)) ++ "]"
 
-linearizeChunks :: Chunks -> Imgs
-linearizeChunks (Chunk imgs) = imgs
+
+linearizeChunkingResults :: [ChunkingResult a] -> [a]
+linearizeChunkingResults [] = []
+linearizeChunkingResults (ChunkingResult a subResults : rest) =
+  a : (linearizeChunkingResults subResults ++ linearizeChunkingResults rest)
+
+linearizeChunks :: Chunks a -> [a]
+linearizeChunks (Chunk crs) = linearizeChunkingResults crs
 linearizeChunks (Chunks chunks) = concatMap linearizeChunks chunks
 
-resolveChunks' :: ProgressBar () -> MS.MSem Int -> (FilePath -> Imgs -> IO (Either String Img)) -> FilePath -> Chunks -> IO (Either String Img)
-resolveChunks' pb sem f bn (Chunk imgs) = MS.with sem $ do
-  ret <- f bn imgs
-  incProgress pb 1
-  return ret
-resolveChunks' pb sem f bn (Chunks chunks) = do
-  let chunkSize = length chunks
-  let chunkBn = \i -> bn ++ "_chunk" ++ show i ++ "of" ++ show chunkSize
-  results <- mapConcurrently (\(i, c) -> resolveChunks' pb sem f (chunkBn i) c) (zip [1 ..] chunks)
-  let foldResults :: Either String [FilePath] -> Either String FilePath -> Either String [FilePath]
-      foldResults (Left err1) (Left err2) = Left (unlines [err1, err2])
-      foldResults r1@(Left _) _ = r1
-      foldResults (Right imgs1) (Right img) = Right (imgs1 ++ [img])
-      foldResults _ r2@(Left e) = Left e
-  let result = foldl foldResults (Right []) results
-  case result of
-    Right imgs -> resolveChunks' pb sem f bn (Chunk imgs)
-    Left err -> return (Left err)
-
--- | Like 'resolveChunks'' but also collects the intermediate chunk images
--- at each merge level.
-resolveChunksCollecting' :: ProgressBar () -> MS.MSem Int -> (FilePath -> Imgs -> IO (Either String Img)) -> FilePath -> Chunks -> IO (Either String (Img, Imgs))
-resolveChunksCollecting' pb sem f bn (Chunk imgs) = MS.with sem $ do
-  ret <- f bn imgs
+resolveChunksCollecting' :: ProgressBar () -> MS.MSem Int -> (FilePath -> [a] -> IO (Either String a)) -> FilePath -> Chunks a -> IO (Either String (ChunkingResult a))
+resolveChunksCollecting' pb sem f bn (Chunk inputs) = MS.with sem $ do
+  let currents = getCurrentsFromChunkingResults inputs
+  ret <- f bn currents
   incProgress pb 1
   return $ case ret of
-    Right img -> Right (img, [])
+    Right a -> Right (ChunkingResult a inputs)
     Left err -> Left err
 resolveChunksCollecting' pb sem f bn (Chunks chunks) = do
   let chunkSize = length chunks
   let chunkBn = \i -> bn ++ "_chunk" ++ show i ++ "of" ++ show chunkSize
   results <- mapConcurrently (\(i, c) -> resolveChunksCollecting' pb sem f (chunkBn i) c) (zip [1 ..] chunks)
-  let foldResults :: Either String ([FilePath], Imgs) -> Either String (FilePath, Imgs) -> Either String ([FilePath], Imgs)
+  let foldResults :: Either String [ChunkingResult a] -> Either String (ChunkingResult a) -> Either String [ChunkingResult a]
       foldResults (Left err1) (Left err2) = Left (unlines [err1, err2])
       foldResults r1@(Left _) _ = r1
-      foldResults (Right (imgs1, intermediates1)) (Right (img, intermediates2)) = Right (imgs1 ++ [img], intermediates1 ++ intermediates2)
+      foldResults (Right crs) (Right cr) = Right (crs ++ [cr])
       foldResults _ (Left e) = Left e
-  let result = foldl foldResults (Right ([], [])) results
+  let result = foldl foldResults (Right []) results
   case result of
-    Right (imgs, subIntermediates) -> do
-      mergeResult <- resolveChunksCollecting' pb sem f bn (Chunk imgs)
-      return $ case mergeResult of
-        Right (finalImg, _) -> Right (finalImg, subIntermediates ++ imgs)
-        Left err -> Left err
+    Right crs -> resolveChunksCollecting' pb sem f bn (Chunk crs)
     Left err -> return (Left err)
 
-resolveChunks :: MS.MSem Int -> (FilePath -> Imgs -> IO (Either String Img)) -> FilePath -> Chunks -> IO (Either String Img)
-resolveChunks sem f bn chunks = do
-  pb <- newProgressBarDefault (Progress 0 (countChunks chunks) ())
-  resolveChunks' pb sem f bn chunks
-
--- | Resolve chunks and return the final image along with all intermediate
--- chunk images produced during merging.  When more than one intermediate
--- exists, a multilayer TIFF is automatically saved at the given path
--- containing the intermediates with the final result on top.
-resolveChunksAndSaveLayersTiff :: MS.MSem Int -> (FilePath -> Imgs -> IO (Either String Img)) -> FilePath -> Chunks -> FilePath -> IO (Either String Img)
+resolveChunksAndSaveLayersTiff :: MS.MSem Int -> (FilePath -> [a] -> IO (Either String a)) -> FilePath -> Chunks a -> FilePath -> IO (Either String a)
 resolveChunksAndSaveLayersTiff sem f bn chunks layersTiffPath = do
   pb <- newProgressBarDefault (Progress 0 (countChunks chunks) ())
   result <- resolveChunksCollecting' pb sem f bn chunks
   case result of
-    Right (finalImg, intermediates) -> do
-      when (length intermediates >= 2) $
-        saveLayersTiff layersTiffPath (intermediates ++ [finalImg])
-      return (Right finalImg)
+    Right crs@(ChunkingResult final _) -> do
+      -- let intermediates = linearizeChunkingResults [crs]
+      -- when (length intermediates >= 2) $
+      --   saveLayersTiff layersTiffPath intermediates
+      return (Right final)
     Left err -> return (Left err)
 
 saveLayersTiff :: FilePath -> Imgs -> IO ()
@@ -122,21 +105,21 @@ mkSparseBuckets' runningIndex bucketCount imgs@(img : imgs') acc =
           let (before, curBucket : after) = splitAt bucket acc
            in mkSparseBuckets' (runningIndex + 1) bucketCount imgs' (before ++ [(curBucket ++ [img])] ++ after)
 
-mkSparseBuckets :: Int -> [a] -> [[a]]
+mkSparseBuckets :: Int -> [a] -> [[ChunkingResult a]]
 mkSparseBuckets chunkSize imgs =
   let bucketCount = (length imgs + chunkSize - 1) `div` chunkSize
-   in if chunkSize >= length imgs
-        then [imgs]
-        else mkSparseBuckets' 0 bucketCount imgs []
+   in map (map (`ChunkingResult` [])) $ if chunkSize >= length imgs
+                                          then [imgs]
+                                          else mkSparseBuckets' 0 bucketCount imgs []
 
-mkChunks' :: Int -> [a] -> [[a]]
+mkChunks' :: Int -> [ChunkingResult a] -> [[ChunkingResult a]]
 mkChunks' _ [] = []
-mkChunks' chunkSize imgs =
-  if chunkSize >= length imgs
-    then [imgs]
-    else joinLastTwoChunksIfNeeded chunkSize (chunksOf chunkSize imgs)
+mkChunks' chunkSize crs =
+    if chunkSize >= length crs
+      then [crs]
+      else joinLastTwoChunksIfNeeded chunkSize (chunksOf chunkSize crs)
 
-chunkChunks :: Int -> [Chunks] -> Chunks
+chunkChunks :: Int -> [Chunks a] -> Chunks a
 chunkChunks chunkSize chunks =
   if length chunks <= chunkSize
     then Chunks chunks
@@ -144,20 +127,21 @@ chunkChunks chunkSize chunks =
       let chunks' = mkChunks' chunkSize chunks
        in chunkChunks chunkSize (map Chunks chunks')
 
-mkChunks :: ChunkSettings -> Imgs -> Chunks
-mkChunks NoChunks imgs = Chunk imgs
+mkChunks :: ChunkSettings -> [a] -> Chunks a
+mkChunks NoChunks as = toChunk as
 mkChunks (SparseChunksOfSize chunkSize) imgs =
   let imgBuckets = mkSparseBuckets chunkSize imgs
    in chunkChunks chunkSize (map Chunk imgBuckets)
 mkChunks (ChunkSize chunkSize) imgs =
-  let imgChunks = mkChunks' chunkSize imgs
+  let imgChunks = mkChunks' chunkSize (map (`ChunkingResult` []) imgs)
    in chunkChunks chunkSize (map Chunk imgChunks)
-mkChunks (ChunkTreeHeight h) imgs
-  | h <= 1 = Chunk imgs
-  | length imgs <= 1 = Chunk imgs
+mkChunks (ChunkTreeHeight h) as 
+  | h <= 1 = toChunk as
+  | length as <= 1 = toChunk as
   | otherwise =
-      let n = length imgs
+      let n = length as
           b = ceiling (fromIntegral n ** (1.0 / fromIntegral h) :: Double)
           chunkSize = max 2 b
-          imgChunks = mkChunks' chunkSize imgs
-       in Chunks (map (\chunk -> mkChunks (ChunkTreeHeight (h - 1)) chunk) imgChunks)
+          imgChunks = mkChunks' chunkSize (map (`ChunkingResult` []) as)
+          unpackedImgChunks = map linearizeChunkingResults imgChunks
+       in Chunks (map (\chunk -> mkChunks (ChunkTreeHeight (h - 1)) chunk) unpackedImgChunks)

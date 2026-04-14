@@ -24,12 +24,6 @@ data ZereneStackerMode
 instance Default ZereneStackerMode where
   def = ZereneStackerDefault False
 
-shouldAlign :: ZereneStackerMode -> Bool
-shouldAlign (ZereneStackerHeadless align) = align
-shouldAlign ZereneStackerParallel = False
-shouldAlign (ZereneStackerChunked _) = False
-shouldAlign (ZereneStackerDefault align) = align
-
 data ZereneStackerImagePlan
   = Planned FilePath
   | Done FilePath
@@ -68,7 +62,7 @@ zereneStacker verbose mode outputBN imgs = do
   case mode of
     ZereneStackerDefault align -> zereneStackerImgsNoChunks verbose False False align workdir outputBN imgs
     ZereneStackerHeadless align -> zereneStackerImgsNoChunks verbose True False align workdir outputBN imgs
-    ZereneStackerParallel -> zereneStackerImgsNoChunks verbose False True False workdir outputBN imgs
+    ZereneStackerParallel -> zereneStackerImgsNoChunks verbose True False False workdir outputBN imgs
     ZereneStackerChunked chunkSettings -> zereneStackerChunked verbose chunkSettings workdir outputBN imgs
 
 
@@ -78,8 +72,8 @@ zereneChunkLeaf :: Bool -> Maybe FilePath -> Maybe FilePath -> FilePath -> Imgs 
 zereneChunkLeaf verbose pmaxOutput dmapOutput _outputBN imgs = do
   let workdir = takeDirectory _outputBN
   let outFile = case (pmaxOutput, dmapOutput) of
-        (Just fp, _) -> fp
-        (_, Just fp) -> fp
+        (Just fp, Nothing) -> fp
+        (Nothing, Just fp) -> fp
         _ -> error "zereneChunkLeaf: no output specified"
   outFileExists <- doesFileExist outFile
   if outFileExists
@@ -92,7 +86,7 @@ zereneChunkLeaf verbose pmaxOutput dmapOutput _outputBN imgs = do
               { _Headless = False, 
                 _Wait = False,
                 _Verbose = verbose,
-                _Align = False, -- chunking only allowed when already aligned
+                _Align = False,
                 _PMaxOutput = pmaxOutput,
                 _DMapOutput = dmapOutput,
                 _Cwd = Just workdir
