@@ -90,9 +90,8 @@ enfuseStackImgs =
             logDebugIO "##### resolve Chunks ..."
             let (bn, ext) = splitExtensions (takeFileName outFile)
             let bnInWorkdir = workdir </> bn
-            let layersTiff = outFile -<.> "layers.tif"
             result <-
-              resolveChunksAndSaveLayersTiff
+              resolveChunks
                 sem
                 ( \bn' imgs' -> do
                     let outFile' = bn' <.> ext
@@ -100,7 +99,6 @@ enfuseStackImgs =
                 )
                 bnInWorkdir
                 chunks
-                layersTiff
 
             case result of
               Right generatedInWorkdir -> do

@@ -60,8 +60,8 @@ resolveChunksCollecting' pb sem f bn (Chunks chunks) = do
     Right crs -> resolveChunksCollecting' pb sem f bn (Chunk crs)
     Left err -> return (Left err)
 
-resolveChunksAndSaveLayersTiff :: MS.MSem Int -> (FilePath -> [a] -> IO (Either String a)) -> FilePath -> Chunks a -> FilePath -> IO (Either String a)
-resolveChunksAndSaveLayersTiff sem f bn chunks layersTiffPath = do
+resolveChunks :: MS.MSem Int -> (FilePath -> [a] -> IO (Either String a)) -> FilePath -> Chunks a -> IO (Either String a)
+resolveChunks sem f bn chunks = do
   pb <- newProgressBarDefault (Progress 0 (countChunks chunks) ())
   result <- resolveChunksCollecting' pb sem f bn chunks
   case result of

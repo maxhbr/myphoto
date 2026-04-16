@@ -15,6 +15,7 @@ module MyPhoto.Model
     ExportStrategy (..),
     CleanupStrategy (..),
     ChunkSettings (..),
+    showBreadcrumb,
     Options (..),
     GcpConfig (..),
     inWorkdir,
@@ -94,6 +95,12 @@ data ChunkSettings
   | ChunkTreeHeight Int
   | NoChunks
   deriving (Show, Eq)
+
+showBreadcrumb :: ChunkSettings -> String
+showBreadcrumb (ChunkSize n) = "-C" ++ show n
+showBreadcrumb (SparseChunksOfSize n) = "-SC" ++ show n
+showBreadcrumb (ChunkTreeHeight n) = "-CTH" ++ show n
+showBreadcrumb NoChunks = ""
 
 instance Default ChunkSettings where
   def = ChunkSize 8
