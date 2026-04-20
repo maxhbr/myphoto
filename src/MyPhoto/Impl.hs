@@ -546,14 +546,27 @@ runStackStage =
             opts <- getOpts
             if (optFocusStack opts || optEnfuse opts)
               then do
-                aligned <- do
+                -- Produce the image list that feeds enfuse / Zerene. If
+                -- focus-stack runs, its aligned frames are the byproduct we
+                -- want (unless alignment is disabled); otherwise we either
+                -- align with hugin or pass the originals through.
+                downstreamImgs <-
                   if optFocusStack opts
-                    then runFocusStack
-                    else runHuginAlign
-                guardWithOpts optEnfuse $ runEnfuse aligned
-                guardWithOpts optZereneStacker $ runZereneStacker False aligned
+                    then do
+                      focusStackAligned <- runFocusStack
+                      if optAlign opts
+                        then return focusStackAligned
+                        else do
+                          logWarn "discarding focus-stack aligned frames because --no-align was requested"
+                          getImgs
+                    else
+                      if optAlign opts
+                        then runHuginAlign
+                        else getImgs
+                guardWithOpts optEnfuse $ runEnfuse downstreamImgs
+                guardWithOpts optZereneStacker $ runZereneStacker False downstreamImgs
               else do
-                guardWithOpts optZereneStacker $ getImgs >>= runZereneStacker True
+                guardWithOpts optZereneStacker $ getImgs >>= runZereneStacker (optAlign opts)
 
         guardWithOpts optAlignOutputs alignOuts
         createMultilayerTiff

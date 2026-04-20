@@ -65,7 +65,6 @@ zereneStacker verbose mode outputBN imgs = do
     ZereneStackerParallel -> zereneStackerImgsNoChunks verbose True False False workdir outputBN imgs
     ZereneStackerChunked chunkSettings -> zereneStackerChunked verbose chunkSettings workdir outputBN imgs
 
-
 -- | Run a single pass of Zerene Stacker on a chunk of images, producing one output file.
 -- Used as the leaf function for resolveChunks.
 zereneChunkLeaf :: Bool -> Maybe FilePath -> Maybe FilePath -> FilePath -> Imgs -> IO (Either String FilePath)
@@ -83,7 +82,7 @@ zereneChunkLeaf verbose pmaxOutput dmapOutput _outputBN imgs = do
     else do
       let wrapperOpts =
             ZereneStackerOptions
-              { _Headless = False, 
+              { _Headless = False,
                 _Wait = False,
                 _Verbose = verbose,
                 _Align = False,

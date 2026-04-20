@@ -11,6 +11,7 @@
   "untiff": true,
   "unHeif": true,
   "downscalePct": 100,
+  "align": true,
   "focusStack": true,
   "enfuse": true,
   "enfuseChunkSettings": { "type": "ChunkSize", "size": 8 },

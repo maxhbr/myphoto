@@ -107,6 +107,7 @@ instance A.ToJSON Options where
         "untiff" A..= optUntiff,
         "unHeif" A..= optUnHeif,
         "downscalePct" A..= optDownscalePct,
+        "align" A..= optAlign,
         "focusStack" A..= optFocusStack,
         "enfuse" A..= optEnfuse,
         "enfuseChunkSettings" A..= optEnfuseChunkSettings,
@@ -136,6 +137,7 @@ instance A.FromJSON Options where
       <*> v A..:? "untiff" A..!= optUntiff d
       <*> v A..:? "unHeif" A..!= optUnHeif d
       <*> v A..:? "downscalePct" A..!= optDownscalePct d
+      <*> v A..:? "align" A..!= optAlign d
       <*> v A..:? "focusStack" A..!= optFocusStack d
       <*> v A..:? "enfuse" A..!= optEnfuse d
       <*> v A..:? "enfuseChunkSettings" A..!= optEnfuseChunkSettings d
@@ -209,6 +211,7 @@ applyOptionsOverrides obj base =
         . applyField "untiff" (\o v -> o {optUntiff = v})
         . applyField "unHeif" (\o v -> o {optUnHeif = v})
         . applyField "downscalePct" (\o v -> o {optDownscalePct = v})
+        . applyField "align" (\o v -> o {optAlign = v})
         . applyField "focusStack" (\o v -> o {optFocusStack = v})
         . applyField "enfuse" (\o v -> o {optEnfuse = v})
         . applyField "enfuseChunkSettings" (\o v -> o {optEnfuseChunkSettings = v})

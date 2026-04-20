@@ -181,6 +181,21 @@ options =
           "PCT"
       )
       "Downscale images to PCT percent (default 100)",
+    -- alignment
+    Option
+      ""
+      ["align"]
+      ( NoArg
+          (\opt -> return opt {optAlign = True})
+      )
+      "Align images before stacking (default)",
+    Option
+      ""
+      ["no-align"]
+      ( NoArg
+          (\opt -> return opt {optAlign = False})
+      )
+      "Do not align images (skip hugin alignment and discard focus-stack's aligned frames)",
     -- focus stack
     Option
       ""
