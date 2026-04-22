@@ -398,6 +398,38 @@ options =
       "Do not run Zerene Stacker (default)",
     Option
       ""
+      ["global-chunk-size"]
+      ( ReqArg
+          ( \arg opt ->
+              return
+                opt
+                  { optGlobalChunking = case read arg :: Int of
+                      0 -> Nothing
+                      1 -> Nothing
+                      n -> Just (ChunkSize n)
+                  }
+          )
+          "N"
+      )
+      "Chunk size for all stages (overrides individual chunk settings)",
+    Option
+      ""
+      ["global-chunk-tree-height"]
+      ( ReqArg
+          ( \arg opt ->
+              return
+                opt
+                  { optGlobalChunking = case read arg :: Int of
+                      0 -> Nothing
+                      1 -> Nothing
+                      n -> Just (ChunkTreeHeight n)
+                  }
+          )
+          "N"
+      )
+      "Tree height for all stages chunking (number of hierarchical merge levels, overrides individual chunk settings)",
+    Option
+      ""
       ["only-import"]
       ( NoArg
           (\opt -> return opt {optFocusStack = False, optEnfuse = False})

@@ -33,6 +33,7 @@ import MyPhoto.Actions.UnHeif
 import MyPhoto.Actions.UnRAW
 import MyPhoto.Actions.UnTiff
 import MyPhoto.Actions.ZereneStacker (ZereneStackerMode (..), zereneStacker)
+import MyPhoto.Utils.Chunking
 import MyPhoto.Model
 import MyPhoto.Monad
 import MyPhoto.Video
@@ -482,6 +483,7 @@ maybeClean = do
         fail "cannot clean workdir when not exporting"
       logInfo $ "cleaning up work directory " ++ wd
       MTL.liftIO $ removeDirectoryRecursive wd
+    SomeCleanup -> undefined -- todo
 
 mkStage :: MyPhotoM a -> MyPhotoState -> IO (a, MyPhotoState)
 mkStage stage startState =
@@ -565,9 +567,13 @@ runStackStage =
                         else getImgs
                 guardWithOpts optEnfuse $ runEnfuse downstreamImgs
                 guardWithOpts optZereneStacker $ runZereneStacker False downstreamImgs
+
+                guardWithOpts (\opts -> optGlobalChunking opts /= Nothing) $ do
+                  outs <- runGlobalChunking downstreamImgs
+                  addOuts outs 
               else do
                 guardWithOpts optZereneStacker $ getImgs >>= runZereneStacker (optAlign opts)
-
+        
         guardWithOpts optAlignOutputs alignOuts
         createMultilayerTiff
         maybeExport
@@ -576,3 +582,30 @@ runStackStage =
         logTimeSinceStart "finished stateFun"
         closeLogFile
     )
+
+
+
+-- This applies chunking to the whole set of images.
+-- It creates a tree of chunks as described in Chunking.hs
+-- for every Chunk applies `runStackStage` (or a subset of it) to compute potentially multiple outpus per chunk (as described in the options in the state)
+-- for every set of outputs, it stacks them with every algorithm 
+runGlobalChunking :: Imgs -> MyPhotoM [FilePath]
+runGlobalChunking imgs = do
+  opts <- getOpts
+  let Just chunkSettings = optGlobalChunking opts
+  let chunks =  mkChunks chunkSettings imgs
+      chunkTree = showChunkTree chunks
+  logInfo $ "chunking tree:\n" ++ chunkTree
+  resolveGlobalChunkingChunk chunks
+
+
+
+resolveGlobalChunkingChunk :: Chunks Img -> MyPhotoM [FilePath]
+resolveGlobalChunkingChunk (Chunk chunk) = do
+  logInfo $ "resolving chunk of lenth: " ++ show (length chunk)
+  
+  undefined
+resolveGlobalChunkingChunk (Chunks chunks) = do
+  logInfo $ "resolving chunks of length: " ++ show (length chunks)
+  resolvedChunks <- mapM resolveGlobalChunkingChunk chunks
+  undefined

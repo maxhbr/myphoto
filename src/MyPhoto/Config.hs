@@ -115,8 +115,9 @@ instance A.ToJSON Options where
         "zereneStackerHeadless" A..= optZereneStackerHeadless,
         "zereneStackerParallel" A..= optZereneStackerParallel,
         "zereneStackerChunkSettings" A..= optZereneStackerChunkSettings,
-        "noGpu" A..= optNoGpu,
         "alignOutputs" A..= optAlignOutputs,
+        "globalChunking" A..= optGlobalChunking,
+        "noGpu" A..= optNoGpu,
         "cropToCommonIntersectionFuzz" A..= optCropToCommonIntersectionFuzz,
         "parameters" A..= optParameters
       ]
@@ -146,6 +147,7 @@ instance A.FromJSON Options where
       <*> v A..:? "zereneStackerParallel" A..!= optZereneStackerParallel d
       <*> v A..:? "zereneStackerChunkSettings" A..!= optZereneStackerChunkSettings d
       <*> v A..:? "alignOutputs" A..!= optAlignOutputs d
+      <*> v A..:? "globalChunking" A..!= optGlobalChunking d
       <*> v A..:? "noGpu" A..!= optNoGpu d
       <*> v A..:? "cropToCommonIntersectionFuzz" A..!= optCropToCommonIntersectionFuzz d
       <*> v A..:? "parameters" A..!= optParameters d
@@ -219,6 +221,8 @@ applyOptionsOverrides obj base =
         . applyField "zereneStackerHeadless" (\o v -> o {optZereneStackerHeadless = v})
         . applyField "zereneStackerParallel" (\o v -> o {optZereneStackerParallel = v})
         . applyField "zereneStackerChunkSettings" (\o v -> o {optZereneStackerChunkSettings = v})
+        . applyField "alignOutputs" (\o v -> o {optAlignOutputs = v})
+        . applyField "globalChunking" (\o v -> o {optGlobalChunking = v})
         . applyField "noGpu" (\o v -> o {optNoGpu = v})
         . applyField "cropToCommonIntersectionFuzz" (\o v -> o {optCropToCommonIntersectionFuzz = v})
         . applyField "parameters" (\o v -> o {optParameters = v})
