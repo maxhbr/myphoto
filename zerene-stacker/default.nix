@@ -171,11 +171,11 @@ in
 {
   zerene-stacker = pkgs.stdenv.mkDerivation rec {
     pname = "zerene-stacker";
-    version = "2026-02-27-1525";
+    version = "2026-05-04-0750";
 
     src = pkgs.fetchurl {
       url = "https://zerenesystems.com/stacker/downloads/ZS-Linux-Intel-64bit-T${version}.zip";
-      sha256 = "0fpagmnk8ckxcbwar97lfzcps3wksccrzw212bh6xdynbwpppsrc";
+      sha256 = "0za5cmlplfj5xy8hyny3qc8gygixdk1cmcwl9xlmzl7wxrn8fh1x";
     };
 
     nativeBuildInputs = with pkgs; [
