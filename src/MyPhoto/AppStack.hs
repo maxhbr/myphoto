@@ -196,6 +196,13 @@ options =
           (\opt -> return opt {optAlign = False})
       )
       "Do not align images (skip hugin alignment and discard focus-stack's aligned frames)",
+    Option
+      ""
+      ["verbatim"]
+      ( NoArg
+          (\opt -> return opt {optAlign = False, optRemoveOutliers = False, optFocusStack = False, optBreaking = Nothing})
+      )
+      "take images as-is",
     -- focus stack
     Option
       ""
