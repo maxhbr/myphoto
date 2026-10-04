@@ -209,14 +209,14 @@
           let
             XKB_CONFIG_ROOT = "/usr/share/X11/xkb";
             XKB_BIN_DIR = "/usr/bin";
-            XORG_FONT_PATH = "${pkgs.xorg.fontmiscmisc}/share/fonts/X11/misc,${pkgs.dejavu_fonts}/share/fonts/truetype";
-            XORG_PREFIX = "${pkgs.xorg.xorgserver}";
+            XORG_FONT_PATH = "${pkgs.font-misc-misc}/share/fonts/X11/misc,${pkgs.dejavu_fonts}/share/fonts/truetype";
+            XORG_PREFIX = "${pkgs.xorg-server}";
             # mk_screenshots = ''
             #   make_xwd_screenshots() (
             #     set +x
             #     mkdir -p /output/_xwd
             #     while : ; do
-            #       ${pkgs.xorg.xwd}/bin/xwd -root -display $DISPLAY -silent -out /output/screenshot.xwd
+            #       ${pkgs.xwd}/bin/xwd -root -display $DISPLAY -silent -out /output/screenshot.xwd
             #       ${pkgs.coreutils}/bin/sleep 10
             #     done
             #   )
@@ -249,12 +249,12 @@
               pkgs.bash
               pkgs.coreutils
               pkgs.xkeyboard_config
-              pkgs.xorg.fontmiscmisc
+              pkgs.font-misc-misc
               pkgs.dejavu_fonts
-              pkgs.xorg.xauth
-              pkgs.xorg.xkbcomp
-              pkgs.xorg.xorgserver
-              pkgs.xorg.xwd
+              pkgs.xauth
+              pkgs.xkbcomp
+              pkgs.xorg-server
+              pkgs.xwd
             ];
             extraCommands = ''
               mkdir -p input
@@ -358,7 +358,7 @@
         pre-commit-check = inputs.git-hooks.lib.${system}.run {
           src = ./.;
           hooks = {
-            nixfmt-rfc-style.enable = true;
+            nixfmt.enable = true;
             shfmt.enable = false;
             shfmt.settings.simplify = true;
             # shellcheck.enable = true;

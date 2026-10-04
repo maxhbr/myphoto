@@ -139,19 +139,18 @@ let
       pkgs.coreutils
       pkgs.bash
       pkgs.xvfb-run
-      pkgs.xorg.xorgserver
-      pkgs.xorg.xkbcomp
-      pkgs.xkeyboard_config
-      pkgs.xorg.xkeyboardconfig
-      pkgs.xorg.fontmiscmisc
+      pkgs.xorg-server
+      pkgs.xkbcomp
+      pkgs.xkeyboard-config
+      pkgs.font-misc-misc
       pkgs.dejavu_fonts
       pkgs.fontconfig
     ];
     runtimeEnv = {
-      XKB_CONFIG_ROOT = "${pkgs.xkeyboard_config}/share/X11/xkb";
-      XKB_BIN_DIR = "${pkgs.xorg.xkbcomp}/bin";
-      XORG_FONT_PATH = "${pkgs.xorg.fontmiscmisc}/share/fonts/X11/misc,${pkgs.dejavu_fonts}/share/fonts/truetype";
-      XORG_PREFIX = "${pkgs.xorg.xorgserver}";
+      XKB_CONFIG_ROOT = "${pkgs.xkeyboard-config}/share/X11/xkb";
+      XKB_BIN_DIR = "${pkgs.xkbcomp}/bin";
+      XORG_FONT_PATH = "${pkgs.font-misc-misc}/share/fonts/X11/misc,${pkgs.dejavu_fonts}/share/fonts/truetype";
+      XORG_PREFIX = "${pkgs.xorg-server}";
     };
     text = ''
       #!${pkgs.stdenv.shell}
@@ -185,12 +184,12 @@ in
     ];
 
     buildInputs = with pkgs; [
-      xorg.libX11
-      xorg.libXext
-      xorg.libXi
-      xorg.libXrender
-      xorg.libXtst
-      xorg.libXxf86vm
+      libx11
+      libxext
+      libxi
+      libxrender
+      libxtst
+      libxxf86vm
       freetype
       fontconfig
       alsa-lib
